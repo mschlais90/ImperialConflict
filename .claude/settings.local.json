@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:imperialconflict.com)",
+      "WebFetch(domain:wiki.imperialconflict.com)",
+      "WebFetch(domain:www.angelfire.com)",
+      "WebFetch(domain:discourse.imperialconflict.com)",
+      "Bash(where godot:*)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/mschl/AppData/Local/**)",
+      "Read(//c/Users/mschl/scoop/**)",
+      "Bash(reg query:*)",
+      "Bash(ls /d/Godot*)",
+      "Bash(ls /c/Godot*)",
+      "Bash(ls \"/c/Users/mschl/Downloads/Godot\"*)",
+      "Bash(ls \"/c/Users/mschl/Desktop/Godot\"*)",
+      "Bash(powershell:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir -p \"/c/Users/mschl/Godot\")",
+      "Bash(unzip -o \"/c/Users/mschl/Downloads/Godot_v4.4.1-stable_win64.exe.zip\" -d \"/c/Users/mschl/Godot/\")",
+      "Bash(/c/Users/mschl/Godot/Godot_v4.4.1-stable_win64.exe:*)",
+      "Bash(tasklist)",
+      "Bash(taskkill /PID 4052 /F)",
+      "Bash(\"/c/Users/mschl/Godot/Godot_v4.4.1-stable_win64_console.exe\" --path \"C:/Users/mschl/Documents/Projects/ImperialConflict\" --rendering-method gl_compatibility)",
+      "Read(//dev/**)",
+      "Bash(jobs -l)",
+      "Bash(taskkill /F /IM \"Godot_v4.4.1-stable_win64_console.exe\")",
+      "Bash(taskkill /F /IM \"Godot_v4.4.1-stable_win64.exe\")",
+      "Bash(/c/Users/mschl/Godot/Godot_v4.4.1-stable_win64_console.exe:*)",
+      "Bash(kill %1)",
+      "Bash(wait)",
+      "Read(//tmp/**)",
+      "Bash(\"/c/Users/mschl/Godot/Godot_v4.4.1-stable_win64_console.exe\" --path \"C:/Users/mschl/Documents/Projects/ImperialConflict\" --import)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

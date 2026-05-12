@@ -1,0 +1,82 @@
+class_name UnitData
+## Static definitions for all unit types.
+
+const DEFS: Dictionary = {
+	"fighter": {
+		"name": "Fighter",
+		"cost": {"gc": 50, "iron": 5, "endurium": 1},
+		"build_ticks": 3,
+		"ground_attack": 0,
+		"ground_defense": 4,
+		"air_attack": 10,
+		"air_defense": 10,
+		"networth": 3,
+		"consumes_food": true,
+		"description": "Air superiority unit.",
+	},
+	"bomber": {
+		"name": "Bomber",
+		"cost": {"gc": 80, "iron": 8, "endurium": 2},
+		"build_ticks": 4,
+		"ground_attack": 10,
+		"ground_defense": 0,
+		"air_attack": 0,
+		"air_defense": 2,
+		"networth": 5,
+		"consumes_food": true,
+		"description": "Ground attack from air. Targets lasers.",
+	},
+	"soldier": {
+		"name": "Soldier",
+		"cost": {"gc": 30, "iron": 2},
+		"build_ticks": 2,
+		"ground_attack": 5,
+		"ground_defense": 6,
+		"air_attack": 0,
+		"air_defense": 0,
+		"networth": 1,
+		"consumes_food": true,
+		"description": "Basic ground combat unit.",
+	},
+	"droid": {
+		"name": "Droid",
+		"cost": {"gc": 40, "iron": 5, "endurium": 1},
+		"build_ticks": 3,
+		"ground_attack": 6,
+		"ground_defense": 7,
+		"air_attack": 0,
+		"air_defense": 0,
+		"networth": 1,
+		"consumes_food": false,
+		"description": "Advanced ground unit. Does not consume food.",
+	},
+	"transport": {
+		"name": "Transport",
+		"cost": {"gc": 60, "iron": 10, "endurium": 2},
+		"build_ticks": 3,
+		"ground_attack": 0,
+		"ground_defense": 5,
+		"air_attack": 0,
+		"air_defense": 5,
+		"networth": 6,
+		"consumes_food": true,
+		"capacity": 100,
+		"description": "Carries up to 100 soldiers or droids.",
+	},
+	"explorer": {
+		"name": "Explorer Ship",
+		"cost": {"gc": 10000},
+		"build_ticks": 20,
+		"ground_attack": 0,
+		"ground_defense": 0,
+		"air_attack": 0,
+		"air_defense": 0,
+		"networth": 10,
+		"consumes_food": false,
+		"description": "Colonizes unowned planets. Built via build queue.",
+	},
+}
+
+
+static func get_def(type: String) -> Dictionary:
+	return DEFS.get(type, {})

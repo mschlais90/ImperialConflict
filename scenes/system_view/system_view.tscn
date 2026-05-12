@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://csysview001"]
+
+[ext_resource type="Script" path="res://scenes/system_view/system_view.gd" id="1_sysview"]
+
+[node name="SystemView" type="CanvasLayer"]
+script = ExtResource("1_sysview")
