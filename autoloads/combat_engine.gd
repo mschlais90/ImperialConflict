@@ -4,6 +4,24 @@ extends Node
 
 func resolve_battle(attacker_fleet: Fleet, defender_planet: Planet) -> Dictionary:
 	## Returns a combat report dictionary with phase results and outcome.
+
+	# Portal defense pooling: if the defending planet has a portal,
+	# pull all combat units from other portalled planets to reinforce it.
+	var portal_donors: Array[Planet] = []
+	if defender_planet.has_portal:
+		var defender_planets := GalaxyData.get_planets_for_empire(defender_planet.owner_id)
+		for p in defender_planets:
+			if p.id == defender_planet.id:
+				continue
+			if not p.has_portal:
+				continue
+			portal_donors.append(p)
+			for unit_type: String in ["fighter", "bomber", "soldier", "droid", "transport"]:
+				var count: int = p.units.get(unit_type, 0)
+				if count > 0:
+					defender_planet.units[unit_type] = defender_planet.units.get(unit_type, 0) + count
+					p.units[unit_type] = 0
+
 	var report := {
 		"attacker_id": attacker_fleet.owner_id,
 		"defender_id": defender_planet.owner_id,
@@ -31,10 +49,16 @@ func resolve_battle(attacker_fleet: Fleet, defender_planet: Planet) -> Dictionar
 	var phase1 := _phase_air_vs_ground(atk, def_lasers)
 	report["phases"].append(phase1)
 	def_lasers = phase1["remaining_lasers"]
+	# Ground troops in destroyed transports don't survive
+	var stranded1 := _kill_stranded_ground(atk)
+	phase1["ground_lost_to_transports"] = stranded1
 
 	# --- Phase 2: Air vs Air (Fighters) ---
-	var phase2 := _phase_air_vs_air(atk, def_units)
+	var phase2 := _phase_air_vs_air(atk, def_units, atk_mil_bonus, def_mil_bonus)
 	report["phases"].append(phase2)
+	# Ground troops in destroyed transports don't survive
+	var stranded2 := _kill_stranded_ground(atk)
+	phase2["ground_lost_to_transports"] = stranded2
 
 	# --- Phase 3: Ground vs Ground (with military science bonuses) ---
 	var phase3 := _phase_ground_vs_ground(atk, def_units, atk_mil_bonus, def_mil_bonus)
@@ -44,7 +68,7 @@ func resolve_battle(attacker_fleet: Fleet, defender_planet: Planet) -> Dictionar
 
 	# Apply results
 	if report["attacker_won"]:
-		# Transfer planet to attacker
+		# Transfer planet to attacker — defender's agents/wizards are lost
 		defender_planet.owner_id = attacker_fleet.owner_id
 		defender_planet.units = {
 			"fighter": atk.get("fighter", 0),
@@ -52,15 +76,21 @@ func resolve_battle(attacker_fleet: Fleet, defender_planet: Planet) -> Dictionar
 			"soldier": atk.get("soldier", 0),
 			"droid": atk.get("droid", 0),
 			"transport": atk.get("transport", 0),
+			"agent": 0,
+			"wizard": 0,
 		}
 	else:
-		# Defender keeps planet, update surviving units
+		# Defender keeps planet, update surviving combat units, preserve agents/wizards
+		var prev_agents: int = defender_planet.units.get("agent", 0)
+		var prev_wizards: int = defender_planet.units.get("wizard", 0)
 		defender_planet.units = {
 			"fighter": def_units.get("fighter", 0),
 			"bomber": def_units.get("bomber", 0),
 			"soldier": def_units.get("soldier", 0),
 			"droid": def_units.get("droid", 0),
 			"transport": def_units.get("transport", 0),
+			"agent": prev_agents,
+			"wizard": prev_wizards,
 		}
 
 	# Remove fleet from galaxy data
@@ -94,13 +124,14 @@ func _phase_air_vs_ground(atk: Dictionary, laser_count: int) -> Dictionary:
 			lasers_destroyed += 1
 			laser_count -= 1
 
-	# Surviving lasers shoot back: each kills 10 units (bombers + transports)
+	# Surviving lasers shoot back: each kills 10 units (transports first, then bombers)
 	var units_killed_by_lasers := laser_count * 10
+	var transports_lost := mini(transports, units_killed_by_lasers)
+	units_killed_by_lasers -= transports_lost
+	transports -= transports_lost
 	var bombers_lost := mini(bombers, units_killed_by_lasers)
 	units_killed_by_lasers -= bombers_lost
 	bombers -= bombers_lost
-	var transports_lost := mini(transports, units_killed_by_lasers)
-	transports -= transports_lost
 
 	atk["bomber"] = bombers
 	atk["transport"] = transports
@@ -114,8 +145,9 @@ func _phase_air_vs_ground(atk: Dictionary, laser_count: int) -> Dictionary:
 	}
 
 
-func _phase_air_vs_air(atk: Dictionary, def: Dictionary) -> Dictionary:
-	## Fighters engage. Max 30% losses on each side.
+func _phase_air_vs_air(atk: Dictionary, def: Dictionary, atk_mil_bonus: float = 1.0, def_mil_bonus: float = 1.0) -> Dictionary:
+	## Fighters engage using IC's formula: defenders fire first, then attackers
+	## fire back at reduced strength. Max 30% losses per side.
 	var atk_fighters: int = atk.get("fighter", 0)
 	var def_fighters: int = def.get("fighter", 0)
 
@@ -123,24 +155,30 @@ func _phase_air_vs_air(atk: Dictionary, def: Dictionary) -> Dictionary:
 	var def_fighters_lost := 0
 	var transports_lost := 0
 
-	if atk_fighters > 0 or def_fighters > 0:
-		var total := atk_fighters + def_fighters
-		if total > 0:
-			var atk_ratio := float(atk_fighters) / float(total)
-			var def_ratio := 1.0 - atk_ratio
+	if atk_fighters > 0 and def_fighters > 0:
+		var atk_pwr := 10.0 * atk_mil_bonus
+		var def_pwr := 10.0 * def_mil_bonus
 
-			# Losses proportional to opponent's strength, max 30%
-			atk_fighters_lost = mini(int(atk_fighters * def_ratio * 0.3), int(atk_fighters * 0.3))
-			def_fighters_lost = mini(int(def_fighters * atk_ratio * 0.3), int(def_fighters * 0.3))
+		# Defenders fire first — attacker losses
+		var var_x := (def_pwr * def_fighters) / (atk_pwr * atk_fighters) / 4.0
+		atk_fighters_lost = mini(int(minf(atk_fighters * var_x, atk_fighters) / 2.0), int(atk_fighters * 0.3))
+		atk_fighters -= atk_fighters_lost
 
-			atk_fighters -= atk_fighters_lost
+		# Attackers fire back at reduced strength
+		if atk_fighters > 0:
+			var var_y := (atk_pwr * atk_fighters) / (def_pwr * def_fighters) / 4.0
+			def_fighters_lost = mini(int(minf(def_fighters * var_y, def_fighters) / 2.0), int(def_fighters * 0.3))
 			def_fighters -= def_fighters_lost
 
-	# Surviving defending fighters attack transports (up to 100%)
-	if def_fighters > 0:
-		var transport_ratio := minf(float(def_fighters) / maxf(float(atk.get("transport", 0)), 1.0), 1.0)
-		transports_lost = int(atk.get("transport", 0) * transport_ratio)
-		atk["transport"] = atk.get("transport", 0) - transports_lost
+	# Surviving defending fighters try to break through to attack transports.
+	# Attacker fighters shield transports — defenders must outnumber the screen.
+	if def_fighters > 0 and atk.get("transport", 0) > 0:
+		var screen_factor := clampf(float(def_fighters) / maxf(float(atk_fighters), 1.0), 0.0, 1.0)
+		var effective_attackers := int(def_fighters * screen_factor)
+		if effective_attackers > 0:
+			var transport_ratio := minf(float(effective_attackers) / float(atk.get("transport", 0)), 1.0)
+			transports_lost = int(atk.get("transport", 0) * transport_ratio)
+			atk["transport"] = atk.get("transport", 0) - transports_lost
 
 	atk["fighter"] = atk_fighters
 	def["fighter"] = def_fighters
@@ -203,3 +241,26 @@ func _phase_ground_vs_ground(atk: Dictionary, def: Dictionary, atk_mil_bonus: fl
 		"def_soldiers_lost": def_soldiers_lost,
 		"def_droids_lost": def_droids_lost,
 	}
+
+
+func _kill_stranded_ground(atk: Dictionary) -> Dictionary:
+	## When transports are destroyed, ground troops exceeding remaining
+	## transport capacity are killed (they were aboard those transports).
+	var transport_capacity: int = atk.get("transport", 0) * 100
+	var soldiers: int = atk.get("soldier", 0)
+	var droids: int = atk.get("droid", 0)
+	var total_ground := soldiers + droids
+
+	var soldiers_killed := 0
+	var droids_killed := 0
+
+	if total_ground > transport_capacity:
+		var excess := total_ground - transport_capacity
+		# Kill proportionally between soldiers and droids
+		if total_ground > 0:
+			soldiers_killed = mini(int(float(excess) * float(soldiers) / float(total_ground) + 0.5), soldiers)
+			droids_killed = mini(excess - soldiers_killed, droids)
+		atk["soldier"] = soldiers - soldiers_killed
+		atk["droid"] = droids - droids_killed
+
+	return {"soldiers_killed": soldiers_killed, "droids_killed": droids_killed}

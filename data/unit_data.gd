@@ -75,6 +75,32 @@ const DEFS: Dictionary = {
 		"consumes_food": false,
 		"description": "Colonizes unowned planets. Built via build queue.",
 	},
+	"agent": {
+		"name": "Agent",
+		"cost": {"gc": 50, "iron": 5},
+		"build_ticks": 0,
+		"ground_attack": 0,
+		"ground_defense": 0,
+		"air_attack": 0,
+		"air_defense": 0,
+		"networth": 1,
+		"consumes_food": true,
+		"is_special": true,
+		"description": "Covert operative. Performs espionage and sabotage operations.",
+	},
+	"wizard": {
+		"name": "Wizard",
+		"cost": {"gc": 40, "octarine": 3},
+		"build_ticks": 0,
+		"ground_attack": 0,
+		"ground_defense": 0,
+		"air_attack": 0,
+		"air_defense": 0,
+		"networth": 1,
+		"consumes_food": false,
+		"is_special": true,
+		"description": "Magic caster. Performs spells using octarine.",
+	},
 }
 
 

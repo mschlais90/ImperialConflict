@@ -31,19 +31,27 @@ func _process_empire_tick(empire: Empire, _tick_number: int) -> void:
 	# 3. Resource decay (0.5% for food, iron, endurium, octarine)
 	_apply_resource_decay(empire)
 
-	# 4. Income
+	# 4. Food consumption and starvation
+	var food_consumed := _calculate_food_consumption(empire_planets)
+	var food_before: int = empire.resources.get("food", 0)
+	empire.resources["food"] = food_before - food_consumed
+	var is_starving: bool = empire.resources["food"] < 0
+	var food_deficit := 0
+	if is_starving:
+		food_deficit = -empire.resources["food"]
+		empire.resources["food"] = 0
+
+	# 5. Income (halved if starving)
 	var income := _calculate_income(empire, empire_planets)
+	if is_starving:
+		income = income / 2
 	empire.resources["gc"] += income
 
-	# 5. Food consumption
-	var food_consumed := _calculate_food_consumption(empire_planets)
-	empire.resources["food"] -= food_consumed
-	if empire.resources["food"] < 0:
-		empire.resources["food"] = 0
-		# Starvation: halve income next tick (simplified)
-
-	# 6. Population growth
-	_grow_population(empire, empire_planets)
+	# 6. Population growth (or starvation die-off)
+	if is_starving:
+		_starve_population(empire, empire_planets, food_deficit)
+	else:
+		_grow_population(empire, empire_planets)
 
 	# 7. Upkeep: 1gc per building + 1gc per unit
 	var upkeep := _calculate_upkeep(empire_planets)
@@ -53,6 +61,9 @@ func _process_empire_tick(empire: Empire, _tick_number: int) -> void:
 
 	# 8. Research generation
 	_generate_research(empire, empire_planets)
+
+	# 9. Tick down debuffs and restore portals
+	_tick_debuffs(empire)
 
 
 func _advance_fleets() -> void:
@@ -129,6 +140,13 @@ func _calculate_production(empire: Empire, empire_planets: Array[Planet]) -> voi
 	var resource_science := empire.get_science_percent("resources")
 	var resource_mult := 1.0 + resource_science / 100.0
 
+	# Calculate food debuff from reduced_food debuffs
+	var food_reduction := 0.0
+	for d in empire.debuffs:
+		if d["type"] == "reduced_food":
+			food_reduction += d["value"]
+	food_reduction = minf(food_reduction, 0.5)  # Cap at 50% reduction
+
 	for planet in empire_planets:
 		for building_type in planet.buildings:
 			var count: int = planet.buildings[building_type]
@@ -144,6 +162,9 @@ func _calculate_production(empire: Empire, empire_planets: Array[Planet]) -> voi
 				var base_amount: int = production[resource] * count
 				var bonus: float = planet.resource_bonuses.get(resource, 1.0)
 				var amount := int(base_amount * bonus * resource_mult)
+				# Apply food debuff
+				if resource == "food" and food_reduction > 0.0:
+					amount = int(amount * (1.0 - food_reduction))
 				empire.resources[resource] = empire.resources.get(resource, 0) + amount
 
 
@@ -178,6 +199,28 @@ func _calculate_food_consumption(empire_planets: Array[Planet]) -> int:
 		total += p.population / 10
 		total += p.get_total_units_except_droids()
 	return total
+
+
+func _starve_population(empire: Empire, empire_planets: Array[Planet], food_deficit: int) -> void:
+	## Population dies off proportional to the food deficit relative to total consumption.
+	var total_consumption := _calculate_food_consumption(empire_planets)
+	if total_consumption <= 0:
+		return
+	# Death rate = deficit / total consumption (what fraction of food need was unmet)
+	var death_rate := float(food_deficit) / float(total_consumption)
+	death_rate = clampf(death_rate, 0.0, 1.0)
+
+	var total_deaths := 0
+	for p in empire_planets:
+		if p.population <= 0:
+			continue
+		var deaths := int(p.population * death_rate)
+		deaths = maxi(deaths, 1)  # At least 1 person dies per starving planet
+		p.population = maxi(p.population - deaths, 0)
+		total_deaths += deaths
+
+	if empire.is_player and total_deaths > 0:
+		EventBus.notification_posted.emit("Starvation! %d population died. Income halved." % total_deaths, "warning")
 
 
 func _grow_population(empire: Empire, empire_planets: Array[Planet]) -> void:
@@ -223,3 +266,22 @@ func _generate_research(empire: Empire, empire_planets: Array[Planet]) -> void:
 		var pct: int = empire.research_allocation[science]
 		var rp := int(rp_per_tick * pct / 100.0)
 		empire.research_points[science] = empire.research_points.get(science, 0) + rp
+
+
+func _tick_debuffs(empire: Empire) -> void:
+	## Tick down debuff durations and remove expired ones.
+	var expired: Array[int] = []
+	for i in empire.debuffs.size():
+		var d: Dictionary = empire.debuffs[i]
+		d["ticks_remaining"] -= 1
+		if d["ticks_remaining"] <= 0:
+			expired.append(i)
+			# Restore portals when sabotage expires
+			if d["type"] == "portal_disabled" and d.has("planet_id"):
+				var planet := GalaxyData.get_planet(d["planet_id"])
+				if planet and planet.get_building_count("portal") > 0:
+					planet.has_portal = true
+
+	# Remove in reverse order
+	for i in range(expired.size() - 1, -1, -1):
+		empire.debuffs.remove_at(expired[i])

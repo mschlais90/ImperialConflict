@@ -22,6 +22,8 @@ GalaxyData="*res://autoloads/galaxy_data.gd"
 TickEngine="*res://autoloads/tick_engine.gd"
 EconomyEngine="*res://autoloads/economy_engine.gd"
 CombatEngine="*res://autoloads/combat_engine.gd"
+OpsEngine="*res://autoloads/ops_engine.gd"
+GameSettings="*res://autoloads/game_settings.gd"
 
 [display]
 

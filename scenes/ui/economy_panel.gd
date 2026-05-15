@@ -149,6 +149,9 @@ func _refresh_gc(player: Empire, planets: Array[Planet]) -> void:
 	var econ_science := player.get_science_percent("economy")
 	var econ_mult := 1.0 + econ_science / 100.0
 	var gross_income := int(float(base_income) * tax_bonus * econ_mult)
+	var is_starving: bool = player.resources.get("food", 0) <= 0
+	if is_starving:
+		gross_income = gross_income / 2
 	var upkeep := total_buildings + total_units
 	var net := gross_income - upkeep
 
@@ -163,6 +166,8 @@ func _refresh_gc(player: Empire, planets: Array[Planet]) -> void:
 	_add_detail(details, "Cash Factories (%d x 8)" % total_cf, "+%d" % (total_cf * 8), Color(0.6, 0.6, 0.6))
 	_add_detail(details, "Tax Office bonus (%d offices)" % total_tax, "x%.2f" % tax_bonus, Color(0.7, 0.7, 0.5))
 	_add_detail(details, "Economy Science (%.1f%%)" % econ_science, "x%.2f" % econ_mult, Color(0.7, 0.7, 0.5))
+	if is_starving:
+		_add_detail(details, "STARVATION PENALTY", "x0.50", Color(1.0, 0.2, 0.2))
 	_add_detail(details, "Gross income", "=%d" % gross_income, Color(0.9, 0.85, 0.4))
 	_add_detail(details, "Building upkeep (%d x 1)" % total_buildings, "-%d" % total_buildings, Color(1.0, 0.5, 0.5))
 	_add_detail(details, "Unit upkeep (%d x 1)" % total_units, "-%d" % total_units, Color(1.0, 0.5, 0.5))
@@ -174,19 +179,27 @@ func _refresh_food(player: Empire, planets: Array[Planet]) -> void:
 	var resource_mult := 1.0 + resource_science / 100.0
 
 	var production := 0
+	var base_production := 0
 	var consumption := 0
 	var farm_count := 0
 	var total_pop := 0
 	var total_units_no_droids := 0
+	var bonused_planets: Array[Dictionary] = []
 
 	for p in planets:
 		var farms := p.get_building_count("farm")
 		farm_count += farms
 		var bonus: float = p.resource_bonuses.get("food", 1.0)
-		production += int(farms * 100 * bonus * resource_mult)
+		var planet_prod := int(farms * 100 * bonus * resource_mult)
+		var planet_base := int(farms * 100 * resource_mult)
+		production += planet_prod
+		base_production += planet_base
+		if farms > 0 and bonus > 1.0:
+			bonused_planets.append({"name": p.planet_name, "bonus": bonus, "extra": planet_prod - planet_base})
 		total_pop += p.population
 		total_units_no_droids += p.get_total_units_except_droids()
 
+	var bonus_total := production - base_production
 	consumption = total_pop / 10 + total_units_no_droids
 	var decay := int(player.resources.get("food", 0) * 0.005)
 	var net := production - consumption - decay
@@ -197,9 +210,13 @@ func _refresh_food(player: Empire, planets: Array[Planet]) -> void:
 
 	var details: VBoxContainer = section["details"]
 	_clear(details)
-	_add_detail(details, "Farms (%d x 100)" % farm_count, "+%d" % production, Color(0.5, 0.8, 0.5))
+	_add_detail(details, "Farms (%d x 100)" % farm_count, "+%d" % base_production, Color(0.5, 0.8, 0.5))
 	if resource_science > 0:
-		_add_detail(details, "  (incl. Resources Science x%.2f)" % resource_mult, "", Color(0.5, 0.6, 0.5))
+		_add_detail(details, "  Resources Science (%.1f%%)" % resource_science, "x%.2f" % resource_mult, Color(0.5, 0.6, 0.5))
+	if bonus_total > 0:
+		_add_detail(details, "Planet Bonuses", "+%d" % bonus_total, Color(0.3, 0.9, 0.7))
+		for bp in bonused_planets:
+			_add_detail(details, "  %s (x%.1f)" % [bp["name"], bp["bonus"]], "+%d" % bp["extra"], Color(0.3, 0.7, 0.6))
 	_add_detail(details, "Pop consumption (%d / 10)" % total_pop, "-%d" % (total_pop / 10), Color(1.0, 0.5, 0.5))
 	_add_detail(details, "Unit consumption (%d units)" % total_units_no_droids, "-%d" % total_units_no_droids, Color(1.0, 0.5, 0.5))
 	_add_detail(details, "Decay (0.5%% of %d)" % player.resources.get("food", 0), "-%d" % decay, Color(0.8, 0.5, 0.5))
@@ -211,14 +228,22 @@ func _refresh_resource(player: Empire, planets: Array[Planet], res_id: String, b
 	var resource_mult := 1.0 + resource_science / 100.0
 
 	var production := 0
+	var base_production := 0
 	var building_count := 0
+	var bonused_planets: Array[Dictionary] = []
 
 	for p in planets:
 		var count := p.get_building_count(building_type)
 		building_count += count
 		var bonus: float = p.resource_bonuses.get(res_id, 1.0)
-		production += int(count * per_building * bonus * resource_mult)
+		var planet_prod := int(count * per_building * bonus * resource_mult)
+		var planet_base := int(count * per_building * resource_mult)
+		production += planet_prod
+		base_production += planet_base
+		if count > 0 and bonus > 1.0:
+			bonused_planets.append({"name": p.planet_name, "bonus": bonus, "extra": planet_prod - planet_base})
 
+	var bonus_total := production - base_production
 	var decay := int(player.resources.get(res_id, 0) * 0.005)
 	var net := production - decay
 
@@ -230,9 +255,13 @@ func _refresh_resource(player: Empire, planets: Array[Planet], res_id: String, b
 	_clear(details)
 	var bdef := BuildingData.get_def(building_type)
 	var bname: String = bdef.get("name", building_type) if not bdef.is_empty() else building_type
-	_add_detail(details, "%s (%d x %d)" % [bname, building_count, per_building], "+%d" % production, Color(0.5, 0.7, 0.8))
+	_add_detail(details, "%s (%d x %d)" % [bname, building_count, per_building], "+%d" % base_production, Color(0.5, 0.7, 0.8))
 	if resource_science > 0:
-		_add_detail(details, "  (incl. Resources Science x%.2f)" % resource_mult, "", Color(0.5, 0.6, 0.5))
+		_add_detail(details, "  Resources Science (%.1f%%)" % resource_science, "x%.2f" % resource_mult, Color(0.5, 0.6, 0.5))
+	if bonus_total > 0:
+		_add_detail(details, "Planet Bonuses", "+%d" % bonus_total, Color(0.3, 0.9, 0.7))
+		for bp in bonused_planets:
+			_add_detail(details, "  %s (x%.1f)" % [bp["name"], bp["bonus"]], "+%d" % bp["extra"], Color(0.3, 0.7, 0.6))
 	_add_detail(details, "Decay (0.5%% of %d)" % player.resources.get(res_id, 0), "-%d" % decay, Color(0.8, 0.5, 0.5))
 	_add_detail(details, "Net %s" % section["name"], "=%d" % net, Color(section["color"]))
 

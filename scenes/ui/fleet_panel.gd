@@ -118,22 +118,71 @@ func _refresh_train() -> void:
 		_add_label(_train_section, "Not your planet", Color(0.5, 0.5, 0.5))
 		return
 
-	for unit_type in UnitData.DEFS:
+	for unit_type: String in UnitData.DEFS:
+		if unit_type == "explorer":
+			continue  # Explorer built via planet build queue
 		var def: Dictionary = UnitData.DEFS[unit_type]
+		var cost: Dictionary = def["cost"]
+		var affordable := _max_affordable(player, cost)
+
+		var block := VBoxContainer.new()
+		block.add_theme_constant_override("separation", 0)
+		_train_section.add_child(block)
+
+		var name_lbl := Label.new()
+		var is_special: bool = def.get("is_special", false)
+		if is_special:
+			var empire_total := 0
+			for p in GalaxyData.get_planets_for_empire(player.id):
+				empire_total += p.units.get(unit_type, 0)
+			name_lbl.text = "%s (empire: %d)" % [def["name"], empire_total]
+		else:
+			name_lbl.text = def["name"]
+		name_lbl.add_theme_font_size_override("font_size", 11)
+		name_lbl.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+		block.add_child(name_lbl)
+
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		block.add_child(row)
+
+		var cost_lbl := Label.new()
+		cost_lbl.text = _format_cost(cost)
+		cost_lbl.add_theme_font_size_override("font_size", 9)
+		cost_lbl.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
+		cost_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(cost_lbl)
+
+		var spin := SpinBox.new()
+		spin.min_value = 0
+		spin.max_value = affordable
+		spin.value = 0
+		spin.custom_minimum_size = Vector2(70, 0)
+		spin.add_theme_font_size_override("font_size", 10)
+		row.add_child(spin)
+
 		var btn := Button.new()
-		btn.text = "%s (%s)" % [def["name"], _format_cost(def["cost"])]
-		btn.add_theme_font_size_override("font_size", 11)
-		btn.tooltip_text = def.get("description", "")
-		btn.disabled = not _can_afford(player, def["cost"])
-
+		btn.text = "Train"
+		btn.add_theme_font_size_override("font_size", 10)
+		btn.custom_minimum_size = Vector2(42, 0)
 		var utype: String = unit_type
-		btn.pressed.connect(func() -> void: _train_unit(utype))
-		_train_section.add_child(btn)
+		var spin_ref := spin
+		btn.pressed.connect(func() -> void: _train_units(utype, int(spin_ref.value)))
+		row.add_child(btn)
+
+		if affordable == 0:
+			var warn := Label.new()
+			warn.text = "Not enough resources"
+			warn.add_theme_font_size_override("font_size", 9)
+			warn.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+			block.add_child(warn)
 
 
-func _train_unit(unit_type: String) -> void:
+func _train_units(unit_type: String, count: int) -> void:
+	if current_planet == null or count <= 0:
+		return
 	var player := GalaxyData.get_player_empire()
-	if player == null or current_planet == null or current_planet.owner_id != player.id:
+	if player == null or current_planet.owner_id != player.id:
 		return
 
 	var def := UnitData.get_def(unit_type)
@@ -141,15 +190,23 @@ func _train_unit(unit_type: String) -> void:
 		return
 
 	var cost: Dictionary = def["cost"]
-	if not _can_afford(player, cost):
-		return
+	var trained := 0
+	for _i in count:
+		if not _can_afford(player, cost):
+			break
+		for resource: String in cost:
+			player.resources[resource] = player.resources.get(resource, 0) - cost[resource]
+		current_planet.units[unit_type] = current_planet.units.get(unit_type, 0) + 1
+		trained += 1
 
-	# Deduct cost
-	for resource in cost:
-		player.resources[resource] = player.resources.get(resource, 0) - cost[resource]
+	if trained > 0:
+		var uname: String = def.get("name", unit_type)
+		EventBus.notification_posted.emit("Trained %d %s on %s" % [trained, uname, current_planet.planet_name], "build")
+		if trained < count:
+			EventBus.notification_posted.emit("Could only afford %d of %d" % [trained, count], "warning")
+	else:
+		EventBus.notification_posted.emit("Can't afford that!", "warning")
 
-	# Add unit instantly (simplified - no build queue for units in MVP)
-	current_planet.units[unit_type] = current_planet.units.get(unit_type, 0) + 1
 	EventBus.resources_changed.emit()
 	_refresh()
 
@@ -164,9 +221,40 @@ func _refresh_send() -> void:
 		_add_label(_send_section, "Not your planet", Color(0.5, 0.5, 0.5))
 		return
 
-	# Unit selection spinboxes
+	# Portal fleet summary
+	if current_planet.has_portal:
+		var pooled := {}
+		for p in GalaxyData.get_planets_for_empire(player.id):
+			if not p.has_portal:
+				continue
+			for ut in ["fighter", "bomber", "transport", "soldier", "droid"]:
+				var count: int = p.units.get(ut, 0)
+				if count > 0:
+					pooled[ut] = pooled.get(ut, 0) + count
+		var has_pooled := false
+		for ut in ["fighter", "bomber", "transport", "soldier", "droid"]:
+			var total: int = pooled.get(ut, 0)
+			if total > 0:
+				if not has_pooled:
+					var portal_hdr := Label.new()
+					portal_hdr.text = "Portal Fleet (all portalled planets)"
+					portal_hdr.add_theme_font_size_override("font_size", 11)
+					portal_hdr.add_theme_color_override("font_color", Color(0.8, 0.5, 1.0))
+					_send_section.add_child(portal_hdr)
+					has_pooled = true
+				var def := UnitData.get_def(ut)
+				var uname: String = def.get("name", ut) if not def.is_empty() else ut
+				_add_info_row(_send_section, "  " + uname, str(total))
+		if has_pooled:
+			var sep := HSeparator.new()
+			sep.add_theme_color_override("separator", Color(0.3, 0.2, 0.5, 0.5))
+			_send_section.add_child(sep)
+
+	# Unit selection spinboxes (this planet only)
 	_send_amounts.clear()
 	for unit_type in current_planet.units:
+		if unit_type == "agent" or unit_type == "wizard":
+			continue  # Special units don't deploy in fleets
 		var count: int = current_planet.units[unit_type]
 		if count <= 0:
 			continue
@@ -232,6 +320,13 @@ func _refresh_send() -> void:
 			travel_lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 			_send_section.add_child(travel_lbl)
 
+	# Transport capacity hint
+	var hint := Label.new()
+	hint.text = "Each transport carries up to 100 ground troops"
+	hint.add_theme_font_size_override("font_size", 9)
+	hint.add_theme_color_override("font_color", Color(0.4, 0.5, 0.6))
+	_send_section.add_child(hint)
+
 	# Send button
 	_send_button = Button.new()
 	_send_button.text = "Send Fleet"
@@ -239,6 +334,37 @@ func _refresh_send() -> void:
 	_send_button.disabled = _target_planet_id < 0
 	_send_button.pressed.connect(_on_send_fleet)
 	_send_section.add_child(_send_button)
+
+	# Recall to portal button (only on non-portal planets with units)
+	if not current_planet.has_portal and not _send_amounts.is_empty():
+		var nearest_portal: Planet = null
+		var nearest_dist := INF
+		for p in GalaxyData.get_planets_for_empire(player.id):
+			if not p.has_portal or p.id == current_planet.id:
+				continue
+			var dist := _system_distance(current_planet.system_id, p.system_id)
+			if dist < nearest_dist:
+				nearest_dist = dist
+				nearest_portal = p
+		if nearest_portal != null:
+			var ticks := GalaxyData.calc_travel_ticks(current_planet.system_id, nearest_portal.system_id)
+			var sep := HSeparator.new()
+			sep.add_theme_color_override("separator", Color(0.3, 0.2, 0.5, 0.5))
+			_send_section.add_child(sep)
+
+			var recall_btn := Button.new()
+			recall_btn.text = "Recall to Portal (%s, %d ticks)" % [nearest_portal.planet_name, ticks]
+			recall_btn.add_theme_font_size_override("font_size", 11)
+			recall_btn.add_theme_color_override("font_color", Color(0.8, 0.5, 1.0))
+			var target_p := nearest_portal
+			recall_btn.pressed.connect(func() -> void: _on_recall_to_portal(target_p))
+			_send_section.add_child(recall_btn)
+
+			var recall_hint := Label.new()
+			recall_hint.text = "Send selected units to nearest portal planet"
+			recall_hint.add_theme_font_size_override("font_size", 9)
+			recall_hint.add_theme_color_override("font_color", Color(0.5, 0.4, 0.6))
+			_send_section.add_child(recall_hint)
 
 
 # --- Fleet Tracking ---
@@ -329,7 +455,89 @@ func _on_send_fleet() -> void:
 	_refresh()
 
 
+func _on_recall_to_portal(target: Planet) -> void:
+	if current_planet == null:
+		return
+	var player := GalaxyData.get_player_empire()
+	if player == null or current_planet.owner_id != player.id:
+		return
+
+	# Gather selected units from spinboxes
+	var units_to_send: Dictionary = {}
+	var any_units := false
+	for unit_type in _send_amounts:
+		var spin: SpinBox = _send_amounts[unit_type]
+		var amount := int(spin.value)
+		if amount > 0:
+			units_to_send[unit_type] = amount
+			any_units = true
+
+	if not any_units:
+		# If nothing selected, send all military units
+		for unit_type in ["fighter", "bomber", "soldier", "droid", "transport"]:
+			var count: int = current_planet.units.get(unit_type, 0)
+			if count > 0:
+				units_to_send[unit_type] = count
+				any_units = true
+
+	if not any_units:
+		EventBus.notification_posted.emit("No units to recall!", "warning")
+		return
+
+	# Check transport capacity
+	var ground_units: int = units_to_send.get("soldier", 0) + units_to_send.get("droid", 0)
+	var transport_capacity: int = units_to_send.get("transport", 0) * 100
+	if ground_units > transport_capacity:
+		EventBus.notification_posted.emit("Not enough transports! Need %d, have capacity for %d" % [ground_units, transport_capacity], "warning")
+		return
+
+	# Remove units from planet
+	for unit_type in units_to_send:
+		current_planet.units[unit_type] -= units_to_send[unit_type]
+
+	var ticks := GalaxyData.calc_travel_ticks(current_planet.system_id, target.system_id)
+
+	var fleet := Fleet.create(
+		GalaxyData.next_fleet_id(),
+		player.id,
+		units_to_send,
+		current_planet.system_id,
+		target.system_id,
+		target.id,
+		ticks
+	)
+	GalaxyData.fleets.append(fleet)
+	EventBus.fleet_launched.emit(fleet)
+
+	var total_sent := 0
+	for ut in units_to_send:
+		total_sent += units_to_send[ut]
+	EventBus.notification_posted.emit("Recalling %d units to %s (%d ticks)" % [total_sent, target.planet_name, ticks], "fleet")
+	_refresh()
+
+
 # --- Helpers ---
+
+func _system_distance(sys_a_id: int, sys_b_id: int) -> float:
+	var sys_a := GalaxyData.get_system(sys_a_id)
+	var sys_b := GalaxyData.get_system(sys_b_id)
+	if sys_a == null or sys_b == null:
+		return INF
+	return sys_a.position.distance_to(sys_b.position)
+
+
+func _max_affordable(empire: Empire, cost: Dictionary) -> int:
+	var max_count := 9999
+	for resource: String in cost:
+		var available: int = empire.resources.get(resource, 0)
+		var per_unit: int = cost[resource]
+		if per_unit <= 0:
+			continue
+		var affordable := available / per_unit
+		if affordable < max_count:
+			max_count = affordable
+	return max_count
+
 
 func _can_afford(empire: Empire, cost: Dictionary) -> bool:
 	for resource in cost:
@@ -350,6 +558,23 @@ func _format_cost(cost: Dictionary) -> String:
 			"food": label = "fd"
 		parts.append("%d%s" % [cost[resource], label])
 	return ", ".join(parts)
+
+
+func _add_info_row(parent: VBoxContainer, label_text: String, value_text: String) -> void:
+	var row := HBoxContainer.new()
+	parent.add_child(row)
+	var lbl := Label.new()
+	lbl.text = label_text
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(lbl)
+	var val := Label.new()
+	val.text = value_text
+	val.add_theme_font_size_override("font_size", 11)
+	val.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(val)
 
 
 func _add_label(parent: VBoxContainer, text: String, color: Color) -> void:

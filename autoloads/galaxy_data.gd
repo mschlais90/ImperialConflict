@@ -155,6 +155,8 @@ func calc_empire_networth(empire_id: int) -> float:
 		nw += p.units.get("soldier", 0) * 1.0
 		nw += p.units.get("droid", 0) * 1.0
 		nw += p.units.get("transport", 0) * 6.0
+		nw += p.units.get("agent", 0) * 1.0
+		nw += p.units.get("wizard", 0) * 1.0
 	# Units in fleets
 	for f in get_fleets_for_empire(empire_id):
 		nw += f.units.get("fighter", 0) * 3.0
@@ -172,7 +174,7 @@ func next_fleet_id() -> int:
 
 # --- Galaxy Generation ---
 
-func generate_galaxy() -> void:
+func generate_galaxy(player_empire_name: String = "Player Empire") -> void:
 	clear()
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
@@ -207,7 +209,7 @@ func generate_galaxy() -> void:
 			system.planet_ids.append(planet_id)
 
 	# Create empires and assign home systems
-	_create_empires(rng)
+	_create_empires(rng, player_empire_name)
 
 	print("Galaxy generated: %d systems, %d planets, %d empires" % [systems.size(), planets.size(), empires.size()])
 
@@ -230,7 +232,7 @@ func _generate_system_positions(rng: RandomNumberGenerator, positions: Array[Vec
 		attempts += 1
 
 
-func _create_empires(rng: RandomNumberGenerator) -> void:
+func _create_empires(rng: RandomNumberGenerator, player_empire_name: String = "Player Empire") -> void:
 	var total_empires := 1 + AI_EMPIRE_COUNT
 	var home_system_indices: Array[int] = []
 
@@ -265,7 +267,7 @@ func _create_empires(rng: RandomNumberGenerator) -> void:
 			home_system_indices.append(best_idx)
 
 	# Create empire objects and set up home planets
-	var empire_names := ["Player Empire", "Crimson Dominion", "Verdant Collective", "Golden Accord"]
+	var empire_names := [player_empire_name, "Crimson Dominion", "Verdant Collective", "Golden Accord"]
 	for i in total_empires:
 		var eid := _next_empire_id
 		_next_empire_id += 1

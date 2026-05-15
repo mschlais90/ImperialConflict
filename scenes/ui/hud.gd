@@ -132,7 +132,14 @@ func _update_display() -> void:
 	if player == null:
 		return
 	_gc_label.text = _format_number(player.resources.get("gc", 0))
-	_food_label.text = _format_number(player.resources.get("food", 0))
+	var net_food := _calc_net_food(player)
+	var food_amount: int = player.resources.get("food", 0)
+	if net_food < 0:
+		_food_label.text = "%s (%s)" % [_format_number(food_amount), _format_number(net_food)]
+		_food_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+	else:
+		_food_label.text = "%s (+%s)" % [_format_number(food_amount), _format_number(net_food)]
+		_food_label.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
 	_iron_label.text = _format_number(player.resources.get("iron", 0))
 	_end_label.text = _format_number(player.resources.get("endurium", 0))
 	_oct_label.text = _format_number(player.resources.get("octarine", 0))
@@ -151,6 +158,43 @@ func _update_speed_display() -> void:
 			_speed_label.text = "2x"
 		TickEngine.Speed.FASTEST:
 			_speed_label.text = "4x"
+
+
+func _calc_net_food(empire: Empire) -> int:
+	var planets := GalaxyData.get_planets_for_empire(empire.id)
+	var resource_mult := 1.0 + empire.get_science_percent("resources") / 100.0
+
+	# Food debuff
+	var food_reduction := 0.0
+	for d in empire.debuffs:
+		if d["type"] == "reduced_food":
+			food_reduction += d["value"]
+	food_reduction = minf(food_reduction, 0.5)
+
+	# Production
+	var production := 0
+	for planet in planets:
+		var farm_count: int = planet.buildings.get("farm", 0)
+		if farm_count > 0:
+			var def := BuildingData.get_def("farm")
+			if not def.is_empty() and def.has("production"):
+				var base: int = def["production"].get("food", 0) * farm_count
+				var bonus: float = planet.resource_bonuses.get("food", 1.0)
+				var amount := int(base * bonus * resource_mult)
+				if food_reduction > 0.0:
+					amount = int(amount * (1.0 - food_reduction))
+				production += amount
+
+	# Consumption
+	var consumption := 0
+	for planet in planets:
+		consumption += planet.population / 10
+		consumption += planet.get_total_units_except_droids()
+
+	# Decay (0.5% of current stockpile)
+	var decay := int(empire.resources.get("food", 0) * 0.005)
+
+	return production - consumption - decay
 
 
 func _format_number(n: int) -> String:

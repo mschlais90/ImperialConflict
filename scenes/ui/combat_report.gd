@@ -43,7 +43,14 @@ func _on_battle_resolved(report: Dictionary) -> void:
 	var defender_id: int = report.get("defender_id", -1)
 
 	if attacker_id != player_id and defender_id != player_id:
-		return  # AI vs AI - skip popup for now
+		return  # AI vs AI - skip
+
+	# Always save to history
+	GameSettings.add_battle_report(report)
+
+	# Only show popup if setting enabled
+	if not GameSettings.show_combat_popups:
+		return
 
 	_reports_queue.append(report)
 	if not visible:

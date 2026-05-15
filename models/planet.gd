@@ -20,6 +20,8 @@ extends Resource
 	"soldier": 0,
 	"droid": 0,
 	"transport": 0,
+	"agent": 0,
+	"wizard": 0,
 }
 
 
@@ -44,6 +46,8 @@ func get_building_count(type: String) -> int:
 
 func add_building(type: String) -> void:
 	buildings[type] = buildings.get(type, 0) + 1
+	if type == "portal":
+		has_portal = true
 
 
 func get_max_population() -> int:
@@ -58,9 +62,10 @@ func get_total_units() -> int:
 
 
 func get_total_units_except_droids() -> int:
+	## Count units that consume food (excludes droids and wizards).
 	var total := 0
 	for type in units:
-		if type != "droid":
+		if type != "droid" and type != "wizard":
 			total += units[type]
 	return total
 

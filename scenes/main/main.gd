@@ -13,10 +13,17 @@ var _notification_feed: Control
 var _empire_overview: PanelContainer
 var _economy_panel: PanelContainer
 var _game_over_screen: PanelContainer
+var _start_screen: PanelContainer
+var _multi_build_panel: PanelContainer
+var _ops_panel: PanelContainer
+var _settings_panel: PanelContainer
+var _battle_history_panel: PanelContainer
+var _fleet_management_panel: PanelContainer
 
 const TAB_PLANET := 0
 const TAB_FLEET := 1
 const TAB_RESEARCH := 2
+const TAB_OPS := 3
 
 @onready var galaxy_map_scene: PackedScene = preload("res://scenes/galaxy_map/galaxy_map.tscn")
 @onready var system_view_scene: PackedScene = preload("res://scenes/system_view/system_view.tscn")
@@ -29,6 +36,12 @@ const TAB_RESEARCH := 2
 @onready var empire_overview_scene: PackedScene = preload("res://scenes/ui/empire_overview.tscn")
 @onready var economy_panel_scene: PackedScene = preload("res://scenes/ui/economy_panel.tscn")
 @onready var game_over_scene: PackedScene = preload("res://scenes/ui/game_over_screen.tscn")
+@onready var start_screen_scene: PackedScene = preload("res://scenes/ui/start_screen.tscn")
+@onready var multi_build_scene: PackedScene = preload("res://scenes/ui/multi_build_panel.tscn")
+@onready var ops_panel_scene: PackedScene = preload("res://scenes/ui/ops_panel.tscn")
+@onready var settings_panel_scene: PackedScene = preload("res://scenes/ui/settings_panel.tscn")
+@onready var battle_history_panel_scene: PackedScene = preload("res://scenes/ui/battle_history_panel.tscn")
+@onready var fleet_management_scene: PackedScene = preload("res://scenes/ui/fleet_management_panel.tscn")
 
 
 func _ready() -> void:
@@ -91,6 +104,13 @@ func _ready() -> void:
 	_research_panel.offset_left = 0
 	_right_panel.add_child(_research_panel)
 
+	_ops_panel = ops_panel_scene.instantiate()
+	_ops_panel.name = "Ops"
+	_ops_panel.anchors_preset = Control.PRESET_FULL_RECT
+	_ops_panel.anchor_left = 0
+	_ops_panel.offset_left = 0
+	_right_panel.add_child(_ops_panel)
+
 	ui_layer.add_child(_right_panel)
 
 	# Combat report popup (centered, above everything)
@@ -105,13 +125,34 @@ func _ready() -> void:
 	_empire_overview = empire_overview_scene.instantiate()
 	ui_layer.add_child(_empire_overview)
 
-	# Economy panel (centered popup, toggled with F)
+	# Economy panel (centered popup, toggled with E)
 	_economy_panel = economy_panel_scene.instantiate()
 	ui_layer.add_child(_economy_panel)
+
+	# Multi-planet build panel (centered popup, toggled with B)
+	_multi_build_panel = multi_build_scene.instantiate()
+	ui_layer.add_child(_multi_build_panel)
+
+	# Settings panel (centered overlay, toggled with S)
+	_settings_panel = settings_panel_scene.instantiate()
+	ui_layer.add_child(_settings_panel)
+
+	# Battle history panel (centered overlay, toggled with H)
+	_battle_history_panel = battle_history_panel_scene.instantiate()
+	ui_layer.add_child(_battle_history_panel)
+
+	# Fleet management panel (centered overlay, toggled with F)
+	_fleet_management_panel = fleet_management_scene.instantiate()
+	ui_layer.add_child(_fleet_management_panel)
 
 	# Game over screen (full overlay)
 	_game_over_screen = game_over_scene.instantiate()
 	ui_layer.add_child(_game_over_screen)
+
+	# Start screen (full overlay, shown first)
+	_start_screen = start_screen_scene.instantiate()
+	_start_screen.game_start_requested.connect(_on_game_start_requested)
+	ui_layer.add_child(_start_screen)
 
 	# Connect navigation signals
 	EventBus.system_selected.connect(_on_system_selected)
@@ -119,6 +160,10 @@ func _ready() -> void:
 	EventBus.planet_selected.connect(_on_planet_selected)
 	EventBus.tick_processed.connect(_on_tick_processed)
 	EventBus.empire_eliminated.connect(_on_empire_eliminated)
+
+
+func _on_game_start_requested(empire_name: String) -> void:
+	GameManager.new_game(empire_name)
 
 
 func _on_system_selected(system: Resource) -> void:
@@ -212,4 +257,40 @@ func _unhandled_input(event: InputEvent) -> void:
 				# Return to galaxy map
 				if _system_view.visible:
 					_on_selection_cleared()
+				get_viewport().set_input_as_handled()
+			KEY_B:
+				# Toggle multi-planet build panel
+				if _multi_build_panel.visible:
+					_multi_build_panel.hide_panel()
+				else:
+					_multi_build_panel.show_panel()
+				get_viewport().set_input_as_handled()
+			KEY_O:
+				# Toggle ops panel
+				if _right_panel.visible and _right_panel.current_tab == TAB_OPS:
+					_right_panel.visible = false
+				else:
+					_right_panel.visible = true
+					_right_panel.current_tab = TAB_OPS
+				get_viewport().set_input_as_handled()
+			KEY_S:
+				# Toggle settings panel
+				if _settings_panel.visible:
+					_settings_panel.hide_settings()
+				else:
+					_settings_panel.show_settings()
+				get_viewport().set_input_as_handled()
+			KEY_H:
+				# Toggle battle history panel
+				if _battle_history_panel.visible:
+					_battle_history_panel.hide_panel()
+				else:
+					_battle_history_panel.show_panel()
+				get_viewport().set_input_as_handled()
+			KEY_F:
+				# Toggle fleet management panel
+				if _fleet_management_panel.visible:
+					_fleet_management_panel.hide_panel()
+				else:
+					_fleet_management_panel.show_panel()
 				get_viewport().set_input_as_handled()

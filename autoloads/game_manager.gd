@@ -11,14 +11,12 @@ var _eliminated_empires: Array[int] = []
 
 func _ready() -> void:
 	EventBus.empire_eliminated.connect(_on_empire_eliminated)
-	# For now, auto-start a new game when the scene loads
-	call_deferred("new_game")
 
 
-func new_game() -> void:
+func new_game(empire_name: String = "Player Empire") -> void:
 	current_state = State.PLAYING
 	_eliminated_empires.clear()
-	GalaxyData.generate_galaxy()
+	GalaxyData.generate_galaxy(empire_name)
 	TickEngine.current_tick = 0
 	TickEngine.set_speed(TickEngine.Speed.NORMAL)
 	TickEngine.start()

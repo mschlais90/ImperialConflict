@@ -74,6 +74,12 @@ func _draw() -> void:
 	if _hover:
 		draw_arc(Vector2.ZERO, radius + 4, 0, TAU, 32, SELECTED_COLOR, 1.5)
 
+	# Portal indicator
+	if planet.has_portal:
+		_draw_portal_icon(Vector2(-radius - 6, -radius - 6), Color(0.8, 0.5, 1.0, 0.9))
+	elif _has_portal_in_queue():
+		_draw_portal_icon(Vector2(-radius - 6, -radius - 6), Color(0.8, 0.5, 1.0, 0.35))
+
 	# Resource bonus indicator
 	if not planet.resource_bonuses.is_empty():
 		draw_circle(Vector2(radius + 3, -radius - 3), 3, Color(0.3, 1.0, 0.5, 0.8))
@@ -102,6 +108,25 @@ func _get_planet_color() -> Color:
 func _get_radius() -> float:
 	# Scale radius by planet size (30-350 -> 10-22 pixels)
 	return lerpf(10.0, 22.0, clampf(float(planet.size - 30) / 320.0, 0.0, 1.0))
+
+
+func _draw_portal_icon(center: Vector2, color: Color) -> void:
+	# Draw a diamond shape to represent a portal
+	var s := 5.0
+	var points := PackedVector2Array([
+		center + Vector2(0, -s),
+		center + Vector2(s, 0),
+		center + Vector2(0, s),
+		center + Vector2(-s, 0),
+	])
+	draw_colored_polygon(points, color)
+
+
+func _has_portal_in_queue() -> bool:
+	for order: BuildOrder in planet.build_queue:
+		if order.building_type == "portal":
+			return true
+	return false
 
 
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:

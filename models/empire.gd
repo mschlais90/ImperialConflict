@@ -26,6 +26,8 @@ extends Resource
 }
 
 # Percentage allocation for new RP (must sum to 100)
+@export var debuffs: Array = []  # [{type: String, ticks_remaining: int, value: float}]
+
 @export var research_allocation: Dictionary = {
 	"military": 20,
 	"welfare": 20,

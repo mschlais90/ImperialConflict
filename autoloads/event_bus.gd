@@ -33,5 +33,8 @@ signal notification_posted(message: String, type: String)
 # Game lifecycle
 signal game_started()
 
+# Special operations
+signal operation_performed(report: Dictionary)
+
 # Resource updates (for immediate UI refresh after purchases)
 signal resources_changed()
