@@ -1,13 +1,22 @@
 extends Node2D
 ## Clickable planet icon showing name, size, owner color, and building indicator.
+## Uses a shader for procedural planet visuals based on resource bonuses.
 
 var planet: Planet
 var _label: Label
 var _info_label: Label
 var _hover: bool = false
+var _planet_sprite: Sprite2D
 
-const UNCOLONIZED_COLOR := Color(0.4, 0.4, 0.4, 0.7)
 const SELECTED_COLOR := Color(1.0, 1.0, 1.0, 0.9)
+
+# Planet type mapping:
+# 0=Mars(iron), 1=Earth(food), 2=Uranus(octarine), 3=Venus(endurium),
+# 4=Neptune, 5=Jupiter, 6=Pluto, 7=Mercury
+const NO_BONUS_TYPES := [4, 5, 6, 7]  # Neptune, Jupiter, Pluto, Mercury
+
+static var _shader: Shader = null
+static var _white_texture: ImageTexture = null
 
 
 func setup(p_planet: Planet) -> void:
@@ -15,6 +24,14 @@ func setup(p_planet: Planet) -> void:
 
 
 func _ready() -> void:
+	# Ensure shared resources are loaded
+	if _shader == null:
+		_shader = load("res://assets/shaders/planet.gdshader")
+	if _white_texture == null:
+		var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+		img.fill(Color.WHITE)
+		_white_texture = ImageTexture.create_from_image(img)
+
 	# Click detection
 	var area := Area2D.new()
 	var shape := CollisionShape2D.new()
@@ -26,6 +43,16 @@ func _ready() -> void:
 	area.mouse_entered.connect(_on_mouse_entered)
 	area.mouse_exited.connect(_on_mouse_exited)
 	add_child(area)
+
+	# Planet sprite with shader
+	_planet_sprite = Sprite2D.new()
+	_planet_sprite.texture = _white_texture
+	var mat := ShaderMaterial.new()
+	mat.shader = _shader
+	mat.set_shader_parameter("planet_type", _get_planet_type())
+	mat.set_shader_parameter("seed_val", _get_seed())
+	_planet_sprite.material = mat
+	add_child(_planet_sprite)
 
 	# Planet name
 	_label = Label.new()
@@ -52,37 +79,31 @@ func _draw() -> void:
 	if planet == null:
 		return
 
-	var color := _get_planet_color()
-	var base_radius := _get_radius()
-	var radius := base_radius + (2.0 if _hover else 0.0)
+	var radius := _get_radius()
 
-	# Planet body
-	draw_circle(Vector2.ZERO, radius, color)
-
-	# Inner shading
-	draw_circle(Vector2(-radius * 0.2, -radius * 0.2), radius * 0.6, Color(1, 1, 1, 0.15))
+	# Owner ring
+	if planet.owner_id >= 0:
+		var empire := GalaxyData.get_empire(planet.owner_id)
+		if empire:
+			draw_arc(Vector2.ZERO, radius + 3, 0, TAU, 32, empire.color, 2.0)
 
 	# Building indicator (small dots around planet)
 	if planet.get_total_buildings() > 0:
 		var dot_count := mini(planet.get_total_buildings() / 2, 8)
 		for i in dot_count:
 			var angle := float(i) / float(dot_count) * TAU
-			var dot_pos := Vector2(cos(angle), sin(angle)) * (radius + 5)
+			var dot_pos := Vector2(cos(angle), sin(angle)) * (radius + 7)
 			draw_circle(dot_pos, 2, Color(0.9, 0.9, 0.3, 0.7))
 
 	# Selection ring
 	if _hover:
-		draw_arc(Vector2.ZERO, radius + 4, 0, TAU, 32, SELECTED_COLOR, 1.5)
+		draw_arc(Vector2.ZERO, radius + 5, 0, TAU, 32, SELECTED_COLOR, 1.5)
 
 	# Portal indicator
 	if planet.has_portal:
 		_draw_portal_icon(Vector2(-radius - 6, -radius - 6), Color(0.8, 0.5, 1.0, 0.9))
 	elif _has_portal_in_queue():
 		_draw_portal_icon(Vector2(-radius - 6, -radius - 6), Color(0.8, 0.5, 1.0, 0.35))
-
-	# Resource bonus indicator
-	if not planet.resource_bonuses.is_empty():
-		draw_circle(Vector2(radius + 3, -radius - 3), 3, Color(0.3, 1.0, 0.5, 0.8))
 
 
 func update_display() -> void:
@@ -93,16 +114,15 @@ func update_display() -> void:
 		_info_label.text = "Size: %d | Pop: %d" % [planet.size, planet.population]
 	else:
 		_info_label.text = "Size: %d | Uncolonized" % planet.size
+
+	# Scale sprite to match planet radius
+	var radius := _get_radius()
+	var diameter := radius * 2.0
+	# Texture is 64x64, scale to desired diameter
+	var scale_factor := diameter / 64.0
+	_planet_sprite.scale = Vector2(scale_factor, scale_factor)
+
 	queue_redraw()
-
-
-func _get_planet_color() -> Color:
-	if planet.owner_id < 0:
-		return UNCOLONIZED_COLOR
-	var empire := GalaxyData.get_empire(planet.owner_id)
-	if empire:
-		return empire.color.darkened(0.2)
-	return UNCOLONIZED_COLOR
 
 
 func _get_radius() -> float:
@@ -110,8 +130,26 @@ func _get_radius() -> float:
 	return lerpf(10.0, 22.0, clampf(float(planet.size - 30) / 320.0, 0.0, 1.0))
 
 
+func _get_planet_type() -> int:
+	if planet.resource_bonuses.has("iron"):
+		return 0  # Mars
+	elif planet.resource_bonuses.has("food"):
+		return 1  # Earth
+	elif planet.resource_bonuses.has("octarine"):
+		return 2  # Uranus
+	elif planet.resource_bonuses.has("endurium"):
+		return 3  # Venus
+	else:
+		# No bonus — pick from Neptune/Jupiter/Pluto/Mercury based on planet id
+		return NO_BONUS_TYPES[planet.id % NO_BONUS_TYPES.size()]
+
+
+func _get_seed() -> float:
+	# Deterministic seed based on planet id for consistent look
+	return fmod(float(planet.id) * 7.31, 100.0)
+
+
 func _draw_portal_icon(center: Vector2, color: Color) -> void:
-	# Draw a diamond shape to represent a portal
 	var s := 5.0
 	var points := PackedVector2Array([
 		center + Vector2(0, -s),
