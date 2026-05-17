@@ -96,6 +96,10 @@ export function createNewGame(options: NewGameOptions = {}): GameState {
 
 function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string): void {
   const positions = generateSystemPositions(rng);
+  invariant(
+    positions.length === SYSTEM_COUNT,
+    `Expected ${SYSTEM_COUNT} generated system positions, got ${positions.length}.`,
+  );
 
   for (const [index, position] of positions.entries()) {
     const systemId = state.nextSystemId;
@@ -155,8 +159,13 @@ function createEmpires(state: GameState, rng: Rng, playerEmpireName: string): vo
   const sortedByCenter = state.systems
     .map((_, index) => index)
     .sort((a, b) => systemDistanceFromCenter(state.systems[a]) - systemDistanceFromCenter(state.systems[b]));
+  invariant(
+    sortedByCenter.length > 2,
+    `Expected at least 3 systems to select a player home, got ${sortedByCenter.length}.`,
+  );
 
   const playerHomeIdx = sortedByCenter[rng.intRange(2, Math.min(6, sortedByCenter.length - 1))];
+  invariant(playerHomeIdx !== undefined, 'Unable to select a player home system.');
   homeSystemIndices.push(playerHomeIdx);
 
   for (let i = 0; i < AI_EMPIRE_COUNT; i += 1) {
@@ -183,6 +192,10 @@ function createEmpires(state: GameState, rng: Rng, playerEmpireName: string): vo
       homeSystemIndices.push(bestIdx);
     }
   }
+  invariant(
+    homeSystemIndices.length === totalEmpires,
+    `Expected ${totalEmpires} home systems, got ${homeSystemIndices.length}.`,
+  );
 
   for (let i = 0; i < totalEmpires; i += 1) {
     const empireId = state.nextEmpireId;
@@ -206,9 +219,11 @@ function createEmpires(state: GameState, rng: Rng, playerEmpireName: string): vo
 
 function assignHomePlanet(state: GameState, empire: Empire, homeSystemIndex: number): void {
   const homeSystem = state.systems[homeSystemIndex];
+  invariant(homeSystem !== undefined, `Unable to find home system at index ${homeSystemIndex}.`);
   empire.homeSystemId = homeSystem.id;
 
   const [homePlanet] = [...getPlanetsInSystem(state, homeSystem.id)].sort((a, b) => b.size - a.size);
+  invariant(homePlanet !== undefined, `Unable to find a home planet in system ${homeSystem.id}.`);
   setStartingPlanetState(homePlanet, empire.id);
   empire.homePlanetId = homePlanet.id;
   empire.resources = {
@@ -246,6 +261,12 @@ function systemDistanceFromCenter(system: SolarSystem): number {
 
 function distanceBetweenSystems(a: SolarSystem, b: SolarSystem): number {
   return Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y);
+}
+
+function invariant(condition: boolean, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message);
+  }
 }
 
 function romanNumeral(n: number): string {

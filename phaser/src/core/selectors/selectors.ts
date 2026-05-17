@@ -1,23 +1,18 @@
-import type { CombatUnitKey, Empire, Planet, PlanetUnitKey, SolarSystem } from '../models/types';
+import { UNITS } from '../data/units';
+import type { CombatUnitKey, Empire, Fleet, Planet, PlanetUnitKey, SolarSystem } from '../models/types';
 import type { GameState } from '../galaxy/galaxyData';
 
-const PLANET_UNIT_NETWORTH: Record<PlanetUnitKey, number> = {
-  fighter: 3,
-  bomber: 5,
-  soldier: 1,
-  droid: 1,
-  transport: 6,
-  agent: 1,
-  wizard: 1,
-};
+const PLANET_NETWORTH_UNITS: PlanetUnitKey[] = [
+  'fighter',
+  'bomber',
+  'soldier',
+  'droid',
+  'transport',
+  'agent',
+  'wizard',
+];
 
-const FLEET_UNIT_NETWORTH: Record<CombatUnitKey, number> = {
-  fighter: 3,
-  bomber: 5,
-  soldier: 1,
-  droid: 1,
-  transport: 6,
-};
+const FLEET_NETWORTH_UNITS: CombatUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport'];
 
 export function getEmpire(state: GameState, empireId: number): Empire | undefined {
   return state.empires.find((empire) => empire.id === empireId);
@@ -63,7 +58,7 @@ export function getSystemOwner(state: GameState, systemId: number): number {
   return bestId;
 }
 
-export function getFleetsForEmpire(state: GameState, empireId: number) {
+export function getFleetsForEmpire(state: GameState, empireId: number): Fleet[] {
   return state.fleets.filter((fleet) => fleet.ownerId === empireId);
 }
 
@@ -93,14 +88,14 @@ export function calcEmpireNetworth(state: GameState, empireId: number): number {
   for (const planet of empirePlanets) {
     networth += Object.values(planet.buildings).reduce((total, count) => total + (count ?? 0), 0) * 4;
     networth += planet.population / 40;
-    for (const [unit, value] of Object.entries(PLANET_UNIT_NETWORTH) as Array<[PlanetUnitKey, number]>) {
-      networth += (planet.units[unit] ?? 0) * value;
+    for (const unit of PLANET_NETWORTH_UNITS) {
+      networth += (planet.units[unit] ?? 0) * UNITS[unit].networth;
     }
   }
 
   for (const fleet of getFleetsForEmpire(state, empireId)) {
-    for (const [unit, value] of Object.entries(FLEET_UNIT_NETWORTH) as Array<[CombatUnitKey, number]>) {
-      networth += (fleet.units[unit] ?? 0) * value;
+    for (const unit of FLEET_NETWORTH_UNITS) {
+      networth += (fleet.units[unit] ?? 0) * UNITS[unit].networth;
     }
   }
 
