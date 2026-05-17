@@ -82,7 +82,7 @@ export function createNewGame(options: NewGameOptions = {}): GameState {
 
   state.currentState = 'playing';
   state.currentTick = 0;
-  state.currentSpeed = 'normal';
+  state.currentSpeed = 1;
 
   generateGalaxy(state, rng, playerEmpireName);
   state.events.push({

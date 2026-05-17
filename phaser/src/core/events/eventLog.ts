@@ -21,7 +21,7 @@ export type GameEvent =
   | { type: 'notification'; tick: number; message: string; category?: string }
   | { type: 'game_over'; tick: number; playerWon: boolean };
 
-export type GameSpeed = 'paused' | 'normal' | 'fast' | 'very_fast';
+export type GameSpeed = 0 | 1 | 2 | 4;
 
 export interface EventLogEntry {
   id: number;

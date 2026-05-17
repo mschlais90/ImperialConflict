@@ -37,7 +37,7 @@ export function createEmptyGameState(): GameState {
     aiControllers: [],
     events: [],
     currentTick: 0,
-    currentSpeed: 'paused',
+    currentSpeed: 0,
     currentState: 'main_menu',
     selectedEmpireId: null,
     selectedSystemId: null,
