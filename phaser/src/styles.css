@@ -38,6 +38,7 @@ body {
 }
 
 #ui-root {
+  pointer-events: none;
   z-index: 1;
 }
 
@@ -46,4 +47,5 @@ body {
   display: grid;
   place-items: center;
   font-size: 18px;
+  pointer-events: auto;
 }
