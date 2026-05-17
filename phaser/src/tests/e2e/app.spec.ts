@@ -7,4 +7,12 @@ test('shows the temporary boot message', async ({ page }) => {
 
   await expect(bootMessage).toBeVisible();
   await expect(bootMessage).toBeInViewport();
+
+  const emptyOverlayHitTarget = await page.evaluate(() => {
+    const target = document.elementFromPoint(10, 10);
+
+    return target ? target.className : null;
+  });
+
+  expect(emptyOverlayHitTarget).not.toContain('boot');
 });

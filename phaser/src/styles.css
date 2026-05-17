@@ -47,5 +47,9 @@ body {
   display: grid;
   place-items: center;
   font-size: 18px;
+  pointer-events: none;
+}
+
+.boot-card {
   pointer-events: auto;
 }
