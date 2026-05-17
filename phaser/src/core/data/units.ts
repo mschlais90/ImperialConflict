@@ -15,7 +15,7 @@ export interface UnitDefinition {
   description: string;
 }
 
-export const UNITS: Record<UnitKey, UnitDefinition> = {
+export const UNITS = {
   fighter: {
     name: 'Fighter',
     cost: { gc: 50, iron: 5, endurium: 1 },
@@ -115,4 +115,4 @@ export const UNITS: Record<UnitKey, UnitDefinition> = {
     isSpecial: true,
     description: 'Magic caster. Performs spells using octarine.',
   },
-};
+} as const satisfies Record<UnitKey, UnitDefinition>;

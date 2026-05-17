@@ -8,7 +8,7 @@ export interface BuildingDefinition {
   description: string;
 }
 
-export const BUILDINGS: Record<BuildingKey, BuildingDefinition> = {
+export const BUILDINGS = {
   mine: {
     name: 'Mining Facility',
     cost: { gc: 200, food: 5, endurium: 1 },
@@ -79,14 +79,14 @@ export const BUILDINGS: Record<BuildingKey, BuildingDefinition> = {
     production: {},
     description: 'Enables instant troop transport between portalled planets.',
   },
-};
+} as const satisfies Record<BuildingKey, BuildingDefinition>;
 
 export function getBuildCost(
   type: BuildingKey,
   constructionSciencePct = 0,
   planet: Planet | null = null,
 ): Partial<Record<ResourceKey, number>> {
-  const baseCost = BUILDINGS[type].cost;
+  const baseCost: Partial<Record<ResourceKey, number>> = BUILDINGS[type].cost;
   const discount = 1 / (1 + constructionSciencePct / 100);
   const overbuild = getOverbuildMultiplier(planet);
   const result: Partial<Record<ResourceKey, number>> = {};
@@ -108,7 +108,7 @@ export function getBuildTicks(type: BuildingKey, constructionSciencePct = 0): nu
   return Math.max(Math.trunc(baseTicks * discount), 1);
 }
 
-function getOverbuildMultiplier(planet: Planet | null): number {
+export function getOverbuildMultiplier(planet: Planet | null): number {
   if (planet === null) {
     return 1;
   }

@@ -17,6 +17,12 @@ export function createSeededRng(seed: number): Rng {
     float: next,
     floatRange: (min, max) => min + next() * (max - min),
     intRange: (min, max) => Math.floor(min + next() * (max - min + 1)),
-    pick: (items) => items[Math.floor(next() * items.length)],
+    pick: (items) => {
+      if (items.length === 0) {
+        throw new Error('Cannot pick from an empty array.');
+      }
+
+      return items[Math.floor(next() * items.length)];
+    },
   };
 }

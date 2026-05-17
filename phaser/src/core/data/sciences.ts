@@ -5,7 +5,7 @@ export interface ScienceDefinition {
   description: string;
 }
 
-export const SCIENCES: Record<ScienceKey, ScienceDefinition> = {
+export const SCIENCES = {
   military: {
     name: 'Military',
     description: 'Increases attack and defense strength.',
@@ -26,4 +26,4 @@ export const SCIENCES: Record<ScienceKey, ScienceDefinition> = {
     name: 'Resources',
     description: 'Increases resource production rates.',
   },
-};
+} as const satisfies Record<ScienceKey, ScienceDefinition>;

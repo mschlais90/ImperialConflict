@@ -10,6 +10,7 @@ export type UnitKey =
   | 'agent'
   | 'wizard';
 export type CombatUnitKey = 'fighter' | 'bomber' | 'soldier' | 'droid' | 'transport';
+export type PlanetUnitKey = CombatUnitKey | 'agent' | 'wizard';
 export type BuildingKey =
   | 'mine'
   | 'refinery'
@@ -24,11 +25,9 @@ export type BuildingKey =
 
 export type BuildCategory = 'building' | 'unit';
 
-export interface BuildOrder {
-  itemType: BuildingKey | UnitKey;
-  ticksRemaining: number;
-  category: BuildCategory;
-}
+export type BuildOrder =
+  | { category: 'building'; itemType: BuildingKey; ticksRemaining: number }
+  | { category: 'unit'; itemType: UnitKey; ticksRemaining: number };
 
 export interface Empire {
   id: number;
@@ -46,7 +45,7 @@ export interface Empire {
 export interface Fleet {
   id: number;
   ownerId: number;
-  units: Partial<Record<UnitKey, number>>;
+  units: Partial<Record<CombatUnitKey, number>>;
   originSystemId: number;
   targetSystemId: number;
   targetPlanetId: number;
@@ -65,7 +64,7 @@ export interface Planet {
   buildQueue: BuildOrder[];
   hasPortal: boolean;
   resourceBonuses: Partial<Record<ResourceKey, number>>;
-  units: Partial<Record<UnitKey, number>>;
+  units: Partial<Record<PlanetUnitKey, number>>;
 }
 
 export interface SolarSystem {
