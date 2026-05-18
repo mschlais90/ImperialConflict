@@ -164,6 +164,48 @@ describe('AI controller', () => {
     expect(state.fleets.filter((fleet) => fleet.ownerId === ai.id && !fleet.isExploration)).toHaveLength(0);
   });
 
+  it('does not mutate planets or memory when pooled attack has no transports', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const planets = prepareAiAttackPlanets(state, ai);
+    const target = state.empires.find((empire) => empire.isPlayer)!;
+    const targetPlanet = makeOnlyViableAttackTarget(state, ai, target);
+    ai.resources = { gc: 0, food: 0, iron: 0, endurium: 0, octarine: 0 };
+    planets[0].units = { soldier: 120 };
+    planets[1].units = { soldier: 120 };
+    const beforeUnits = planets.map((planet) => ({ ...planet.units }));
+    const fleetCount = state.fleets.length;
+    const eventCount = state.events.length;
+
+    processAiTurn(state, ai.id, 101);
+
+    expect(state.fleets).toHaveLength(fleetCount);
+    expect(state.events).toHaveLength(eventCount);
+    expect(state.aiControllers[ai.id].recentAttacks[targetPlanet.id]).toBeUndefined();
+    expect(planets.map((planet) => planet.units)).toEqual(beforeUnits);
+  });
+
+  it('keeps excess ground units on their original planets when transport capacity is partial', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const planets = prepareAiAttackPlanets(state, ai);
+    const target = state.empires.find((empire) => empire.isPlayer)!;
+    makeOnlyViableAttackTarget(state, ai, target);
+    ai.resources = { gc: 0, food: 0, iron: 0, endurium: 0, octarine: 0 };
+    planets[0].units = { transport: 2 };
+    planets[1].units = { soldier: 300 };
+
+    processAiTurn(state, ai.id, 101);
+
+    const attackFleet = state.fleets.find((fleet) => fleet.ownerId === ai.id && !fleet.isExploration);
+    expect(attackFleet?.units).toMatchObject({ soldier: 100, transport: 1 });
+    expect((attackFleet?.units.soldier ?? 0) + (attackFleet?.units.droid ?? 0)).toBeLessThanOrEqual(
+      (attackFleet?.units.transport ?? 0) * 100,
+    );
+    expect(planets[0].units.soldier ?? 0).toBe(0);
+    expect(planets[1].units.soldier).toBe(200);
+  });
+
   it('does not perform operations without enough operation resources', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
     const ai = state.empires.find((empire) => !empire.isPlayer)!;
@@ -251,4 +293,23 @@ function makeOnlyViableAttackTarget(state: ReturnType<typeof createNewGame>, att
   targetPlanet.units = { soldier: 1 };
   targetPlanet.buildings = {};
   return targetPlanet;
+}
+
+function prepareAiAttackPlanets(state: ReturnType<typeof createNewGame>, ai: Empire): Planet[] {
+  const home = getPlanetsForEmpire(state, ai.id)[0];
+  const unowned = state.planets.find((planet) => planet.ownerId < 0 && planet.systemId !== home.systemId)!;
+  unowned.ownerId = ai.id;
+  unowned.population = 100;
+  unowned.buildings = {};
+  unowned.buildQueue = [
+    { category: 'building', itemType: 'farm', ticksRemaining: 999 },
+    { category: 'building', itemType: 'farm', ticksRemaining: 999 },
+    { category: 'building', itemType: 'farm', ticksRemaining: 999 },
+  ];
+  home.buildQueue = [
+    { category: 'building', itemType: 'farm', ticksRemaining: 999 },
+    { category: 'building', itemType: 'farm', ticksRemaining: 999 },
+    { category: 'building', itemType: 'farm', ticksRemaining: 999 },
+  ];
+  return [home, unowned];
 }

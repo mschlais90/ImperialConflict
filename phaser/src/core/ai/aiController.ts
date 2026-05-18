@@ -41,6 +41,14 @@ const TRAINABLE_UNIT_KEYS: Array<Exclude<UnitKey, 'explorer'>> = [
   'wizard',
 ];
 
+type CombatUnitCounts = Record<CombatUnitKey, number>;
+type PooledAttackWithdrawal = { planet: Planet; units: CombatUnitCounts };
+type PooledAttackPlan = {
+  originSystemId: number;
+  units: Partial<Record<CombatUnitKey, number>>;
+  withdrawals: PooledAttackWithdrawal[];
+};
+
 export function processAiTurn(state: GameState, empireId: number, tickNumber: number): void {
   const empire = getEmpire(state, empireId);
   if (empire === undefined) {
@@ -407,45 +415,27 @@ function launchPooledAttackFleet(
   tickNumber: number,
   controller: GameState['aiControllers'][number],
 ): void {
-  const unitsToSend: Record<CombatUnitKey, number> = { fighter: 0, bomber: 0, soldier: 0, droid: 0, transport: 0 };
-  let nearestSystemId = -1;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-
-  for (const planet of planets) {
-    const distance = systemDistance(state, planet.systemId, target.systemId);
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestSystemId = planet.systemId;
-    }
-
-    removeDeployableUnitsForPooledAttack(planet, unitsToSend);
-  }
-
-  if (nearestSystemId < 0) {
+  const plan = createPooledAttackPlan(state, planets, target);
+  if (plan === undefined) {
     return;
   }
 
-  enforceTransportCapacity(unitsToSend, planets[0]);
-  const finalSend = normalizeSendUnits(unitsToSend);
-  if (Object.keys(finalSend).length === 0) {
-    return;
-  }
-
+  applyPooledAttackWithdrawals(plan.withdrawals);
   const fleet = {
     id: state.nextFleetId,
     ownerId: empire.id,
-    units: finalSend,
-    originSystemId: nearestSystemId,
+    units: plan.units,
+    originSystemId: plan.originSystemId,
     targetSystemId: target.systemId,
     targetPlanetId: target.id,
-    ticksRemaining: calcTravelTicks(state, nearestSystemId, target.systemId),
+    ticksRemaining: calcTravelTicks(state, plan.originSystemId, target.systemId),
     isExploration: false,
   };
   state.nextFleetId += 1;
   state.fleets.push(fleet);
   controller.recentAttacks[target.id] = {
     tick: tickNumber,
-    powerNeeded: calcDictAttackPower(finalSend),
+    powerNeeded: calcDictAttackPower(plan.units),
   };
   appendEvent(state, {
     type: 'fleet_launched',
@@ -458,10 +448,41 @@ function launchPooledAttackFleet(
   });
 }
 
-function removeDeployableUnitsForPooledAttack(
-  planet: Planet,
-  unitsToSend: Record<CombatUnitKey, number>,
-): void {
+function createPooledAttackPlan(state: GameState, planets: Planet[], target: Planet): PooledAttackPlan | undefined {
+  const unitsToSend = emptyCombatCounts();
+  const withdrawals: PooledAttackWithdrawal[] = [];
+  let nearestSystemId = -1;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const planet of planets) {
+    const distance = systemDistance(state, planet.systemId, target.systemId);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestSystemId = planet.systemId;
+    }
+
+    const withdrawal = planDeployableUnitsForPooledAttack(planet);
+    withdrawals.push(withdrawal);
+    for (const unitType of COMBAT_UNIT_KEYS) {
+      unitsToSend[unitType] += withdrawal.units[unitType];
+    }
+  }
+
+  if (nearestSystemId < 0) {
+    return undefined;
+  }
+
+  enforcePlannedTransportCapacity(unitsToSend, withdrawals);
+  const finalSend = normalizeSendUnits(unitsToSend);
+  if (Object.keys(finalSend).length === 0) {
+    return undefined;
+  }
+
+  return { originSystemId: nearestSystemId, units: finalSend, withdrawals };
+}
+
+function planDeployableUnitsForPooledAttack(planet: Planet): PooledAttackWithdrawal {
+  const units = emptyCombatCounts();
   const planetGarrison = Math.max(MIN_GARRISON_PER_PLANET, Math.trunc((planet.units.soldier ?? 0) * GARRISON_FRACTION));
   for (const unitType of COMBAT_UNIT_KEYS) {
     const available = planet.units[unitType] ?? 0;
@@ -474,34 +495,49 @@ function removeDeployableUnitsForPooledAttack(
 
     const toSend = Math.max(available - keep, 0);
     if (toSend > 0) {
-      unitsToSend[unitType] += toSend;
-      planet.units[unitType] = available - toSend;
+      units[unitType] = toSend;
+    }
+  }
+  return { planet, units };
+}
+
+function enforcePlannedTransportCapacity(unitsToSend: CombatUnitCounts, withdrawals: PooledAttackWithdrawal[]): void {
+  const groundCount = unitsToSend.soldier + unitsToSend.droid;
+  const transportCapacity = unitsToSend.transport * (UNITS.transport.capacity ?? 100);
+  if (groundCount <= 0 || transportCapacity >= groundCount) {
+    return;
+  }
+
+  let remainingCapacity = transportCapacity;
+  unitsToSend.soldier = 0;
+  unitsToSend.droid = 0;
+  for (const withdrawal of withdrawals) {
+    remainingCapacity = keepGroundUnitsWithinCapacity(withdrawal.units, 'soldier', remainingCapacity);
+    remainingCapacity = keepGroundUnitsWithinCapacity(withdrawal.units, 'droid', remainingCapacity);
+    unitsToSend.soldier += withdrawal.units.soldier;
+    unitsToSend.droid += withdrawal.units.droid;
+  }
+}
+
+function keepGroundUnitsWithinCapacity(units: CombatUnitCounts, unitType: 'soldier' | 'droid', capacity: number): number {
+  const kept = Math.min(units[unitType], capacity);
+  units[unitType] = kept;
+  return capacity - kept;
+}
+
+function applyPooledAttackWithdrawals(withdrawals: PooledAttackWithdrawal[]): void {
+  for (const withdrawal of withdrawals) {
+    for (const unitType of COMBAT_UNIT_KEYS) {
+      const count = withdrawal.units[unitType];
+      if (count > 0) {
+        withdrawal.planet.units[unitType] = (withdrawal.planet.units[unitType] ?? 0) - count;
+      }
     }
   }
 }
 
-function enforceTransportCapacity(unitsToSend: Record<CombatUnitKey, number>, returnPlanet: Planet | undefined): void {
-  const groundCount = unitsToSend.soldier + unitsToSend.droid;
-  const transportCapacity = unitsToSend.transport * (UNITS.transport.capacity ?? 100);
-  if (groundCount <= 0 || transportCapacity >= groundCount || returnPlanet === undefined) {
-    return;
-  }
-
-  if (unitsToSend.transport === 0) {
-    returnPlanet.units.soldier = (returnPlanet.units.soldier ?? 0) + unitsToSend.soldier;
-    returnPlanet.units.droid = (returnPlanet.units.droid ?? 0) + unitsToSend.droid;
-    unitsToSend.soldier = 0;
-    unitsToSend.droid = 0;
-    return;
-  }
-
-  const ratio = transportCapacity / groundCount;
-  const sendSoldiers = Math.trunc(unitsToSend.soldier * ratio);
-  const sendDroids = Math.trunc(unitsToSend.droid * ratio);
-  returnPlanet.units.soldier = (returnPlanet.units.soldier ?? 0) + unitsToSend.soldier - sendSoldiers;
-  returnPlanet.units.droid = (returnPlanet.units.droid ?? 0) + unitsToSend.droid - sendDroids;
-  unitsToSend.soldier = sendSoldiers;
-  unitsToSend.droid = sendDroids;
+function emptyCombatCounts(): CombatUnitCounts {
+  return { fighter: 0, bomber: 0, soldier: 0, droid: 0, transport: 0 };
 }
 
 function normalizeSendUnits(units: Record<CombatUnitKey, number>): Partial<Record<CombatUnitKey, number>> {
