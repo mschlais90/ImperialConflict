@@ -10,6 +10,7 @@ import {
 } from '../commands/playerCommands';
 import type { AgentOperationType, SpellType } from '../engines/opsEngine';
 import { getAgentOperationCost, getSpellCost, getTotalAgents, getTotalWizards } from '../engines/opsEngine';
+import { appendEvent } from '../events/eventLog';
 import type { GameState } from '../galaxy/galaxyData';
 import type { BuildingKey, CombatUnitKey, Empire, Planet, UnitKey } from '../models/types';
 import {
@@ -25,8 +26,8 @@ const MIN_ATTACK_TICK = 100;
 const MIN_MILITARY_TICK = 40;
 const BUILD_QUEUE_MAX = 3;
 const ATTACK_STRENGTH_RATIO = 2;
-const FAILED_ATTACK_COOLDOWN = 60;
-const FAILED_ATTACK_MULTIPLIER = 1.5;
+const RECENT_ATTACK_COOLDOWN = 60;
+const RECENT_ATTACK_MULTIPLIER = 1.5;
 const GARRISON_FRACTION = 0.15;
 const MIN_GARRISON_PER_PLANET = 10;
 const COMBAT_UNIT_KEYS: CombatUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport'];
@@ -246,13 +247,13 @@ function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumbe
 
     const defensePower = estimateDefensePower(planet);
     let requiredPower = Math.trunc(defensePower * ATTACK_STRENGTH_RATIO);
-    const memory = controller.failedAttacks[planet.id];
+    const memory = controller.recentAttacks[planet.id];
     if (memory !== undefined) {
       const ticksSince = tickNumber - memory.tick;
-      if (ticksSince < FAILED_ATTACK_COOLDOWN) {
+      if (ticksSince < RECENT_ATTACK_COOLDOWN) {
         continue;
       }
-      requiredPower = Math.max(requiredPower, Math.trunc(memory.powerNeeded * FAILED_ATTACK_MULTIPLIER));
+      requiredPower = Math.max(requiredPower, Math.trunc(memory.powerNeeded * RECENT_ATTACK_MULTIPLIER));
     }
 
     if (deployablePower < requiredPower) {
@@ -274,60 +275,7 @@ function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumbe
     return;
   }
 
-  const unitsToSend: Record<CombatUnitKey, number> = { fighter: 0, bomber: 0, soldier: 0, droid: 0, transport: 0 };
-  let nearestSystemId = -1;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-
-  for (const planet of planets) {
-    const distance = systemDistance(state, planet.systemId, bestTarget.systemId);
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestSystemId = planet.systemId;
-    }
-
-    const planetGarrison = Math.max(MIN_GARRISON_PER_PLANET, Math.trunc((planet.units.soldier ?? 0) * GARRISON_FRACTION));
-    for (const unitType of COMBAT_UNIT_KEYS) {
-      const available = planet.units[unitType] ?? 0;
-      let keep = 0;
-      if (unitType === 'soldier') {
-        keep = Math.min(planetGarrison, available);
-      } else if (unitType === 'transport') {
-        keep = Math.min(Math.ceil(planetGarrison / (UNITS.transport.capacity ?? 100)), available);
-      }
-
-      const toSend = Math.max(available - keep, 0);
-      if (toSend > 0) {
-        unitsToSend[unitType] += toSend;
-        planet.units[unitType] = available - toSend;
-      }
-    }
-  }
-
-  if (nearestSystemId < 0) {
-    return;
-  }
-
-  enforceTransportCapacity(unitsToSend, planets[0]);
-  const finalSend = normalizeSendUnits(unitsToSend);
-  if (Object.keys(finalSend).length === 0) {
-    return;
-  }
-
-  controller.failedAttacks[bestTarget.id] = {
-    tick: tickNumber,
-    powerNeeded: calcDictAttackPower(finalSend),
-  };
-  state.fleets.push({
-    id: state.nextFleetId,
-    ownerId: empire.id,
-    units: finalSend,
-    originSystemId: nearestSystemId,
-    targetSystemId: bestTarget.systemId,
-    targetPlanetId: bestTarget.id,
-    ticksRemaining: calcTravelTicks(state, nearestSystemId, bestTarget.systemId),
-    isExploration: false,
-  });
-  state.nextFleetId += 1;
+  launchPooledAttackFleet(state, empire, planets, bestTarget, tickNumber, controller);
 }
 
 function doOperations(state: GameState, empire: Empire): void {
@@ -361,10 +309,10 @@ function doOperations(state: GameState, empire: Empire): void {
 function getAiControllerState(state: GameState, empireId: number): GameState['aiControllers'][number] {
   let controller = state.aiControllers[empireId];
   if (controller === undefined) {
-    controller = { empireId, failedAttacks: {} };
+    controller = { empireId, recentAttacks: {} };
     state.aiControllers[empireId] = controller;
   }
-  controller.failedAttacks ??= {};
+  controller.recentAttacks ??= {};
   return controller;
 }
 
@@ -449,6 +397,87 @@ function calcDictAttackPower(units: Partial<Record<CombatUnitKey, number>>): num
     (units.bomber ?? 0) * 8 +
     (units.transport ?? 0) * 2
   );
+}
+
+function launchPooledAttackFleet(
+  state: GameState,
+  empire: Empire,
+  planets: Planet[],
+  target: Planet,
+  tickNumber: number,
+  controller: GameState['aiControllers'][number],
+): void {
+  const unitsToSend: Record<CombatUnitKey, number> = { fighter: 0, bomber: 0, soldier: 0, droid: 0, transport: 0 };
+  let nearestSystemId = -1;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const planet of planets) {
+    const distance = systemDistance(state, planet.systemId, target.systemId);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestSystemId = planet.systemId;
+    }
+
+    removeDeployableUnitsForPooledAttack(planet, unitsToSend);
+  }
+
+  if (nearestSystemId < 0) {
+    return;
+  }
+
+  enforceTransportCapacity(unitsToSend, planets[0]);
+  const finalSend = normalizeSendUnits(unitsToSend);
+  if (Object.keys(finalSend).length === 0) {
+    return;
+  }
+
+  const fleet = {
+    id: state.nextFleetId,
+    ownerId: empire.id,
+    units: finalSend,
+    originSystemId: nearestSystemId,
+    targetSystemId: target.systemId,
+    targetPlanetId: target.id,
+    ticksRemaining: calcTravelTicks(state, nearestSystemId, target.systemId),
+    isExploration: false,
+  };
+  state.nextFleetId += 1;
+  state.fleets.push(fleet);
+  controller.recentAttacks[target.id] = {
+    tick: tickNumber,
+    powerNeeded: calcDictAttackPower(finalSend),
+  };
+  appendEvent(state, {
+    type: 'fleet_launched',
+    tick: state.currentTick,
+    fleetId: fleet.id,
+    ownerId: fleet.ownerId,
+    originSystemId: fleet.originSystemId,
+    targetSystemId: fleet.targetSystemId,
+    targetPlanetId: fleet.targetPlanetId,
+  });
+}
+
+function removeDeployableUnitsForPooledAttack(
+  planet: Planet,
+  unitsToSend: Record<CombatUnitKey, number>,
+): void {
+  const planetGarrison = Math.max(MIN_GARRISON_PER_PLANET, Math.trunc((planet.units.soldier ?? 0) * GARRISON_FRACTION));
+  for (const unitType of COMBAT_UNIT_KEYS) {
+    const available = planet.units[unitType] ?? 0;
+    let keep = 0;
+    if (unitType === 'soldier') {
+      keep = Math.min(planetGarrison, available);
+    } else if (unitType === 'transport') {
+      keep = Math.min(Math.ceil(planetGarrison / (UNITS.transport.capacity ?? 100)), available);
+    }
+
+    const toSend = Math.max(available - keep, 0);
+    if (toSend > 0) {
+      unitsToSend[unitType] += toSend;
+      planet.units[unitType] = available - toSend;
+    }
+  }
 }
 
 function enforceTransportCapacity(unitsToSend: Record<CombatUnitKey, number>, returnPlanet: Planet | undefined): void {
