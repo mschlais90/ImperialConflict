@@ -49,6 +49,9 @@ export function performAgentOp(
   if (requiresAgentTargetPlanet(opType) && targetPlanet === undefined) {
     return { success: false, message: 'No target planet selected' };
   }
+  if (targetPlanet !== undefined && targetPlanet.ownerId !== targetEmpire.id) {
+    return { success: false, message: 'Target planet is not owned by target empire' };
+  }
 
   const cost = getAgentOperationCost(state, attacker);
   if (attacker.resources.gc < cost) {
@@ -98,6 +101,9 @@ export function performWizardSpell(
   }
   if (requiresSpellTargetPlanet(spellType) && targetPlanet === undefined) {
     return { success: false, message: 'No target planet selected' };
+  }
+  if (targetPlanet !== undefined && targetPlanet.ownerId !== targetEmpire.id) {
+    return { success: false, message: 'Target planet is not owned by target empire' };
   }
 
   const cost = getSpellCost(state, attacker);

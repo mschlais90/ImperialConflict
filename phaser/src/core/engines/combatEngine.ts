@@ -73,6 +73,7 @@ export function resolveBattle(state: GameState, attackerFleet: Fleet, defenderPl
   const airGround = phaseAirVsGround(state, attackerUnits, defenderPlanet.buildings.laser ?? 0);
   airGround.groundLostToTransports = killStrandedGround(attackerUnits);
   report.phases.push(airGround);
+  defenderPlanet.buildings.laser = airGround.remainingLasers;
 
   const airAir = phaseAirVsAir(attackerUnits, defenderUnits, attackerMilitaryBonus, defenderMilitaryBonus);
   airAir.groundLostToTransports = killStrandedGround(attackerUnits);
@@ -114,6 +115,7 @@ export function resolveBattle(state: GameState, attackerFleet: Fleet, defenderPl
     planetId: defenderPlanet.id,
     attackerId: attackerFleet.ownerId,
     defenderId,
+    report,
   });
 
   const attackerName = attacker?.empireName ?? 'Unknown';

@@ -141,6 +141,23 @@ describe('player commands', () => {
     expect(player.resources.gc).toBe(gcBefore);
   });
 
+  it('does not spend GC or mutate units when direct agent operations target another empire planet', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const player = state.empires[0];
+    const targetEmpire = state.empires[1];
+    const playerHome = getPlanetsForEmpire(state, player.id)[0];
+    playerHome.units.agent = 1;
+    playerHome.units.soldier = 10;
+    const gcBefore = player.resources.gc;
+
+    const result = performAgentOp(state, 'destroy_units', player, targetEmpire, playerHome);
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/target planet/i);
+    expect(player.resources.gc).toBe(gcBefore);
+    expect(playerHome.units.soldier).toBe(10);
+  });
+
   it('does not spend octarine when direct spells are missing target planets', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
     const player = state.empires[0];
@@ -155,5 +172,23 @@ describe('player commands', () => {
     expect(result.success).toBe(false);
     expect(result.message).toMatch(/target planet/i);
     expect(player.resources.octarine).toBe(octarineBefore);
+  });
+
+  it('does not spend octarine or mutate population when direct spells target another empire planet', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const player = state.empires[0];
+    const targetEmpire = state.empires[1];
+    const playerHome = getPlanetsForEmpire(state, player.id)[0];
+    playerHome.units.wizard = 1;
+    player.resources.octarine = 1000;
+    const octarineBefore = player.resources.octarine;
+    const populationBefore = playerHome.population;
+
+    const result = performWizardSpell(state, 'hypnotize', player, targetEmpire, playerHome);
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/target planet/i);
+    expect(player.resources.octarine).toBe(octarineBefore);
+    expect(playerHome.population).toBe(populationBefore);
   });
 });

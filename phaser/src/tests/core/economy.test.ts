@@ -77,6 +77,15 @@ describe('economy and ticks', () => {
     expect(state.fleets).not.toContain(fleet);
     expect(enemyPlanet.ownerId).toBe(1);
     expect(state.events.filter((event) => event.type === 'battle_resolved' && event.planetId === enemyPlanet.id)).toHaveLength(1);
+    expect(state.events).toContainEqual(
+      expect.objectContaining({
+        type: 'battle_resolved',
+        report: expect.objectContaining({
+          attackerWon: true,
+          phases: expect.arrayContaining([expect.objectContaining({ phase: 'Ground vs Ground' })]),
+        }),
+      }),
+    );
   });
 
   it('emits colonization and explore notification for explorer arrivals', () => {

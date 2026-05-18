@@ -54,6 +54,7 @@ describe('combat engine', () => {
     expect(phase.lasersDestroyed).toBe(1);
     expect(phase.remainingLasers).toBe(0);
     expect(phase.bombersLost).toBe(0);
+    expect(target.buildings.laser).toBe(0);
     expect(report.attackerWon).toBe(false);
   });
 

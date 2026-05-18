@@ -1,4 +1,5 @@
 import type { GameState } from '../galaxy/galaxyData';
+import type { BattleReport } from '../engines/combatEngine';
 import type { BuildingKey, UnitKey } from '../models/types';
 
 export type GameEvent =
@@ -15,7 +16,14 @@ export type GameEvent =
       targetPlanetId: number;
     }
   | { type: 'fleet_arrived'; tick: number; fleetId: number; targetPlanetId: number }
-  | { type: 'battle_resolved'; tick: number; planetId: number; attackerId: number; defenderId: number }
+  | {
+      type: 'battle_resolved';
+      tick: number;
+      planetId: number;
+      attackerId: number;
+      defenderId: number;
+      report: BattleReport;
+    }
   | { type: 'building_completed'; tick: number; planetId: number; buildingType: BuildingKey }
   | { type: 'unit_completed'; tick: number; planetId: number; unitType: UnitKey }
   | { type: 'empire_eliminated'; tick: number; empireId: number }
