@@ -210,7 +210,7 @@ function createEmpires(state: GameState, rng: Rng, playerEmpireName: string): vo
     state.empires.push(empire);
 
     if (!isPlayer) {
-      state.aiControllers.push({ empireId });
+      state.aiControllers.push({ empireId, failedAttacks: {} });
     }
   }
 }

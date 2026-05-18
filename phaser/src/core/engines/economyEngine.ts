@@ -1,5 +1,6 @@
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
+import { processAiTurn } from '../ai/aiController';
 import { resolveBattle } from './combatEngine';
 import { appendEvent } from '../events/eventLog';
 import type {
@@ -35,6 +36,9 @@ export function processEconomyTick(state: GameState): void {
 
   for (const empire of state.empires) {
     processEmpireTick(state, empire);
+    if (!empire.isPlayer) {
+      processAiTurn(state, empire.id, state.currentTick);
+    }
   }
 
   checkEliminations(state);
