@@ -71,6 +71,18 @@ test('shows validation notice instead of coercing invalid train counts', async (
   await expect(page.getByText('Train count must be a whole number.')).toBeVisible();
 });
 
+test('rejects fractional research allocation before total validation', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Start' }).click();
+
+  await page.getByLabel('military').fill('20.5');
+  await page.getByLabel('welfare').fill('20.5');
+  await page.getByRole('button', { name: 'Apply research' }).click();
+
+  await expect(page.getByText('Military allocation must be a whole number.')).toBeVisible();
+  await expect(page.getByText('Research allocation updated')).not.toBeVisible();
+});
+
 async function readCanvasInfo(canvas: Locator) {
   return canvas.evaluate((node) => {
     const canvasNode = node as HTMLCanvasElement;

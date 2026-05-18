@@ -1,6 +1,6 @@
 import { setResearchAllocation } from '../core/commands/playerCommands';
 import type { ScienceKey } from '../core/models/types';
-import { button, numberInput } from './dom';
+import { button, numberInput, parseIntegerInput } from './dom';
 import type { UiContext } from './types';
 
 const SCIENCE_KEYS: ScienceKey[] = ['military', 'welfare', 'economy', 'construction', 'resources'];
@@ -23,7 +23,13 @@ export function renderResearchPanel(context: UiContext): HTMLElement {
   total.className = 'form-note';
 
   const updateTotal = (): void => {
-    const sum = SCIENCE_KEYS.reduce((value, key) => value + readInput(inputs.get(key)), 0);
+    const parsed = parseAllocation(inputs);
+    if (!parsed.ok) {
+      total.textContent = 'Total allocation: invalid';
+      total.classList.add('error-text');
+      return;
+    }
+    const sum = SCIENCE_KEYS.reduce((value, key) => value + parsed.allocation[key], 0);
     total.textContent = `Total allocation: ${sum}%`;
     total.classList.toggle('error-text', sum !== 100);
   };
@@ -40,10 +46,12 @@ export function renderResearchPanel(context: UiContext): HTMLElement {
   }
 
   const apply = button('Apply research', () => {
-    const allocation = Object.fromEntries(SCIENCE_KEYS.map((key) => [key, readInput(inputs.get(key))])) as Record<
-      ScienceKey,
-      number
-    >;
+    const parsed = parseAllocation(inputs);
+    if (!parsed.ok) {
+      context.setNotice(parsed.message, true);
+      return;
+    }
+    const allocation = parsed.allocation;
     const sum = SCIENCE_KEYS.reduce((value, key) => value + allocation[key], 0);
     if (sum !== 100) {
       context.setNotice('Research allocation must total 100.', true);
@@ -61,6 +69,24 @@ function labelText(value: string): Text {
   return document.createTextNode(value.replace('_', ' '));
 }
 
-function readInput(input: HTMLInputElement | undefined): number {
-  return Math.max(0, Math.trunc(Number(input?.value ?? 0)));
+function parseAllocation(
+  inputs: Map<ScienceKey, HTMLInputElement>,
+): { ok: true; allocation: Record<ScienceKey, number> } | { ok: false; message: string } {
+  const allocation = {} as Record<ScienceKey, number>;
+  for (const science of SCIENCE_KEYS) {
+    const parsed = parseIntegerInput(inputs.get(science)?.value ?? '', {
+      label: `${displayScience(science)} allocation`,
+      min: 0,
+      max: 100,
+    });
+    if (!parsed.ok) {
+      return parsed;
+    }
+    allocation[science] = parsed.value;
+  }
+  return { ok: true, allocation };
+}
+
+function displayScience(science: ScienceKey): string {
+  return science.charAt(0).toUpperCase() + science.slice(1).replace('_', ' ');
 }
