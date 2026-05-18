@@ -8,6 +8,7 @@ const PLANET_NETWORTH_UNITS: PlanetUnitKey[] = [
   'soldier',
   'droid',
   'transport',
+  'explorer',
   'agent',
   'wizard',
 ];

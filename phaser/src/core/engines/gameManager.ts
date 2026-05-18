@@ -1,4 +1,5 @@
 import { createEmptyGameState, type GameState } from '../galaxy/galaxyData';
+import { appendEvent } from '../events/eventLog';
 import {
   createEmpire,
   createPlanet,
@@ -85,11 +86,7 @@ export function createNewGame(options: NewGameOptions = {}): GameState {
   state.currentSpeed = 1;
 
   generateGalaxy(state, rng, playerEmpireName);
-  state.events.push({
-    id: state.nextEventId,
-    event: { type: 'game_started', tick: state.currentTick, empireName: playerEmpireName },
-  });
-  state.nextEventId += 1;
+  appendEvent(state, { type: 'game_started', tick: state.currentTick, empireName: playerEmpireName });
 
   return state;
 }

@@ -10,7 +10,7 @@ export type UnitKey =
   | 'agent'
   | 'wizard';
 export type CombatUnitKey = 'fighter' | 'bomber' | 'soldier' | 'droid' | 'transport';
-export type PlanetUnitKey = CombatUnitKey | 'agent' | 'wizard';
+export type PlanetUnitKey = UnitKey;
 export type BuildingKey =
   | 'mine'
   | 'refinery'
