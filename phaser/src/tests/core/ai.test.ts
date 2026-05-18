@@ -206,6 +206,28 @@ describe('AI controller', () => {
     expect(planets[1].units.soldier).toBe(200);
   });
 
+  it('aborts attack when transport-trimmed power is below the selected target requirement', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const planets = prepareAiAttackPlanets(state, ai);
+    const target = state.empires.find((empire) => empire.isPlayer)!;
+    const targetPlanet = makeOnlyViableAttackTarget(state, ai, target);
+    targetPlanet.units = { soldier: 60 };
+    ai.resources = { gc: 0, food: 0, iron: 0, endurium: 0, octarine: 0 };
+    planets[0].units = { transport: 2 };
+    planets[1].units = { soldier: 1000 };
+    const beforeUnits = planets.map((planet) => ({ ...planet.units }));
+    const fleetCount = state.fleets.length;
+    const eventCount = state.events.length;
+
+    processAiTurn(state, ai.id, 101);
+
+    expect(state.fleets).toHaveLength(fleetCount);
+    expect(state.events).toHaveLength(eventCount);
+    expect(state.aiControllers[ai.id].recentAttacks[targetPlanet.id]).toBeUndefined();
+    expect(planets.map((planet) => planet.units)).toEqual(beforeUnits);
+  });
+
   it('does not perform operations without enough operation resources', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
     const ai = state.empires.find((empire) => !empire.isPlayer)!;

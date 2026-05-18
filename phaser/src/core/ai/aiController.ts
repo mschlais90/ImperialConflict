@@ -246,6 +246,7 @@ function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumbe
   const controller = getAiControllerState(state, empire.id);
   const center = getEmpireCenter(state, planets);
   let bestTarget: Planet | undefined;
+  let bestTargetRequiredPower = 0;
   let bestScore = Number.NEGATIVE_INFINITY;
 
   for (const planet of state.planets) {
@@ -276,6 +277,7 @@ function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumbe
     if (score > bestScore) {
       bestScore = score;
       bestTarget = planet;
+      bestTargetRequiredPower = requiredPower;
     }
   }
 
@@ -283,7 +285,7 @@ function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumbe
     return;
   }
 
-  launchPooledAttackFleet(state, empire, planets, bestTarget, tickNumber, controller);
+  launchPooledAttackFleet(state, empire, planets, bestTarget, bestTargetRequiredPower, tickNumber, controller);
 }
 
 function doOperations(state: GameState, empire: Empire): void {
@@ -412,11 +414,16 @@ function launchPooledAttackFleet(
   empire: Empire,
   planets: Planet[],
   target: Planet,
+  requiredPower: number,
   tickNumber: number,
   controller: GameState['aiControllers'][number],
 ): void {
   const plan = createPooledAttackPlan(state, planets, target);
   if (plan === undefined) {
+    return;
+  }
+  const plannedPower = calcDictAttackPower(plan.units);
+  if (plannedPower < requiredPower) {
     return;
   }
 
@@ -435,7 +442,7 @@ function launchPooledAttackFleet(
   state.fleets.push(fleet);
   controller.recentAttacks[target.id] = {
     tick: tickNumber,
-    powerNeeded: calcDictAttackPower(plan.units),
+    powerNeeded: plannedPower,
   };
   appendEvent(state, {
     type: 'fleet_launched',
