@@ -3,7 +3,7 @@ import { UNITS } from '../core/data/units';
 import { queueBuilding, queueExplorer, sendExplorer, sendFleet } from '../core/commands/playerCommands';
 import type { BuildingKey, CombatUnitKey, Planet, PlanetUnitKey } from '../core/models/types';
 import { getEmpire, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
-import { button, formatNumber, numberInput, resourceCostText, select } from './dom';
+import { button, formatNumber, labeledControl, numberInput, parseIntegerInput, resourceCostText, select } from './dom';
 import type { UiContext } from './types';
 
 const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
@@ -75,15 +75,20 @@ function buildControls(context: UiContext, planet: Planet): HTMLElement {
   );
   const count = numberInput(1, { min: 1 });
   form.append(
-    buildingSelect,
-    count,
+    labeledControl('Building', buildingSelect),
+    labeledControl('Count', count),
     button('Queue', () => {
+      const parsedCount = parseIntegerInput(count.value, { label: 'Build count', min: 1, max: 999 });
+      if (!parsedCount.ok) {
+        context.setNotice(parsedCount.message, true);
+        return;
+      }
       context.runCommand(() =>
         queueBuilding(state, {
           empireId: context.player.id,
           planetId: planet.id,
           buildingType: buildingSelect.value as BuildingKey,
-          count: readPositive(count),
+          count: parsedCount.value,
         }),
       );
     }),
@@ -101,9 +106,16 @@ function explorerBuildControls(context: UiContext, planet: Planet): HTMLElement 
   form.className = 'inline-form';
   const count = numberInput(1, { min: 1 });
   form.append(
-    count,
+    labeledControl('Count', count),
     button(`Queue explorer (${resourceCostText(UNITS.explorer.cost)})`, () => {
-      context.runCommand(() => queueExplorer(state, { empireId: context.player.id, planetId: planet.id, count: readPositive(count) }));
+      const parsedCount = parseIntegerInput(count.value, { label: 'Explorer count', min: 1, max: 999 });
+      if (!parsedCount.ok) {
+        context.setNotice(parsedCount.message, true);
+        return;
+      }
+      context.runCommand(() =>
+        queueExplorer(state, { empireId: context.player.id, planetId: planet.id, count: parsedCount.value }),
+      );
     }),
   );
   return form;
@@ -130,7 +142,7 @@ function renderUncolonizedPlanet(context: UiContext, target: Planet): HTMLElemen
   const form = document.createElement('div');
   form.className = 'inline-form';
   form.append(
-    sourceSelect,
+    labeledControl('Source', sourceSelect),
     button('Launch explorer', () => {
       context.runCommand(() =>
         sendExplorer(state, { empireId: context.player.id, sourcePlanetId: Number(sourceSelect.value), targetPlanetId: target.id }),
@@ -169,6 +181,11 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[])
 
   const form = document.createElement('div');
   form.className = 'fleet-form';
+  if (sources.length === 0) {
+    form.append(emptyText('No source planets available.'));
+    return form;
+  }
+
   const sourceSelect = select(
     sources.map((planet) => ({ label: planet.planetName, value: planet.id })),
     sources[0].id,
@@ -184,9 +201,17 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[])
 
   form.append(
     button('Send fleet', () => {
-      const units = Object.fromEntries(COMBAT_UNITS.map((unit) => [unit, readNonNegative(inputs.get(unit))])) as Partial<
-        Record<CombatUnitKey, number>
-      >;
+      const units: Partial<Record<CombatUnitKey, number>> = {};
+      for (const unit of COMBAT_UNITS) {
+        const parsedCount = parseIntegerInput(inputs.get(unit)?.value ?? '', { label: UNITS[unit].name, min: 0, max: 999_999 });
+        if (!parsedCount.ok) {
+          context.setNotice(parsedCount.message, true);
+          return;
+        }
+        if (parsedCount.value > 0) {
+          units[unit] = parsedCount.value;
+        }
+      }
       context.runCommand(() =>
         sendFleet(state, {
           empireId: context.player.id,
@@ -245,24 +270,9 @@ function keyValueList(rows: Array<[string, number | string]>): HTMLElement {
   return list;
 }
 
-function labeledControl(label: string, control: HTMLElement): HTMLElement {
-  const row = document.createElement('label');
-  row.className = 'form-row';
-  row.append(document.createTextNode(label), control);
-  return row;
-}
-
 function emptyText(text: string): HTMLElement {
   const element = document.createElement('p');
   element.className = 'empty-text';
   element.textContent = text;
   return element;
-}
-
-function readPositive(input: HTMLInputElement): number {
-  return Math.max(1, Math.trunc(Number(input.value)));
-}
-
-function readNonNegative(input: HTMLInputElement | undefined): number {
-  return Math.max(0, Math.trunc(Number(input?.value ?? 0)));
 }

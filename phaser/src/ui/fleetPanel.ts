@@ -2,7 +2,7 @@ import { UNITS } from '../core/data/units';
 import { trainUnits } from '../core/commands/playerCommands';
 import type { Planet, UnitKey } from '../core/models/types';
 import { getPlanet, getPlanetsForEmpire } from '../core/selectors/selectors';
-import { button, numberInput, resourceCostText, select } from './dom';
+import { button, labeledControl, numberInput, parseIntegerInput, resourceCostText, select } from './dom';
 import { fleetForm } from './planetPanel';
 import type { UiContext } from './types';
 
@@ -34,7 +34,10 @@ export function renderFleetPanel(context: UiContext): HTMLElement {
 
   const selectedTarget = state.selectedPlanetId === null ? undefined : getPlanet(state, state.selectedPlanetId);
   if (selectedTarget && selectedTarget.ownerId !== context.player.id) {
-    panel.append(subtitle('Send to selected'), fleetForm(context, selectedTarget, ownedPlanets));
+    panel.append(
+      subtitle('Send to selected'),
+      ownedPlanets.length > 0 ? fleetForm(context, selectedTarget, ownedPlanets) : emptyText('No owned planets can send fleets.'),
+    );
   } else {
     panel.append(emptyText('Select a neutral or enemy planet to send fleets.'));
   }
@@ -66,16 +69,21 @@ function trainControls(context: UiContext, ownedPlanets: Planet[]): HTMLElement 
   );
   const count = numberInput(1, { min: 1 });
   form.append(
-    planetSelect,
-    unitSelect,
-    count,
+    labeledControl('Planet', planetSelect),
+    labeledControl('Unit', unitSelect),
+    labeledControl('Count', count),
     button('Train', () => {
+      const parsedCount = parseIntegerInput(count.value, { label: 'Train count', min: 1, max: 999_999 });
+      if (!parsedCount.ok) {
+        context.setNotice(parsedCount.message, true);
+        return;
+      }
       context.runCommand(() =>
         trainUnits(state, {
           empireId: context.player.id,
           planetId: Number(planetSelect.value),
           unitType: unitSelect.value as Exclude<UnitKey, 'explorer'>,
-          count: Math.max(1, Math.trunc(Number(count.value))),
+          count: parsedCount.value,
         }),
       );
     }),

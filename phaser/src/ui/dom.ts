@@ -35,6 +35,33 @@ export function numberInput(value: number, options: { min?: number; max?: number
   return element;
 }
 
+export function labeledControl(label: string, control: HTMLElement): HTMLLabelElement {
+  const row = document.createElement('label');
+  row.className = 'form-row';
+  row.append(document.createTextNode(label), control);
+  return row;
+}
+
+export type IntegerInputResult = { ok: true; value: number } | { ok: false; message: string };
+
+export function parseIntegerInput(
+  rawValue: string,
+  options: { label: string; min?: number; max?: number } = { label: 'Value' },
+): IntegerInputResult {
+  const trimmed = rawValue.trim();
+  const value = Number(trimmed);
+  if (trimmed === '' || !Number.isFinite(value) || !Number.isInteger(value)) {
+    return { ok: false, message: `${options.label} must be a whole number.` };
+  }
+  if (options.min !== undefined && value < options.min) {
+    return { ok: false, message: `${options.label} must be at least ${options.min}.` };
+  }
+  if (options.max !== undefined && value > options.max) {
+    return { ok: false, message: `${options.label} must be at most ${options.max}.` };
+  }
+  return { ok: true, value };
+}
+
 export function select<T extends string | number>(
   options: Array<{ label: string; value: T }>,
   currentValue: T,

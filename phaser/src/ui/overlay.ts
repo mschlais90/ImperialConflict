@@ -69,7 +69,9 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       runCommand(command) {
         const result = command();
         notice = { message: result.message, isError: !result.ok };
-        controller.refreshScene?.();
+        if (result.ok) {
+          controller.refreshScene?.();
+        }
         render();
       },
       setNotice(message, isError = false) {

@@ -45,7 +45,9 @@ export function renderHud(context: UiContext): HTMLElement {
       setSpeed(state, speed.value);
       controller.overlay.render();
     });
-    speedButton.classList.toggle('active', state.currentSpeed === speed.value);
+    const isActive = state.currentSpeed === speed.value;
+    speedButton.classList.toggle('active', isActive);
+    speedButton.setAttribute('aria-pressed', String(isActive));
     speeds.append(speedButton);
   }
 

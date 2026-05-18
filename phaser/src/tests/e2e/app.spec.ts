@@ -1,7 +1,17 @@
 import { expect, test, type Locator } from '@playwright/test';
 
-test('renders the Phaser game canvas', async ({ page }) => {
+test('starts a game and renders the management overlay with canvas', async ({ page }) => {
   await page.goto('/');
+
+  await expect(page.getByRole('heading', { name: 'Imperial Conflict' })).toBeVisible();
+  await page.getByLabel('Empire name').fill('Smoke Empire');
+  await page.getByRole('button', { name: 'Start' }).click();
+
+  await expect(page.getByText('GC').first()).toBeVisible();
+  await expect(page.getByText('Net worth')).toBeVisible();
+  await expect(page.getByRole('button', { name: '1x' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { name: 'Planet' })).toBeVisible();
+  await expect(page.getByText('Select a planet in a system.')).toBeVisible();
 
   const canvas = page.locator('#game canvas');
 
@@ -22,18 +32,19 @@ test('renders the Phaser game canvas', async ({ page }) => {
   expect(canvasInfo.drawingHeight).toBeLessThanOrEqual(canvasInfo.clientHeight * canvasInfo.devicePixelRatio + 2);
   expect(canvasInfo.nonBlankPixels).toBeGreaterThan(0);
 
-  const emptyOverlayHitTarget = await page.evaluate(() => {
+  const overlayHitTarget = await page.evaluate(() => {
     const target = document.elementFromPoint(10, 10);
 
     return target ? { id: target.id, tagName: target.tagName } : null;
   });
 
-  expect(emptyOverlayHitTarget).not.toEqual({ id: 'ui-root', tagName: 'DIV' });
+  expect(overlayHitTarget).not.toEqual({ id: 'ui-root', tagName: 'DIV' });
 });
 
 test('keeps the Phaser canvas visible after resize', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 667 });
   await page.goto('/');
+  await page.getByRole('button', { name: 'Start' }).click();
 
   const canvas = page.locator('#game canvas');
 
@@ -47,6 +58,17 @@ test('keeps the Phaser canvas visible after resize', async ({ page }) => {
   expect(canvasInfo.drawingWidth).toBeGreaterThan(0);
   expect(canvasInfo.drawingHeight).toBeGreaterThan(0);
   expect(canvasInfo.nonBlankPixels).toBeGreaterThan(0);
+});
+
+test('shows validation notice instead of coercing invalid train counts', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Start' }).click();
+
+  const trainCount = page.getByLabel('Count').first();
+  await trainCount.fill('2.5');
+  await page.getByRole('button', { name: 'Train' }).click();
+
+  await expect(page.getByText('Train count must be a whole number.')).toBeVisible();
 });
 
 async function readCanvasInfo(canvas: Locator) {
