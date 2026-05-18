@@ -102,7 +102,7 @@ export class GalaxyScene extends Phaser.Scene {
 
       marker.setInteractive(new Phaser.Geom.Circle(0, 0, 14), Phaser.Geom.Circle.Contains);
       marker.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-        if (pointer.leftButtonReleased() && pointer.getDistance() < 8) {
+        if (this.isCanvasTopTarget(pointer) && pointer.leftButtonReleased() && pointer.getDistance() < 8) {
           state.selectedSystemId = system.id;
           state.selectedPlanetId = null;
           controller.overlay.render();
@@ -164,6 +164,11 @@ export class GalaxyScene extends Phaser.Scene {
 
   private getController(): AppController {
     return this.registry.get(APP_CONTROLLER_KEY) as AppController;
+  }
+
+  private isCanvasTopTarget(pointer: Phaser.Input.Pointer): boolean {
+    const topElement = document.elementFromPoint(pointer.x, pointer.y);
+    return topElement instanceof HTMLCanvasElement;
   }
 
   private requireState(controller: AppController) {

@@ -81,7 +81,7 @@ export class SystemScene extends Phaser.Scene {
   private calculateGridLayout(planetCount: number, width: number, height: number): SystemGridLayout {
     const topMargin = height < 560 ? 92 : 116;
     const bottomMargin = 20;
-    const sideMargin = width < 520 ? 18 : 36;
+    const sideMargin = width >= 900 ? 460 : width < 520 ? 18 : 36;
     const availableWidth = Math.max(width - sideMargin * 2, 160);
     const availableHeight = Math.max(height - topMargin - bottomMargin, 180);
     const maxColumns = Math.min(5, Math.max(1, planetCount));
@@ -138,7 +138,7 @@ export class SystemScene extends Phaser.Scene {
 
     body.setInteractive(new Phaser.Geom.Circle(0, 0, radius + 12), Phaser.Geom.Circle.Contains);
     body.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      if (!pointer.leftButtonReleased() || pointer.getDistance() >= 8) {
+      if (!this.isCanvasTopTarget(pointer) || !pointer.leftButtonReleased() || pointer.getDistance() >= 8) {
         return;
       }
 
@@ -218,6 +218,11 @@ export class SystemScene extends Phaser.Scene {
 
   private getController(): AppController {
     return this.registry.get(APP_CONTROLLER_KEY) as AppController;
+  }
+
+  private isCanvasTopTarget(pointer: Phaser.Input.Pointer): boolean {
+    const topElement = document.elementFromPoint(pointer.x, pointer.y);
+    return topElement instanceof HTMLCanvasElement;
   }
 
   private requireState(controller: AppController): GameState {
