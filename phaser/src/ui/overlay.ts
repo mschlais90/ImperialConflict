@@ -12,7 +12,7 @@ import type { UiContext } from './types';
 
 export interface OverlayApi {
   render(): void;
-  renderAfterTick(): void;
+  refreshAfterTick(): void;
   showStartScreen(): void;
   showGameOver(playerWon: boolean): void;
 }
@@ -20,10 +20,13 @@ export interface OverlayApi {
 export function createOverlay(root: HTMLElement, controller: AppController): OverlayApi {
   let notice: { message: string; isError: boolean } | null = null;
   let forcedGameOver: boolean | null = null;
+  let hudPanel: HTMLElement | null = null;
+  let notificationsPanel: HTMLElement | null = null;
+  let gameOverScreen: HTMLElement | null = null;
 
   const overlay: AppOverlay = {
     render,
-    renderAfterTick,
+    refreshAfterTick,
     showStartScreen,
     showGameOver,
   };
@@ -48,16 +51,30 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     render();
   }
 
-  function renderAfterTick(): void {
-    notice = null;
-    render();
+  function refreshAfterTick(): void {
+    const state = controller.state;
+    const player = state ? getPlayerEmpire(state) : undefined;
+    if (!state || state.currentState === 'main_menu' || !player || !hudPanel || !notificationsPanel) {
+      render();
+      return;
+    }
+
+    const context = createContext(player);
+    const nextHudPanel = renderHud(context);
+    const nextNotificationsPanel = renderNotifications(state.events, notice);
+    hudPanel.replaceWith(nextHudPanel);
+    notificationsPanel.replaceWith(nextNotificationsPanel);
+    hudPanel = nextHudPanel;
+    notificationsPanel = nextNotificationsPanel;
+    syncGameOverPanel();
   }
 
   function render(): void {
+    hudPanel = null;
+    notificationsPanel = null;
+    gameOverScreen = null;
     clearElement(root);
     const state = controller.state;
-    const gameOverEvent = state ? [...state.events].reverse().find((event) => event.type === 'game_over') : undefined;
-    const playerWon = forcedGameOver ?? (gameOverEvent?.type === 'game_over' ? gameOverEvent.playerWon : null);
 
     if (!state || state.currentState === 'main_menu') {
       showStartScreen();
@@ -70,7 +87,30 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       return;
     }
 
-    const context: UiContext = {
+    const context = createContext(player);
+
+    const shell = document.createElement('div');
+    shell.className = 'overlay-shell';
+    hudPanel = renderHud(context);
+    shell.append(hudPanel);
+
+    const body = document.createElement('div');
+    body.className = 'overlay-body';
+    const left = document.createElement('div');
+    left.className = 'overlay-left';
+    left.append(renderPlanetPanel(context));
+    const right = document.createElement('div');
+    right.className = 'overlay-right';
+    notificationsPanel = renderNotifications(state.events, notice);
+    right.append(renderFleetPanel(context), renderResearchPanel(context), notificationsPanel);
+    body.append(left, right);
+    shell.append(body);
+    root.append(shell);
+    syncGameOverPanel();
+  }
+
+  function createContext(player: NonNullable<ReturnType<typeof getPlayerEmpire>>): UiContext {
+    return {
       controller,
       player,
       runCommand(command) {
@@ -86,26 +126,26 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         render();
       },
     };
+  }
 
-    const shell = document.createElement('div');
-    shell.className = 'overlay-shell';
-    shell.append(renderHud(context));
+  function syncGameOverPanel(): void {
+    const state = controller.state;
+    const gameOverEvent = state ? [...state.events].reverse().find((event) => event.type === 'game_over') : undefined;
+    const playerWon = forcedGameOver ?? (gameOverEvent?.type === 'game_over' ? gameOverEvent.playerWon : null);
 
-    const body = document.createElement('div');
-    body.className = 'overlay-body';
-    const left = document.createElement('div');
-    left.className = 'overlay-left';
-    left.append(renderPlanetPanel(context));
-    const right = document.createElement('div');
-    right.className = 'overlay-right';
-    right.append(renderFleetPanel(context), renderResearchPanel(context), renderNotifications(state.events, notice));
-    body.append(left, right);
-    shell.append(body);
-    root.append(shell);
-
-    if (playerWon !== null || state.currentState === 'game_over') {
-      root.append(gameOverPanel(playerWon ?? false));
+    if (playerWon === null && state?.currentState !== 'game_over') {
+      gameOverScreen?.remove();
+      gameOverScreen = null;
+      return;
     }
+
+    const nextGameOverScreen = gameOverPanel(playerWon ?? false);
+    if (gameOverScreen) {
+      gameOverScreen.replaceWith(nextGameOverScreen);
+    } else {
+      root.append(nextGameOverScreen);
+    }
+    gameOverScreen = nextGameOverScreen;
   }
 
   return overlay;

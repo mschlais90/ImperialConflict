@@ -43,7 +43,7 @@ export function renderHud(context: UiContext): HTMLElement {
   for (const speed of SPEED_OPTIONS) {
     const speedButton = button(speed.label, () => {
       setSpeed(state, speed.value);
-      controller.overlay.render();
+      controller.overlay.refreshAfterTick();
     });
     const isActive = state.currentSpeed === speed.value;
     speedButton.classList.toggle('active', isActive);

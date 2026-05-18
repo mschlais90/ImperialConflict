@@ -12,9 +12,11 @@ const MAX_FRAME_SECONDS = 0.25;
 
 declare global {
   interface Window {
-    imperialConflictStopAppTimer?: () => void;
+    imperialConflictCleanup?: () => void;
   }
 }
+
+window.imperialConflictCleanup?.();
 
 const gameRoot = document.querySelector<HTMLDivElement>('#game');
 const uiRoot = document.querySelector<HTMLDivElement>('#ui-root');
@@ -34,7 +36,7 @@ const controller: AppController = {
   state: null,
   overlay: {
     render: () => undefined,
-    renderAfterTick: () => undefined,
+    refreshAfterTick: () => undefined,
     showStartScreen: () => undefined,
     showGameOver: () => undefined,
   },
@@ -63,8 +65,16 @@ const config: Phaser.Types.Core.GameConfig = {
 const game = new Phaser.Game(config);
 game.registry.set(APP_CONTROLLER_KEY, controller);
 
-window.imperialConflictStopAppTimer?.();
-window.imperialConflictStopAppTimer = startAppTimer(controller);
+const stopAppTimer = startAppTimer(controller);
+const cleanup = () => {
+  stopAppTimer();
+  game.destroy(true);
+  if (window.imperialConflictCleanup === cleanup) {
+    delete window.imperialConflictCleanup;
+  }
+};
+window.imperialConflictCleanup = cleanup;
+import.meta.hot?.dispose(cleanup);
 
 function startAppTimer(appController: AppController): () => void {
   let lastTimestamp: number | null = null;
@@ -102,7 +112,7 @@ function startAppTimer(appController: AppController): () => void {
     if (accumulatedScaledSeconds >= BASE_TICK_SECONDS) {
       accumulatedScaledSeconds -= BASE_TICK_SECONDS;
       advanceTick(state);
-      appController.overlay.renderAfterTick();
+      appController.overlay.refreshAfterTick();
       appController.refreshScene?.();
     }
 
