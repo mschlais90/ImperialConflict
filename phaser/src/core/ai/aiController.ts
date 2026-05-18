@@ -359,10 +359,10 @@ function doOperations(state: GameState, empire: Empire): void {
 }
 
 function getAiControllerState(state: GameState, empireId: number): GameState['aiControllers'][number] {
-  let controller = state.aiControllers.find((candidate) => candidate.empireId === empireId);
+  let controller = state.aiControllers[empireId];
   if (controller === undefined) {
     controller = { empireId, failedAttacks: {} };
-    state.aiControllers.push(controller);
+    state.aiControllers[empireId] = controller;
   }
   controller.failedAttacks ??= {};
   return controller;

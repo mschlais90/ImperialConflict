@@ -14,7 +14,7 @@ export interface GameState {
   systems: SolarSystem[];
   planets: Planet[];
   fleets: Fleet[];
-  aiControllers: AiControllerState[];
+  aiControllers: Record<number, AiControllerState>;
   events: EventLogEntry[];
   currentTick: number;
   currentSpeed: GameSpeed;
@@ -37,7 +37,7 @@ export function createEmptyGameState(): GameState {
     systems: [],
     planets: [],
     fleets: [],
-    aiControllers: [],
+    aiControllers: {},
     events: [],
     currentTick: 0,
     currentSpeed: 0,

@@ -36,6 +36,9 @@ export function processEconomyTick(state: GameState): void {
 
   for (const empire of state.empires) {
     processEmpireTick(state, empire);
+  }
+
+  for (const empire of state.empires) {
     if (!empire.isPlayer) {
       processAiTurn(state, empire.id, state.currentTick);
     }
