@@ -3,26 +3,31 @@ extends Node
 ## Called by UI or AI when performing operations against enemy empires.
 
 # Agent operation definitions
+# difficulty: "soft" ops are easier, "hard" ops are harder and visible to the defender
 const AGENT_OPS: Dictionary = {
 	"spy": {
 		"name": "Spy",
 		"description": "Reveal enemy empire resources and planet count.",
 		"target": "empire",
+		"difficulty": "soft",
 	},
 	"destroy_cash": {
 		"name": "Destroy Cash",
 		"description": "Destroy 3-10% of enemy GC reserves.",
 		"target": "empire",
+		"difficulty": "hard",
 	},
 	"destroy_units": {
 		"name": "Destroy Units",
 		"description": "Destroy 30% of a random unit type on target planet.",
 		"target": "planet",
+		"difficulty": "hard",
 	},
 	"sabotage_portal": {
 		"name": "Sabotage Portal",
 		"description": "Disable portal on target planet for 20 ticks.",
 		"target": "planet",
+		"difficulty": "hard",
 	},
 }
 
@@ -32,21 +37,25 @@ const WIZARD_SPELLS: Dictionary = {
 		"name": "Vision",
 		"description": "Reveal enemy empire resources and planet count.",
 		"target": "empire",
+		"difficulty": "soft",
 	},
 	"hypnotize": {
 		"name": "Hypnotize",
 		"description": "Kill 30% of population on target planet.",
 		"target": "planet",
+		"difficulty": "hard",
 	},
 	"reduce_food": {
 		"name": "Reduce Food",
 		"description": "Reduce enemy food production by 10% for 8 ticks.",
 		"target": "empire",
+		"difficulty": "hard",
 	},
 	"destroy_iron": {
 		"name": "Destroy Iron",
 		"description": "Destroy 3-10% of enemy iron reserves.",
 		"target": "empire",
+		"difficulty": "hard",
 	},
 }
 
@@ -63,14 +72,55 @@ func get_spell_cost(attacker: Empire) -> int:
 	return maxi(int(nw / 20.0), 5)
 
 
-func get_success_chance(atk_count: int, def_count: int, atk_nw: float, def_nw: float) -> float:
+func get_success_chance(atk_count: int, def_count: int, atk_nw: float, def_nw: float, difficulty: String = "hard") -> float:
 	## Calculate success probability for an operation.
-	## More agents/wizards = higher chance. Attacking larger empire = harder.
+	## More agents/wizards = higher chance. NW penalty only when attacking smaller empires.
 	if atk_count <= 0:
 		return 0.0
-	var nw_factor := maxf(1.0, def_nw / maxf(atk_nw, 1.0))
-	var chance := float(atk_count) / (float(atk_count) + float(def_count) * nw_factor)
-	return clampf(chance, 0.1, 0.9)
+	# NW only penalizes when attacking someone smaller (protects small empires)
+	var nw_factor := 1.0
+	if atk_nw > def_nw and def_nw > 0.0:
+		nw_factor = atk_nw / def_nw
+	var effective_def := float(def_count) * nw_factor
+	var chance := float(atk_count) / (float(atk_count) + effective_def)
+	# Soft ops are easier than hard ops
+	if difficulty == "soft":
+		chance = chance * 1.3
+	else:
+		chance = chance * 0.85
+	return clampf(chance, 0.05, 0.9)
+
+
+func _lose_agents_on_failure(empire: Empire) -> int:
+	## Attacker loses 5% of agents on a failed op. Returns number lost.
+	var total := get_total_agents(empire)
+	var to_lose := maxi(int(total * 0.05), 1)
+	var remaining := to_lose
+	for p in GalaxyData.get_planets_for_empire(empire.id):
+		if remaining <= 0:
+			break
+		var on_planet: int = p.units.get("agent", 0)
+		if on_planet > 0:
+			var kill := mini(on_planet, remaining)
+			p.units["agent"] = on_planet - kill
+			remaining -= kill
+	return to_lose - remaining
+
+
+func _lose_wizards_on_failure(empire: Empire) -> int:
+	## Attacker loses 5% of wizards on a failed spell. Returns number lost.
+	var total := get_total_wizards(empire)
+	var to_lose := maxi(int(total * 0.05), 1)
+	var remaining := to_lose
+	for p in GalaxyData.get_planets_for_empire(empire.id):
+		if remaining <= 0:
+			break
+		var on_planet: int = p.units.get("wizard", 0)
+		if on_planet > 0:
+			var kill := mini(on_planet, remaining)
+			p.units["wizard"] = on_planet - kill
+			remaining -= kill
+	return to_lose - remaining
 
 
 func get_total_agents(empire: Empire) -> int:
@@ -112,10 +162,12 @@ func perform_agent_op(op_type: String, attacker: Empire, target_empire: Empire, 
 	var def_agents := get_total_agents(target_empire)
 	var atk_nw := GalaxyData.calc_empire_networth(attacker.id)
 	var def_nw := GalaxyData.calc_empire_networth(target_empire.id)
-	var chance := get_success_chance(atk_agents, def_agents, atk_nw, def_nw)
+	var difficulty: String = op_def.get("difficulty", "hard")
+	var chance := get_success_chance(atk_agents, def_agents, atk_nw, def_nw, difficulty)
 
 	if randf() > chance:
-		return {"success": false, "message": "%s failed! (%.0f%% chance)" % [op_def["name"], chance * 100]}
+		var lost := _lose_agents_on_failure(attacker)
+		return {"success": false, "message": "%s failed! (%.0f%% chance) Lost %d agent%s." % [op_def["name"], chance * 100, lost, "" if lost == 1 else "s"]}
 
 	# Apply effect
 	match op_type:
@@ -220,10 +272,12 @@ func perform_spell(spell_type: String, attacker: Empire, target_empire: Empire, 
 	var def_wizards := get_total_wizards(target_empire)
 	var atk_nw := GalaxyData.calc_empire_networth(attacker.id)
 	var def_nw := GalaxyData.calc_empire_networth(target_empire.id)
-	var chance := get_success_chance(atk_wizards, def_wizards, atk_nw, def_nw)
+	var difficulty: String = spell_def.get("difficulty", "hard")
+	var chance := get_success_chance(atk_wizards, def_wizards, atk_nw, def_nw, difficulty)
 
 	if randf() > chance:
-		return {"success": false, "message": "%s failed! (%.0f%% chance)" % [spell_def["name"], chance * 100]}
+		var lost := _lose_wizards_on_failure(attacker)
+		return {"success": false, "message": "%s failed! (%.0f%% chance) Lost %d wizard%s." % [spell_def["name"], chance * 100, lost, "" if lost == 1 else "s"]}
 
 	# Apply effect
 	match spell_type:
