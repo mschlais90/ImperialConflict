@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import type Phaser from 'phaser';
 
 test('starts a game and renders the management overlay with canvas', async ({ page }) => {
   await page.goto('/');
@@ -100,11 +101,107 @@ test('keeps active form edits while ticks refresh the HUD', async ({ page }) => 
   await expect(military).toBeFocused();
 });
 
+test('enters a system, selects a home planet, and queues a building', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Start' }).click();
+
+  await clickPlayerHomeSystem(page);
+  await expect.poll(() => getActiveSceneKeys(page)).toContain('SystemScene');
+
+  const homePlanetName = await clickPlayerHomePlanet(page);
+  await expect(page.getByRole('heading', { name: homePlanetName })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Queue', exact: true }).click();
+  await expect(page.getByText('Queued 1 mine')).toBeVisible();
+  await expect(page.getByText('mine', { exact: true })).toBeVisible();
+});
+
 async function readHudTick(page: Page): Promise<number> {
   const text = await page.locator('.hud-stat').filter({ hasText: 'Tick' }).innerText();
   const tick = Number.parseInt(text.replace(/\D/g, ''), 10);
 
   return Number.isNaN(tick) ? -1 : tick;
+}
+
+async function getActiveSceneKeys(page: Page): Promise<string[]> {
+  return page.evaluate(() => window.imperialConflictDebug?.game.scene.getScenes(true).map((scene) => scene.scene.key) ?? []);
+}
+
+async function clickPlayerHomeSystem(page: Page): Promise<void> {
+  const point = await page.evaluate(() => {
+    const debug = window.imperialConflictDebug;
+    const state = debug?.controller.state;
+    const game = debug?.game;
+    const canvas = document.querySelector<HTMLCanvasElement>('#game canvas');
+    if (!state || !game || !canvas) {
+      throw new Error('Missing game debug state.');
+    }
+
+    const player = state.empires.find((empire) => empire.isPlayer);
+    const system = state.systems.find((candidate) => candidate.id === player?.homeSystemId);
+    const scene = game.scene.getScene('GalaxyScene') as Phaser.Scene;
+    const camera = scene.cameras.main;
+    if (!player || !system || !camera) {
+      throw new Error('Unable to locate player home system.');
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const worldX = system.position.x * 20;
+    const worldY = system.position.y * 20;
+    camera.centerOn(worldX, worldY);
+    return {
+      x: rect.left + (worldX - camera.scrollX) * camera.zoom,
+      y: rect.top + (worldY - camera.scrollY) * camera.zoom,
+    };
+  });
+
+  await page.mouse.click(point.x, point.y);
+}
+
+async function clickPlayerHomePlanet(page: Page): Promise<string> {
+  const result = await page.evaluate(() => {
+    const debug = window.imperialConflictDebug;
+    const state = debug?.controller.state;
+    const game = debug?.game;
+    const canvas = document.querySelector<HTMLCanvasElement>('#game canvas');
+    if (!state || !game || !canvas) {
+      throw new Error('Missing game debug state.');
+    }
+
+    const player = state.empires.find((empire) => empire.isPlayer);
+    const system = state.systems.find((candidate) => candidate.id === player?.homeSystemId);
+    const homePlanet = state.planets.find((planet) => planet.id === player?.homePlanetId);
+    const scene = game.scene.getScene('SystemScene') as Phaser.Scene & {
+      calculateGridLayout?: (planetCount: number, width: number, height: number) => {
+        cellHeight: number;
+        cellWidth: number;
+        columns: number;
+        startX: number;
+        startY: number;
+      };
+    };
+    if (!player || !system || !homePlanet || !scene.calculateGridLayout) {
+      throw new Error('Unable to locate player home planet.');
+    }
+
+    const planetIndex = system.planetIds.indexOf(homePlanet.id);
+    if (planetIndex < 0) {
+      throw new Error('Home planet not in selected home system.');
+    }
+
+    const layout = scene.calculateGridLayout(system.planetIds.length, scene.scale.width, scene.scale.height);
+    const column = planetIndex % layout.columns;
+    const row = Math.floor(planetIndex / layout.columns);
+    const rect = canvas.getBoundingClientRect();
+    return {
+      name: homePlanet.planetName,
+      x: rect.left + layout.startX + column * layout.cellWidth,
+      y: rect.top + layout.startY + row * layout.cellHeight,
+    };
+  });
+
+  await page.mouse.click(result.x, result.y);
+  return result.name;
 }
 
 async function readCanvasInfo(canvas: Locator) {

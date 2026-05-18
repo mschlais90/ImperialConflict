@@ -214,6 +214,34 @@ describe('economy and ticks', () => {
     expect(planet.population).toBe(50);
     expect(state.events.some((event) => event.type === 'notification' && event.category === 'warning')).toBe(true);
   });
+
+  it('ends in defeat when the player has no planets or fleets', () => {
+    const state = createEmptyGameState();
+    state.currentState = 'playing';
+    state.currentSpeed = 1;
+    state.empires.push(createEmpire({ id: 1, empireName: 'Player', isPlayer: true, color: '#fff' }));
+    state.empires.push(createEmpire({ id: 2, empireName: 'Enemy', isPlayer: false, color: '#f00' }));
+    const enemyPlanet = createPlanet({ id: 1, planetName: 'Enemy I', systemId: 1, size: 20 });
+    enemyPlanet.ownerId = 2;
+    state.planets.push(enemyPlanet);
+
+    advanceTick(state);
+
+    expect(state.currentState).toBe('game_over');
+    expect(state.currentSpeed).toBe(0);
+    expect(state.events).toContainEqual(expect.objectContaining({ type: 'game_over', playerWon: false }));
+  });
+
+  it('ends in victory when all AI empires have no planets or fleets', () => {
+    const { state } = createControlledState();
+    state.empires.push(createEmpire({ id: 2, empireName: 'Enemy', isPlayer: false, color: '#f00' }));
+
+    advanceTick(state);
+
+    expect(state.currentState).toBe('game_over');
+    expect(state.currentSpeed).toBe(0);
+    expect(state.events).toContainEqual(expect.objectContaining({ type: 'game_over', playerWon: true }));
+  });
 });
 
 function createControlledState(): { state: GameState; empire: Empire; planet: Planet } {

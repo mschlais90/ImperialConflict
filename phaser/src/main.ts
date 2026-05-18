@@ -12,6 +12,7 @@ const MAX_FRAME_SECONDS = 0.25;
 
 declare global {
   interface Window {
+    imperialConflictDebug?: { controller: AppController; game: Phaser.Game };
     imperialConflictCleanup?: () => void;
   }
 }
@@ -64,11 +65,17 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(config);
 game.registry.set(APP_CONTROLLER_KEY, controller);
+if (import.meta.env.DEV) {
+  window.imperialConflictDebug = { controller, game };
+}
 
 const stopAppTimer = startAppTimer(controller);
 const cleanup = () => {
   stopAppTimer();
   game.destroy(true);
+  if (window.imperialConflictDebug?.game === game) {
+    delete window.imperialConflictDebug;
+  }
   if (window.imperialConflictCleanup === cleanup) {
     delete window.imperialConflictCleanup;
   }

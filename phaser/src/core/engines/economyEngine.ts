@@ -369,6 +369,10 @@ function tickDebuffs(state: GameState, empire: Empire): void {
 }
 
 function checkEliminations(state: GameState): void {
+  if (state.currentState === 'game_over') {
+    return;
+  }
+
   for (const empire of state.empires) {
     const alreadyEliminated = state.events.some(
       (event) => event.type === 'empire_eliminated' && event.empireId === empire.id,
@@ -383,6 +387,27 @@ function checkEliminations(state: GameState): void {
       appendEvent(state, { type: 'empire_eliminated', tick: state.currentTick, empireId: empire.id });
     }
   }
+
+  const player = state.empires.find((empire) => empire.isPlayer);
+  if (player && isEmpireEliminated(state, player.id)) {
+    finishGame(state, false);
+    return;
+  }
+
+  const aiEmpires = state.empires.filter((empire) => !empire.isPlayer);
+  if (aiEmpires.length > 0 && aiEmpires.every((empire) => isEmpireEliminated(state, empire.id))) {
+    finishGame(state, true);
+  }
+}
+
+function finishGame(state: GameState, playerWon: boolean): void {
+  state.currentState = 'game_over';
+  state.currentSpeed = 0;
+  appendEvent(state, { type: 'game_over', tick: state.currentTick, playerWon });
+}
+
+function isEmpireEliminated(state: GameState, empireId: number): boolean {
+  return state.events.some((event) => event.type === 'empire_eliminated' && event.empireId === empireId);
 }
 
 function getSciencePercent(state: GameState, empire: Empire, science: ScienceKey): number {
