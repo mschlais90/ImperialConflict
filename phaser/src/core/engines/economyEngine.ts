@@ -42,8 +42,14 @@ export function processEconomyTick(state: GameState): void {
 function advanceFleets(state: GameState): void {
   const arrived: Fleet[] = [];
   for (const fleet of state.fleets) {
+    if (fleet.pendingCombat) {
+      fleet.ticksRemaining = 0;
+      continue;
+    }
+
     fleet.ticksRemaining -= 1;
     if (fleet.ticksRemaining <= 0) {
+      fleet.ticksRemaining = 0;
       arrived.push(fleet);
     }
   }
@@ -96,6 +102,8 @@ function handleFleetArrival(state: GameState, fleet: Fleet): void {
   const alreadyBlocked = state.events.some(
     (event) => event.type === 'fleet_arrival_blocked' && event.fleetId === fleet.id,
   );
+  fleet.pendingCombat = true;
+  fleet.ticksRemaining = 0;
   if (!alreadyBlocked) {
     appendEvent(state, {
       type: 'fleet_arrival_blocked',
