@@ -2,6 +2,7 @@ import type { GameState } from '../core/galaxy/galaxyData';
 
 export interface AppOverlay {
   render: () => void;
+  renderAfterTick: () => void;
   showStartScreen: () => void;
   showGameOver: (playerWon: boolean) => void;
 }

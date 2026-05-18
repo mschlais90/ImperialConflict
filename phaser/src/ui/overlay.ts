@@ -12,6 +12,7 @@ import type { UiContext } from './types';
 
 export interface OverlayApi {
   render(): void;
+  renderAfterTick(): void;
   showStartScreen(): void;
   showGameOver(playerWon: boolean): void;
 }
@@ -22,6 +23,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
   const overlay: AppOverlay = {
     render,
+    renderAfterTick,
     showStartScreen,
     showGameOver,
   };
@@ -43,6 +45,11 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
   function showGameOver(playerWon: boolean): void {
     forcedGameOver = playerWon;
+    render();
+  }
+
+  function renderAfterTick(): void {
+    notice = null;
     render();
   }
 

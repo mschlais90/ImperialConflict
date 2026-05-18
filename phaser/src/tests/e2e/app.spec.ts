@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 test('starts a game and renders the management overlay with canvas', async ({ page }) => {
   await page.goto('/');
@@ -10,6 +10,9 @@ test('starts a game and renders the management overlay with canvas', async ({ pa
   await expect(page.getByText('GC').first()).toBeVisible();
   await expect(page.getByText('Net worth')).toBeVisible();
   await expect(page.getByRole('button', { name: '1x' })).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => readHudTick(page)).toBe(0);
+  await page.getByRole('button', { name: '4x' }).click();
+  await expect.poll(() => readHudTick(page), { timeout: 1_500 }).toBeGreaterThan(0);
   await expect(page.getByRole('heading', { name: 'Planet' })).toBeVisible();
   await expect(page.getByText('Select a planet in a system.')).toBeVisible();
 
@@ -82,6 +85,13 @@ test('rejects fractional research allocation before total validation', async ({ 
   await expect(page.getByText('Military allocation must be a whole number.')).toBeVisible();
   await expect(page.getByText('Research allocation updated')).not.toBeVisible();
 });
+
+async function readHudTick(page: Page): Promise<number> {
+  const text = await page.locator('.hud-stat').filter({ hasText: 'Tick' }).innerText();
+  const tick = Number.parseInt(text.replace(/\D/g, ''), 10);
+
+  return Number.isNaN(tick) ? -1 : tick;
+}
 
 async function readCanvasInfo(canvas: Locator) {
   return canvas.evaluate((node) => {

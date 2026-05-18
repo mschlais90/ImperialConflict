@@ -10,6 +10,7 @@ This file tracks Godot parity work deferred from the Phaser MVP. Add new items h
 - Full combat report popup queue and report detail polish.
 - Economy breakdown panel with expandable resource sections.
 - Empire overview panel.
+- Planet build UI parity for affordability warnings, overbuilding feedback, and grouped queue/build details.
 - Full operations UI for all agent and wizard actions.
 - Settings panel and combat popup preferences.
 - Procedural planet shader visual parity.
