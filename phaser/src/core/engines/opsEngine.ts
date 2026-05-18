@@ -18,14 +18,82 @@ export function getSpellCost(state: GameState, attacker: Empire): number {
   return Math.max(Math.trunc(calcEmpireNetworth(state, attacker.id) / 20), 5);
 }
 
-export function getSuccessChance(attackerCount: number, defenderCount: number, attackerNetworth: number, defenderNetworth: number): number {
+export type OpDifficulty = 'soft' | 'hard';
+
+const AGENT_OP_DIFFICULTY: Record<AgentOperationType, OpDifficulty> = {
+  spy: 'soft',
+  destroy_cash: 'hard',
+  destroy_units: 'hard',
+  sabotage_portal: 'hard',
+};
+
+const SPELL_DIFFICULTY: Record<SpellType, OpDifficulty> = {
+  vision: 'soft',
+  hypnotize: 'hard',
+  reduce_food: 'hard',
+  destroy_iron: 'hard',
+};
+
+export function getSuccessChance(
+  attackerCount: number,
+  defenderCount: number,
+  attackerNetworth: number,
+  defenderNetworth: number,
+  difficulty: OpDifficulty = 'hard',
+): number {
   if (attackerCount <= 0) {
     return 0;
   }
 
-  const networthFactor = Math.max(1, defenderNetworth / Math.max(attackerNetworth, 1));
-  const chance = attackerCount / (attackerCount + defenderCount * networthFactor);
-  return Math.min(Math.max(chance, 0.1), 0.9);
+  // NW only penalizes when attacking someone smaller (protects small empires)
+  let networthFactor = 1;
+  if (attackerNetworth > defenderNetworth && defenderNetworth > 0) {
+    networthFactor = attackerNetworth / defenderNetworth;
+  }
+
+  const effectiveDef = defenderCount * networthFactor;
+  let chance = attackerCount / (attackerCount + effectiveDef);
+
+  // Soft ops are easier, hard ops are harder
+  if (difficulty === 'soft') {
+    chance *= 1.3;
+  } else {
+    chance *= 0.85;
+  }
+
+  return Math.min(Math.max(chance, 0.05), 0.9);
+}
+
+function loseAgentsOnFailure(state: GameState, empire: Empire): number {
+  const total = getTotalAgents(state, empire);
+  const toLose = Math.max(Math.trunc(total * 0.05), 1);
+  let remaining = toLose;
+  for (const planet of getPlanetsForEmpire(state, empire.id)) {
+    if (remaining <= 0) break;
+    const onPlanet = planet.units.agent ?? 0;
+    if (onPlanet > 0) {
+      const kill = Math.min(onPlanet, remaining);
+      planet.units.agent = onPlanet - kill;
+      remaining -= kill;
+    }
+  }
+  return toLose - remaining;
+}
+
+function loseWizardsOnFailure(state: GameState, empire: Empire): number {
+  const total = getTotalWizards(state, empire);
+  const toLose = Math.max(Math.trunc(total * 0.05), 1);
+  let remaining = toLose;
+  for (const planet of getPlanetsForEmpire(state, empire.id)) {
+    if (remaining <= 0) break;
+    const onPlanet = planet.units.wizard ?? 0;
+    if (onPlanet > 0) {
+      const kill = Math.min(onPlanet, remaining);
+      planet.units.wizard = onPlanet - kill;
+      remaining -= kill;
+    }
+  }
+  return toLose - remaining;
 }
 
 export function getTotalAgents(state: GameState, empire: Empire): number {
@@ -64,15 +132,18 @@ export function performAgentOp(
   }
 
   attacker.resources.gc -= cost;
+  const difficulty = AGENT_OP_DIFFICULTY[opType];
   const chance = getSuccessChance(
     attackerAgents,
     getTotalAgents(state, targetEmpire),
     calcEmpireNetworth(state, attacker.id),
     calcEmpireNetworth(state, targetEmpire.id),
+    difficulty,
   );
 
   if (rollFloat(state) > chance) {
-    return { success: false, message: `${agentOpName(opType)} failed! (${Math.trunc(chance * 100)}% chance)` };
+    const lost = loseAgentsOnFailure(state, attacker);
+    return { success: false, message: `${agentOpName(opType)} failed! (${Math.trunc(chance * 100)}% chance) Lost ${lost} agent${lost === 1 ? '' : 's'}.` };
   }
 
   switch (opType) {
@@ -117,15 +188,18 @@ export function performWizardSpell(
   }
 
   attacker.resources.octarine -= cost;
+  const difficulty = SPELL_DIFFICULTY[spellType];
   const chance = getSuccessChance(
     attackerWizards,
     getTotalWizards(state, targetEmpire),
     calcEmpireNetworth(state, attacker.id),
     calcEmpireNetworth(state, targetEmpire.id),
+    difficulty,
   );
 
   if (rollFloat(state) > chance) {
-    return { success: false, message: `${spellName(spellType)} failed! (${Math.trunc(chance * 100)}% chance)` };
+    const lost = loseWizardsOnFailure(state, attacker);
+    return { success: false, message: `${spellName(spellType)} failed! (${Math.trunc(chance * 100)}% chance) Lost ${lost} wizard${lost === 1 ? '' : 's'}.` };
   }
 
   switch (spellType) {

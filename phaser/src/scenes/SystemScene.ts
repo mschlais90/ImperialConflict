@@ -3,6 +3,7 @@ import { APP_CONTROLLER_KEY, type AppController } from '../app/appController';
 import { getEmpire, getPlanetsInSystem, getSystem } from '../core/selectors/selectors';
 import type { GameState } from '../core/galaxy/galaxyData';
 import type { Planet } from '../core/models/types';
+import { ensurePlanetTexture } from './planetRenderer';
 
 const NEUTRAL_RING = 0x7d8796;
 
@@ -125,19 +126,26 @@ export class SystemScene extends Phaser.Scene {
     const radius = Phaser.Math.Clamp(Math.sqrt(planet.size) * 2.1, 8, layout.maxPlanetRadius);
     const selected = state.selectedPlanetId === planet.id;
 
-    const body = this.add.graphics({ x, y });
-    body.lineStyle(selected ? 5 : 3, ownerColor, 1);
-    body.fillStyle(0x182034, 1);
-    body.fillCircle(0, 0, radius);
-    body.strokeCircle(0, 0, radius + 4);
+    // Procedural planet texture
+    const texDiameter = Math.round(radius * 2);
+    const textureKey = ensurePlanetTexture(this, planet, texDiameter);
+    const sprite = this.add.image(x, y, textureKey);
+    sprite.setDisplaySize(texDiameter, texDiameter);
+
+    // Owner ring
+    const ring = this.add.graphics({ x, y });
+    ring.lineStyle(selected ? 5 : 3, ownerColor, 1);
+    ring.strokeCircle(0, 0, radius + 4);
 
     if (planet.hasPortal) {
-      body.fillStyle(0xfff3a1, 1);
-      body.fillTriangle(radius + 12, -8, radius + 22, 0, radius + 12, 8);
+      ring.fillStyle(0xfff3a1, 1);
+      ring.fillTriangle(radius + 12, -8, radius + 22, 0, radius + 12, 8);
     }
 
-    body.setInteractive(new Phaser.Geom.Circle(0, 0, radius + 12), Phaser.Geom.Circle.Contains);
-    body.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+    // Hit area for click detection
+    const hitZone = this.add.zone(x, y, (radius + 12) * 2, (radius + 12) * 2);
+    hitZone.setInteractive({ useHandCursor: true });
+    hitZone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       if (!this.isCanvasTopTarget(pointer) || !pointer.leftButtonReleased() || pointer.getDistance() >= 8) {
         return;
       }

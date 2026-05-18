@@ -2,7 +2,7 @@ import { BUILDINGS } from '../core/data/buildings';
 import { UNITS } from '../core/data/units';
 import { queueBuilding, queueExplorer, sendExplorer, sendFleet } from '../core/commands/playerCommands';
 import type { BuildingKey, CombatUnitKey, Planet, PlanetUnitKey } from '../core/models/types';
-import { getEmpire, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
+import { calcTravelTicks, getEmpire, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
 import { button, formatNumber, labeledControl, numberInput, parseIntegerInput, resourceCostText, select } from './dom';
 import type { UiContext } from './types';
 
@@ -27,12 +27,22 @@ export function renderPlanetPanel(context: UiContext): HTMLElement {
 
   const system = getSystem(state, selectedPlanet.systemId);
   const owner = selectedPlanet.ownerId >= 0 ? getEmpire(state, selectedPlanet.ownerId) : undefined;
-  panel.append(sectionTitle(selectedPlanet.planetName), detailGrid([
+  const details: Array<[string, string]> = [
     ['System', system?.systemName ?? 'Unknown'],
     ['Owner', owner?.empireName ?? 'Uncolonized'],
     ['Size', formatNumber(selectedPlanet.size)],
     ['Population', formatNumber(selectedPlanet.population)],
-  ]));
+  ];
+  if (selectedPlanet.hasPortal) {
+    details.push(['Portal', 'Active']);
+  }
+  const bonuses = Object.entries(selectedPlanet.resourceBonuses);
+  if (bonuses.length > 0) {
+    for (const [res, mult] of bonuses) {
+      details.push(['Bonus', `${res.charAt(0).toUpperCase() + res.slice(1)} x${(mult as number).toFixed(1)}`]);
+    }
+  }
+  panel.append(sectionTitle(selectedPlanet.planetName), detailGrid(details));
 
   if (selectedPlanet.ownerId === context.player.id) {
     panel.append(renderOwnedPlanet(context, selectedPlanet));
@@ -129,23 +139,54 @@ function renderUncolonizedPlanet(context: UiContext, target: Planet): HTMLElemen
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel-stack';
-  const sources = getPlanetsForEmpire(state, context.player.id).filter((planet) => (planet.units.explorer ?? 0) > 0);
-  if (sources.length === 0) {
+
+  const playerPlanets = getPlanetsForEmpire(state, context.player.id);
+
+  // Find fastest route from portal planets (pooled explorers)
+  const portalPlanets = playerPlanets.filter((p) => p.hasPortal);
+  const portalExplorerCount = portalPlanets.reduce((sum, p) => sum + (p.units.explorer ?? 0), 0);
+  let bestPortal: Planet | null = null;
+  let bestPortalTicks = Infinity;
+  if (portalExplorerCount > 0) {
+    for (const p of portalPlanets) {
+      const ticks = calcTravelTicks(state, p.systemId, target.systemId);
+      if (ticks < bestPortalTicks) {
+        bestPortalTicks = ticks;
+        bestPortal = p;
+      }
+    }
+  }
+
+  // Find fastest route from non-portal planets with explorers
+  let bestDirect: Planet | null = null;
+  let bestDirectTicks = Infinity;
+  for (const p of playerPlanets) {
+    if (p.hasPortal) continue;
+    if ((p.units.explorer ?? 0) <= 0) continue;
+    const ticks = calcTravelTicks(state, p.systemId, target.systemId);
+    if (ticks < bestDirectTicks) {
+      bestDirectTicks = ticks;
+      bestDirect = p;
+    }
+  }
+
+  if (!bestPortal && !bestDirect) {
     wrapper.append(emptyText('No idle explorers available.'));
     return wrapper;
   }
 
-  const sourceSelect = select(
-    sources.map((planet) => ({ label: `${planet.planetName} (${planet.units.explorer ?? 0})`, value: planet.id })),
-    sources[0].id,
-  );
+  // Pick whichever route is fastest
+  const usePortal = bestPortal && (!bestDirect || bestPortalTicks <= bestDirectTicks);
+  const source = usePortal ? bestPortal! : bestDirect!;
+  const ticks = usePortal ? bestPortalTicks : bestDirectTicks;
+  const label = usePortal ? `Send explorer via portal (${ticks} ticks)` : `Send explorer from ${source.planetName} (${ticks} ticks)`;
+
   const form = document.createElement('div');
   form.className = 'inline-form';
   form.append(
-    labeledControl('Source', sourceSelect),
-    button('Launch explorer', () => {
+    button(label, () => {
       context.runCommand(() =>
-        sendExplorer(state, { empireId: context.player.id, sourcePlanetId: Number(sourceSelect.value), targetPlanetId: target.id }),
+        sendExplorer(state, { empireId: context.player.id, sourcePlanetId: source.id, targetPlanetId: target.id }),
       );
     }),
   );
@@ -230,7 +271,23 @@ function queueList(planet: Planet): HTMLElement {
     return emptyText('Queue is empty.');
   }
 
-  return keyValueList(planet.buildQueue.slice(0, 6).map((order) => [order.itemType, `${order.ticksRemaining} ticks`]));
+  // Aggregate orders by itemType + ticksRemaining
+  const grouped = new Map<string, { itemType: string; ticksRemaining: number; count: number }>();
+  for (const order of planet.buildQueue) {
+    const key = `${order.itemType}:${order.ticksRemaining}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      grouped.set(key, { itemType: order.itemType, ticksRemaining: order.ticksRemaining, count: 1 });
+    }
+  }
+
+  const entries = Array.from(grouped.values()).slice(0, 6);
+  return keyValueList(entries.map((g) => {
+    const label = g.count > 1 ? `${g.itemType} x${g.count}` : g.itemType;
+    return [label, `${g.ticksRemaining} ticks`];
+  }));
 }
 
 function sectionTitle(text: string): HTMLHeadingElement {
