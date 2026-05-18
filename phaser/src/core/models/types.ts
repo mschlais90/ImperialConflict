@@ -51,7 +51,6 @@ export interface Fleet {
   targetPlanetId: number;
   ticksRemaining: number;
   isExploration: boolean;
-  pendingCombat?: boolean;
 }
 
 export interface Planet {

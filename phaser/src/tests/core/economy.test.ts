@@ -49,7 +49,7 @@ describe('economy and ticks', () => {
     expect(state.currentTick).toBe(0);
   });
 
-  it('keeps blocked enemy fleet arrivals idempotent across multiple ticks', () => {
+  it('resolves enemy fleet arrivals with combat', () => {
     const { state } = createControlledState();
     const enemy = createEmpire({ id: 2, empireName: 'Enemy', isPlayer: false, color: '#f00' });
     state.empires.push(enemy);
@@ -61,7 +61,7 @@ describe('economy and ticks', () => {
     const fleet: Fleet = {
       id: 7,
       ownerId: 1,
-      units: { soldier: 3 },
+      units: { soldier: 100, transport: 1 },
       originSystemId: 1,
       targetSystemId: 2,
       targetPlanetId: enemyPlanet.id,
@@ -70,13 +70,13 @@ describe('economy and ticks', () => {
     };
     state.fleets.push(fleet);
 
-    advanceTick(state);
-    advanceTick(state);
+    enemyPlanet.units = { soldier: 1 };
+
     advanceTick(state);
 
-    expect(fleet.ticksRemaining).toBe(0);
-    expect(state.fleets).toContain(fleet);
-    expect(state.events.filter((event) => event.type === 'fleet_arrival_blocked' && event.fleetId === fleet.id)).toHaveLength(1);
+    expect(state.fleets).not.toContain(fleet);
+    expect(enemyPlanet.ownerId).toBe(1);
+    expect(state.events.filter((event) => event.type === 'battle_resolved' && event.planetId === enemyPlanet.id)).toHaveLength(1);
   });
 
   it('produces resources with planet bonus and resource science multiplier', () => {

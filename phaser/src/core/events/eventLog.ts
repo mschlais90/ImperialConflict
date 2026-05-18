@@ -15,7 +15,6 @@ export type GameEvent =
       targetPlanetId: number;
     }
   | { type: 'fleet_arrived'; tick: number; fleetId: number; targetPlanetId: number }
-  | { type: 'fleet_arrival_blocked'; tick: number; fleetId: number; targetPlanetId: number; reason: string }
   | { type: 'battle_resolved'; tick: number; planetId: number; attackerId: number; defenderId: number }
   | { type: 'building_completed'; tick: number; planetId: number; buildingType: BuildingKey }
   | { type: 'unit_completed'; tick: number; planetId: number; unitType: UnitKey }

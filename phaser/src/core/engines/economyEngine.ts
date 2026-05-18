@@ -1,5 +1,6 @@
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
+import { resolveBattle } from './combatEngine';
 import { appendEvent } from '../events/eventLog';
 import type {
   BuildingKey,
@@ -42,11 +43,6 @@ export function processEconomyTick(state: GameState): void {
 function advanceFleets(state: GameState): void {
   const arrived: Fleet[] = [];
   for (const fleet of state.fleets) {
-    if (fleet.pendingCombat) {
-      fleet.ticksRemaining = 0;
-      continue;
-    }
-
     fleet.ticksRemaining -= 1;
     if (fleet.ticksRemaining <= 0) {
       fleet.ticksRemaining = 0;
@@ -99,20 +95,7 @@ function handleFleetArrival(state: GameState, fleet: Fleet): void {
     return;
   }
 
-  const alreadyBlocked = state.events.some(
-    (event) => event.type === 'fleet_arrival_blocked' && event.fleetId === fleet.id,
-  );
-  fleet.pendingCombat = true;
-  fleet.ticksRemaining = 0;
-  if (!alreadyBlocked) {
-    appendEvent(state, {
-      type: 'fleet_arrival_blocked',
-      tick: state.currentTick,
-      fleetId: fleet.id,
-      targetPlanetId: targetPlanet.id,
-      reason: 'enemy_planet_requires_combat_engine',
-    });
-  }
+  resolveBattle(state, fleet, targetPlanet);
 }
 
 function colonizePlanet(state: GameState, planet: Planet, empireId: number): void {

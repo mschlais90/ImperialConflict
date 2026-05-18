@@ -80,6 +80,7 @@ export function createNewGame(options: NewGameOptions = {}): GameState {
   const state = createEmptyGameState();
   const rng = createSeededRng(options.seed ?? Date.now());
   const playerEmpireName = options.empireName ?? 'Player Empire';
+  state.rng = rng;
 
   state.currentState = 'playing';
   state.currentTick = 0;
