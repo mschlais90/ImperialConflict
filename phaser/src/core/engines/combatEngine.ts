@@ -331,7 +331,10 @@ function getCount(units: UnitCounts, unit: CombatUnitKey): number {
 }
 
 function rollFloat(state: GameState): number {
-  return state.rng?.float() ?? 0;
+  if (state.rng === undefined) {
+    throw new Error('GameState RNG is not initialized.');
+  }
+  return state.rng.float();
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -1,6 +1,6 @@
 import type { GameSpeed, EventLogEntry } from '../events/eventLog';
 import type { Empire, Fleet, Planet, SolarSystem } from '../models/types';
-import type { Rng } from '../random/rng';
+import { createSeededRng, type Rng } from '../random/rng';
 
 export type GameLifecycleState = 'main_menu' | 'playing' | 'game_over';
 
@@ -50,5 +50,6 @@ export function createEmptyGameState(): GameState {
     nextPlanetId: 0,
     nextFleetId: 0,
     nextEventId: 0,
+    rng: createSeededRng(0),
   };
 }

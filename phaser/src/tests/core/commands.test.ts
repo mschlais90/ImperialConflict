@@ -10,6 +10,7 @@ import {
   trainUnits,
 } from '../../core/commands/playerCommands';
 import { createNewGame } from '../../core/engines/gameManager';
+import { performAgentOp, performWizardSpell } from '../../core/engines/opsEngine';
 import { getPlanetsForEmpire } from '../../core/selectors/selectors';
 
 describe('player commands', () => {
@@ -122,6 +123,37 @@ describe('player commands', () => {
 
     expect(result.ok).toBe(false);
     expect(result.message).toMatch(/unknown spell/i);
+    expect(player.resources.octarine).toBe(octarineBefore);
+  });
+
+  it('does not spend GC when direct agent operations are missing target planets', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const player = state.empires[0];
+    const target = state.empires[1];
+    const home = getPlanetsForEmpire(state, player.id)[0];
+    home.units.agent = 1;
+    const gcBefore = player.resources.gc;
+
+    const result = performAgentOp(state, 'destroy_units', player, target);
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/target planet/i);
+    expect(player.resources.gc).toBe(gcBefore);
+  });
+
+  it('does not spend octarine when direct spells are missing target planets', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const player = state.empires[0];
+    const target = state.empires[1];
+    const home = getPlanetsForEmpire(state, player.id)[0];
+    home.units.wizard = 1;
+    player.resources.octarine = 1000;
+    const octarineBefore = player.resources.octarine;
+
+    const result = performWizardSpell(state, 'hypnotize', player, target);
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/target planet/i);
     expect(player.resources.octarine).toBe(octarineBefore);
   });
 });

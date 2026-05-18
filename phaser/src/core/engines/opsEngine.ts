@@ -46,6 +46,9 @@ export function performAgentOp(
   if (!isAgentOperationType(opType)) {
     return { success: false, message: 'Unknown operation' };
   }
+  if (requiresAgentTargetPlanet(opType) && targetPlanet === undefined) {
+    return { success: false, message: 'No target planet selected' };
+  }
 
   const cost = getAgentOperationCost(state, attacker);
   if (attacker.resources.gc < cost) {
@@ -92,6 +95,9 @@ export function performWizardSpell(
 ): OperationResult {
   if (!isSpellType(spellType)) {
     return { success: false, message: 'Unknown spell' };
+  }
+  if (requiresSpellTargetPlanet(spellType) && targetPlanet === undefined) {
+    return { success: false, message: 'No target planet selected' };
   }
 
   const cost = getSpellCost(state, attacker);
@@ -223,10 +229,22 @@ function isSpellType(spellType: string): spellType is SpellType {
   return spellType === 'vision' || spellType === 'hypnotize' || spellType === 'reduce_food' || spellType === 'destroy_iron';
 }
 
+function requiresAgentTargetPlanet(opType: AgentOperationType): boolean {
+  return opType === 'destroy_units' || opType === 'sabotage_portal';
+}
+
+function requiresSpellTargetPlanet(spellType: SpellType): boolean {
+  return spellType === 'hypnotize';
+}
+
 function rollFloat(state: GameState): number {
-  return state.rng?.float() ?? 0;
+  return state.rng?.float() ?? missingRng();
 }
 
 function rollRange(state: GameState, min: number, max: number): number {
-  return state.rng?.floatRange(min, max) ?? min;
+  return state.rng?.floatRange(min, max) ?? missingRng();
+}
+
+function missingRng(): never {
+  throw new Error('GameState RNG is not initialized.');
 }
