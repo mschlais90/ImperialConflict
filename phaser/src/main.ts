@@ -1,21 +1,9 @@
 import './styles.css';
 import Phaser from 'phaser';
-import type { GameState } from './core/galaxy/galaxyData';
+import { APP_CONTROLLER_KEY, type AppController } from './app/appController';
 import { BootScene } from './scenes/BootScene';
 import { GalaxyScene } from './scenes/GalaxyScene';
 import { SystemScene } from './scenes/SystemScene';
-
-export interface AppOverlay {
-  render: () => void;
-}
-
-export interface AppController {
-  playerName: string;
-  state: GameState | null;
-  overlay: AppOverlay;
-}
-
-export const APP_CONTROLLER_KEY = 'appController';
 
 const gameRoot = document.querySelector<HTMLDivElement>('#game');
 const uiRoot = document.querySelector<HTMLDivElement>('#ui-root');

@@ -1,10 +1,21 @@
 import Phaser from 'phaser';
+import { APP_CONTROLLER_KEY, type AppController } from '../app/appController';
 import { getEmpire, getPlanetsInSystem, getSystem } from '../core/selectors/selectors';
 import type { GameState } from '../core/galaxy/galaxyData';
 import type { Planet } from '../core/models/types';
-import { APP_CONTROLLER_KEY, type AppController } from '../main';
 
 const NEUTRAL_RING = 0x7d8796;
+
+interface SystemGridLayout {
+  cellHeight: number;
+  cellWidth: number;
+  columns: number;
+  fontSize: number;
+  labelWidth: number;
+  maxPlanetRadius: number;
+  startX: number;
+  startY: number;
+}
 
 export class SystemScene extends Phaser.Scene {
   constructor() {
@@ -42,22 +53,56 @@ export class SystemScene extends Phaser.Scene {
     const planets = getPlanetsInSystem(state, system.id);
     const width = this.scale.width;
     const height = this.scale.height;
+    const layout = this.calculateGridLayout(planets.length, width, height);
 
     this.addHeader(system.systemName);
     this.addBackButton();
 
-    const columns = Math.min(5, Math.max(1, Math.ceil(Math.sqrt(planets.length))));
-    const rows = Math.ceil(planets.length / columns);
-    const cellWidth = 190;
-    const cellHeight = 132;
-    const startX = width / 2 - ((columns - 1) * cellWidth) / 2;
-    const startY = height / 2 - ((rows - 1) * cellHeight) / 2 + 18;
-
     planets.forEach((planet, index) => {
-      const column = index % columns;
-      const row = Math.floor(index / columns);
-      this.drawPlanetCard(state, controller, planet, startX + column * cellWidth, startY + row * cellHeight);
+      const column = index % layout.columns;
+      const row = Math.floor(index / layout.columns);
+      this.drawPlanetCard(
+        state,
+        controller,
+        planet,
+        layout.startX + column * layout.cellWidth,
+        layout.startY + row * layout.cellHeight,
+        layout,
+      );
     });
+  }
+
+  private calculateGridLayout(planetCount: number, width: number, height: number): SystemGridLayout {
+    const topMargin = height < 560 ? 92 : 116;
+    const bottomMargin = 20;
+    const sideMargin = width < 520 ? 18 : 36;
+    const availableWidth = Math.max(width - sideMargin * 2, 160);
+    const availableHeight = Math.max(height - topMargin - bottomMargin, 180);
+    const maxColumns = Math.min(5, Math.max(1, planetCount));
+    let best = { columns: 1, cellWidth: availableWidth, cellHeight: availableHeight / Math.max(planetCount, 1) };
+
+    for (let columns = 1; columns <= maxColumns; columns += 1) {
+      const rows = Math.ceil(planetCount / columns);
+      const cellWidth = availableWidth / columns;
+      const cellHeight = availableHeight / rows;
+      const score = Math.min(cellWidth / 150, cellHeight / 112);
+      const bestScore = Math.min(best.cellWidth / 150, best.cellHeight / 112);
+
+      if (score > bestScore) {
+        best = { columns, cellWidth, cellHeight };
+      }
+    }
+
+    const rows = Math.ceil(planetCount / best.columns);
+
+    return {
+      ...best,
+      fontSize: best.cellWidth < 122 || best.cellHeight < 104 ? 10 : 12,
+      labelWidth: Phaser.Math.Clamp(best.cellWidth - 14, 84, 156),
+      maxPlanetRadius: Phaser.Math.Clamp(Math.min(best.cellWidth, best.cellHeight) * 0.22, 10, 40),
+      startX: width / 2 - ((best.columns - 1) * best.cellWidth) / 2,
+      startY: topMargin + best.cellHeight / 2 + Math.max(availableHeight - rows * best.cellHeight, 0) / 2,
+    };
   }
 
   private drawPlanetCard(
@@ -66,11 +111,12 @@ export class SystemScene extends Phaser.Scene {
     planet: Planet,
     x: number,
     y: number,
+    layout: SystemGridLayout,
   ): void {
     const owner = planet.ownerId >= 0 ? getEmpire(state, planet.ownerId) : undefined;
     const ownerName = owner?.empireName ?? 'Neutral';
     const ownerColor = owner ? this.toColorNumber(owner.color) : NEUTRAL_RING;
-    const radius = Phaser.Math.Clamp(Math.sqrt(planet.size) * 2.1, 12, 40);
+    const radius = Phaser.Math.Clamp(Math.sqrt(planet.size) * 2.1, 8, layout.maxPlanetRadius);
     const selected = state.selectedPlanetId === planet.id;
 
     const body = this.add.graphics({ x, y });
@@ -95,15 +141,15 @@ export class SystemScene extends Phaser.Scene {
       this.renderSystem();
     });
 
-    const labelX = x - 78;
+    const labelX = x - layout.labelWidth / 2;
     const labelY = y + radius + 14;
     this.add
       .text(labelX, labelY, this.formatPlanetLabel(planet, ownerName), {
         color: '#e8edf7',
         fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: '12px',
-        lineSpacing: 3,
-        wordWrap: { width: 156 },
+        fontSize: `${layout.fontSize}px`,
+        lineSpacing: layout.fontSize <= 10 ? 1 : 3,
+        wordWrap: { width: layout.labelWidth },
       })
       .setResolution(2);
   }

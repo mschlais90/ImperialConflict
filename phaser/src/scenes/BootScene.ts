@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
+import { APP_CONTROLLER_KEY, type AppController } from '../app/appController';
 import { createNewGame } from '../core/engines/gameManager';
-import { APP_CONTROLLER_KEY, type AppController } from '../main';
 
 export class BootScene extends Phaser.Scene {
   constructor() {

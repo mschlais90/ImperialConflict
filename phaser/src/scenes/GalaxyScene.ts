@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
+import { APP_CONTROLLER_KEY, type AppController } from '../app/appController';
 import { getEmpire, getSystemOwner } from '../core/selectors/selectors';
-import { APP_CONTROLLER_KEY, type AppController } from '../main';
 
 const GODOT_SCALE = 20;
 const MIN_ZOOM = 0.3;
@@ -131,6 +131,10 @@ export class GalaxyScene extends Phaser.Scene {
   }
 
   private calculateGalaxyBounds(systems: Array<{ position: { x: number; y: number } }>): Phaser.Geom.Rectangle {
+    if (systems.length === 0) {
+      return new Phaser.Geom.Rectangle(-640, -360, 1280, 720);
+    }
+
     const points = systems.map((system) => ({
       x: system.position.x * GODOT_SCALE,
       y: system.position.y * GODOT_SCALE,
