@@ -4,6 +4,7 @@ import { APP_CONTROLLER_KEY, type AppController } from './app/appController';
 import { BootScene } from './scenes/BootScene';
 import { GalaxyScene } from './scenes/GalaxyScene';
 import { SystemScene } from './scenes/SystemScene';
+import { createOverlay } from './ui/overlay';
 
 const gameRoot = document.querySelector<HTMLDivElement>('#game');
 const uiRoot = document.querySelector<HTMLDivElement>('#ui-root');
@@ -23,8 +24,14 @@ const controller: AppController = {
   state: null,
   overlay: {
     render: () => undefined,
+    showStartScreen: () => undefined,
+    showGameOver: () => undefined,
   },
+  refreshScene: null,
+  startNewGame: null,
 };
+
+controller.overlay = createOverlay(uiRoot, controller);
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,

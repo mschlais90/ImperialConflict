@@ -23,6 +23,9 @@ export class SystemScene extends Phaser.Scene {
   }
 
   create(): void {
+    const controller = this.getController();
+    const refreshScene = () => this.renderSystem();
+    controller.refreshScene = refreshScene;
     this.cameras.main.setBackgroundColor('#050914');
     this.renderSystem();
 
@@ -33,6 +36,9 @@ export class SystemScene extends Phaser.Scene {
     this.scale.on(Phaser.Scale.Events.RESIZE, this.renderSystem, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.renderSystem, this);
+      if (controller.refreshScene === refreshScene) {
+        controller.refreshScene = null;
+      }
     });
   }
 

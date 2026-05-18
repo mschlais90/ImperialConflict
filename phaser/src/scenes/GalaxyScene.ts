@@ -25,6 +25,19 @@ export class GalaxyScene extends Phaser.Scene {
     camera.setZoom(1);
     camera.centerOn(0, 0);
 
+    const refreshScene = () => {
+      this.children.removeAll(true);
+      this.addGalaxyBackdrop();
+      this.drawSystems(controller);
+      this.addInstructions();
+    };
+    controller.refreshScene = refreshScene;
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (controller.refreshScene === refreshScene) {
+        controller.refreshScene = null;
+      }
+    });
+
     this.addGalaxyBackdrop();
     this.drawSystems(controller);
     this.addInstructions();
