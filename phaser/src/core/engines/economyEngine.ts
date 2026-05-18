@@ -83,7 +83,8 @@ function handleFleetArrival(state: GameState, fleet: Fleet): void {
   }
 
   if (targetPlanet.ownerId < 0) {
-    colonizePlanet(state, targetPlanet, fleet.ownerId);
+    targetPlanet.ownerId = fleet.ownerId;
+    targetPlanet.population = targetPlanet.size;
     mergeFleetIntoPlanet(targetPlanet, fleet);
     removeFleet(state, fleet.id);
     appendEvent(state, {
@@ -102,6 +103,12 @@ function colonizePlanet(state: GameState, planet: Planet, empireId: number): voi
   planet.ownerId = empireId;
   planet.population = planet.size;
   appendEvent(state, { type: 'planet_colonized', tick: state.currentTick, planetId: planet.id, empireId });
+  appendEvent(state, {
+    type: 'notification',
+    tick: state.currentTick,
+    message: `Colonized ${planet.planetName}!`,
+    category: 'explore',
+  });
 }
 
 function mergeFleetIntoPlanet(planet: Planet, fleet: Fleet): void {

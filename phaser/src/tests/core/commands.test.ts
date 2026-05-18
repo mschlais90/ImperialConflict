@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { queueBuilding, queueExplorer, sendFleet, setResearchAllocation, trainUnits } from '../../core/commands/playerCommands';
+import {
+  performAgentOperation,
+  performSpell,
+  queueBuilding,
+  queueExplorer,
+  sendExplorer,
+  sendFleet,
+  setResearchAllocation,
+  trainUnits,
+} from '../../core/commands/playerCommands';
 import { createNewGame } from '../../core/engines/gameManager';
 import { getPlanetsForEmpire } from '../../core/selectors/selectors';
 
@@ -55,5 +64,64 @@ describe('player commands', () => {
     expect(result.ok).toBe(true);
     expect(home.units.soldier).toBe(40);
     expect(state.fleets.some((fleet) => fleet.targetPlanetId === target.id && !fleet.isExploration)).toBe(true);
+  });
+
+  it('launches explorer fleets and removes an explorer from the source planet', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const player = state.empires[0];
+    const home = getPlanetsForEmpire(state, player.id)[0];
+    const target = state.planets.find((planet) => planet.ownerId < 0)!;
+    home.units.explorer = 1;
+
+    const result = sendExplorer(state, { empireId: player.id, sourcePlanetId: home.id, targetPlanetId: target.id });
+
+    expect(result.ok).toBe(true);
+    expect(home.units.explorer).toBe(0);
+    expect(state.fleets).toContainEqual(
+      expect.objectContaining({
+        ownerId: player.id,
+        targetPlanetId: target.id,
+        isExploration: true,
+      }),
+    );
+  });
+
+  it('rejects unknown agent operations without spending resources or throwing', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const player = state.empires[0];
+    const target = state.empires[1];
+    const home = getPlanetsForEmpire(state, player.id)[0];
+    home.units.agent = 1;
+    const gcBefore = player.resources.gc;
+
+    const result = performAgentOperation(state, {
+      empireId: player.id,
+      targetEmpireId: target.id,
+      operationType: 'invalid_op',
+    } as unknown as Parameters<typeof performAgentOperation>[1]);
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/unknown operation/i);
+    expect(player.resources.gc).toBe(gcBefore);
+  });
+
+  it('rejects unknown spells without spending resources or throwing', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const player = state.empires[0];
+    const target = state.empires[1];
+    const home = getPlanetsForEmpire(state, player.id)[0];
+    home.units.wizard = 1;
+    player.resources.octarine = 1000;
+    const octarineBefore = player.resources.octarine;
+
+    const result = performSpell(state, {
+      empireId: player.id,
+      targetEmpireId: target.id,
+      spellType: 'invalid_spell',
+    } as unknown as Parameters<typeof performSpell>[1]);
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/unknown spell/i);
+    expect(player.resources.octarine).toBe(octarineBefore);
   });
 });

@@ -79,6 +79,64 @@ describe('economy and ticks', () => {
     expect(state.events.filter((event) => event.type === 'battle_resolved' && event.planetId === enemyPlanet.id)).toHaveLength(1);
   });
 
+  it('emits colonization and explore notification for explorer arrivals', () => {
+    const { state, empire } = createControlledState();
+    empire.resources.food = 100;
+    const target = createPlanet({ id: 2, planetName: 'Open I', systemId: 2, size: 20 });
+    state.planets.push(target);
+    state.systems.push({ id: 2, systemName: 'Open', position: { x: 5, y: 0 }, planetIds: [target.id] });
+    const fleet: Fleet = {
+      id: 7,
+      ownerId: empire.id,
+      units: {},
+      originSystemId: 1,
+      targetSystemId: 2,
+      targetPlanetId: target.id,
+      ticksRemaining: 1,
+      isExploration: true,
+    };
+    state.fleets.push(fleet);
+
+    advanceTick(state);
+
+    expect(target.ownerId).toBe(empire.id);
+    expect(target.population).toBeGreaterThanOrEqual(target.size);
+    expect(state.events).toContainEqual(
+      expect.objectContaining({ type: 'planet_colonized', planetId: target.id, empireId: empire.id }),
+    );
+    expect(state.events).toContainEqual(
+      expect.objectContaining({ type: 'notification', category: 'explore', message: `Colonized ${target.planetName}!` }),
+    );
+  });
+
+  it('lands non-explorer fleets on unowned planets without colonization events', () => {
+    const { state, empire } = createControlledState();
+    empire.resources.food = 100;
+    const target = createPlanet({ id: 2, planetName: 'Open I', systemId: 2, size: 20 });
+    state.planets.push(target);
+    state.systems.push({ id: 2, systemName: 'Open', position: { x: 5, y: 0 }, planetIds: [target.id] });
+    const fleet: Fleet = {
+      id: 7,
+      ownerId: empire.id,
+      units: { soldier: 5, transport: 1 },
+      originSystemId: 1,
+      targetSystemId: 2,
+      targetPlanetId: target.id,
+      ticksRemaining: 1,
+      isExploration: false,
+    };
+    state.fleets.push(fleet);
+
+    advanceTick(state);
+
+    expect(target.ownerId).toBe(empire.id);
+    expect(target.population).toBeGreaterThanOrEqual(target.size);
+    expect(target.units.soldier).toBe(5);
+    expect(target.units.transport).toBe(1);
+    expect(state.events).toContainEqual(expect.objectContaining({ type: 'fleet_arrived', fleetId: fleet.id }));
+    expect(state.events.some((event) => event.type === 'planet_colonized' && event.planetId === target.id)).toBe(false);
+  });
+
   it('produces resources with planet bonus and resource science multiplier', () => {
     const { state, empire, planet } = createControlledState();
     planet.buildings = { farm: 1 };

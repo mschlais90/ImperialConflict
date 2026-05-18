@@ -43,6 +43,10 @@ export function performAgentOp(
   targetEmpire: Empire,
   targetPlanet?: Planet,
 ): OperationResult {
+  if (!isAgentOperationType(opType)) {
+    return { success: false, message: 'Unknown operation' };
+  }
+
   const cost = getAgentOperationCost(state, attacker);
   if (attacker.resources.gc < cost) {
     return { success: false, message: `Not enough GC (${cost} needed)` };
@@ -86,6 +90,10 @@ export function performWizardSpell(
   targetEmpire: Empire,
   targetPlanet?: Planet,
 ): OperationResult {
+  if (!isSpellType(spellType)) {
+    return { success: false, message: 'Unknown spell' };
+  }
+
   const cost = getSpellCost(state, attacker);
   if (attacker.resources.octarine < cost) {
     return { success: false, message: `Not enough Octarine (${cost} needed)` };
@@ -205,6 +213,14 @@ function agentOpName(opType: AgentOperationType): string {
 
 function spellName(spellType: SpellType): string {
   return spellType === 'vision' ? 'Vision' : spellType === 'hypnotize' ? 'Hypnotize' : spellType === 'reduce_food' ? 'Reduce Food' : 'Destroy Iron';
+}
+
+function isAgentOperationType(opType: string): opType is AgentOperationType {
+  return opType === 'spy' || opType === 'destroy_cash' || opType === 'destroy_units' || opType === 'sabotage_portal';
+}
+
+function isSpellType(spellType: string): spellType is SpellType {
+  return spellType === 'vision' || spellType === 'hypnotize' || spellType === 'reduce_food' || spellType === 'destroy_iron';
 }
 
 function rollFloat(state: GameState): number {
