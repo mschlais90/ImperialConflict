@@ -147,7 +147,7 @@ function calcIncomeBreakdown(state: GameState, empire: Empire, planets: Planet[]
     totalBuildings += Object.values(planet.buildings).reduce((sum, c) => sum + (c ?? 0), 0);
   }
 
-  const base = 100;
+  const base = 0;
   const populationBonus = Math.trunc(totalPopulation / 30);
   const cashFactoryBonus = totalCashFactories * 8;
   const taxMultiplier = 1 + (2 * totalTaxOffices) / (totalBuildings + 1);

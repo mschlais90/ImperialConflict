@@ -140,6 +140,10 @@ select {
   gap: 10px;
 }
 
+.overlay-right {
+  overflow-y: auto;
+}
+
 .main-panel,
 .side-panel,
 .notifications-panel {
@@ -150,7 +154,7 @@ select {
 
 .side-panel,
 .notifications-panel {
-  max-height: 31vh;
+  max-height: none;
 }
 
 h2,

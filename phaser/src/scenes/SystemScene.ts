@@ -134,10 +134,15 @@ export class SystemScene extends Phaser.Scene {
     const sprite = this.add.image(x, y, textureKey);
     sprite.setDisplaySize(texDiameter, texDiameter);
 
-    // Owner ring
+    // Owner ring (only for colonized planets)
     const ring = this.add.graphics({ x, y });
-    ring.lineStyle(selected ? 5 : 3, ownerColor, 1);
-    ring.strokeCircle(0, 0, radius + 4);
+    if (owner) {
+      ring.lineStyle(selected ? 5 : 3, ownerColor, 1);
+      ring.strokeCircle(0, 0, radius + 4);
+    } else if (selected) {
+      ring.lineStyle(3, 0xffffff, 0.4);
+      ring.strokeCircle(0, 0, radius + 4);
+    }
 
     if (planet.hasPortal) {
       ring.fillStyle(0xfff3a1, 1);

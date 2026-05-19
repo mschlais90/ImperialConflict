@@ -25,13 +25,16 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
     const frag = document.createElement('div');
     frag.className = 'key-value-list';
     frag.append(
-      kvRow('Base', formatNumber(breakdown.income.base)),
       kvRow('Population bonus', `+${formatNumber(breakdown.income.populationBonus)}`),
       kvRow('Cash factories', `+${formatNumber(breakdown.income.cashFactoryBonus)}`),
-      kvRow('Tax multiplier', `x${breakdown.income.taxMultiplier.toFixed(2)}`),
-      kvRow('Economy science', `x${breakdown.income.economyMultiplier.toFixed(2)}`),
-      kvRow('Total income', formatNumber(breakdown.income.total)),
     );
+    if (breakdown.income.taxMultiplier !== 1) {
+      frag.append(kvRow('Tax multiplier', `x${breakdown.income.taxMultiplier.toFixed(2)}`));
+    }
+    if (breakdown.income.economyMultiplier !== 1) {
+      frag.append(kvRow('Economy science', `x${breakdown.income.economyMultiplier.toFixed(2)}`));
+    }
+    frag.append(kvRow('Total income', formatNumber(breakdown.income.total)));
     return frag;
   }, true));
 
@@ -78,10 +81,10 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
   panel.append(collapsible('econ-population', 'Population', () => {
     const frag = document.createElement('div');
     frag.className = 'key-value-list';
-    frag.append(
-      kvRow('Growth rate', `${breakdown.populationGrowth.growthRate}% per tick`),
-      kvRow('Welfare multiplier', `x${breakdown.populationGrowth.welfareMultiplier.toFixed(2)}`),
-    );
+    frag.append(kvRow('Growth rate', `${breakdown.populationGrowth.growthRate}% per tick`));
+    if (breakdown.populationGrowth.welfareMultiplier !== 1) {
+      frag.append(kvRow('Welfare multiplier', `x${breakdown.populationGrowth.welfareMultiplier.toFixed(2)}`));
+    }
     return frag;
   }, false));
 
