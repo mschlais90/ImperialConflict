@@ -20,26 +20,12 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
 
   const breakdown = calcEconomyBreakdown(state, context.player.id);
 
-  // Per-tick summary for all resources
-  const netGc = breakdown.income.total - breakdown.upkeep.total;
-  const netFood = breakdown.production.food.total - breakdown.foodConsumption.total - (breakdown.decay.food ?? 0);
-  const netIron = breakdown.production.iron.total - (breakdown.decay.iron ?? 0);
-  const netEndurium = breakdown.production.endurium.total - (breakdown.decay.endurium ?? 0);
-  const netOctarine = breakdown.production.octarine.total - (breakdown.decay.octarine ?? 0);
+  // GC
+  const netGc = breakdown.isStarving
+    ? Math.trunc(breakdown.income.total / 2) - breakdown.upkeep.total
+    : breakdown.income.total - breakdown.upkeep.total;
 
-  const summary = document.createElement('div');
-  summary.className = 'key-value-list';
-  summary.append(
-    kvRow('GC', formatSigned(netGc)),
-    kvRow('Food', formatSigned(netFood)),
-    kvRow('Iron', formatSigned(netIron)),
-    kvRow('Endurium', formatSigned(netEndurium)),
-    kvRow('Octarine', formatSigned(netOctarine)),
-  );
-  panel.append(summary);
-
-  // Income
-  panel.append(collapsible('econ-income', 'Income (GC)', () => {
+  panel.append(collapsible('econ-gc', `GC  ${formatSigned(netGc)}/tick`, () => {
     const frag = document.createElement('div');
     frag.className = 'key-value-list';
     frag.append(
@@ -52,48 +38,65 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
     if (breakdown.income.economyMultiplier !== 1) {
       frag.append(kvRow('Economy science', `x${breakdown.income.economyMultiplier.toFixed(2)}`));
     }
-    frag.append(kvRow('Total income', formatNumber(breakdown.income.total)));
+    frag.append(kvRow('Gross income', formatNumber(breakdown.income.total)));
+    if (breakdown.isStarving) {
+      frag.append(kvRow('Starvation penalty', '-50% income'));
+      frag.append(kvRow('Halved income', formatNumber(Math.trunc(breakdown.income.total / 2))));
+    }
+    frag.append(
+      kvRow('Upkeep (buildings)', `-${formatNumber(breakdown.upkeep.buildings)}`),
+      kvRow('Upkeep (units)', `-${formatNumber(breakdown.upkeep.units)}`),
+      kvRow('Net GC', formatSigned(netGc)),
+    );
     return frag;
   }, true));
 
-  // Production per resource
-  for (const resource of ['food', 'iron', 'endurium', 'octarine'] as const) {
-    const prod = breakdown.production[resource];
-    if (prod.total === 0 && prod.details.length === 0) continue;
+  // Food
+  const netFood = breakdown.production.food.total - breakdown.foodConsumption.total - (breakdown.decay.food ?? 0);
+  panel.append(collapsible('econ-food', `Food  ${formatSigned(netFood)}/tick`, () => {
+    const frag = document.createElement('div');
+    frag.className = 'key-value-list';
+    for (const d of breakdown.production.food.details) {
+      const bonusText = d.bonus !== 1 ? ` (x${d.bonus.toFixed(1)} bonus)` : '';
+      frag.append(kvRow(`${d.planetName}: ${d.buildingCount} ${d.buildingType}${bonusText}`, `+${formatNumber(d.amount)}`));
+    }
+    if (breakdown.production.food.total > 0) {
+      frag.append(kvRow('Total production', `+${formatNumber(breakdown.production.food.total)}`));
+    }
+    frag.append(
+      kvRow('Pop consumption', `-${formatNumber(breakdown.foodConsumption.populationCost)}`),
+      kvRow('Unit consumption', `-${formatNumber(breakdown.foodConsumption.unitCost)}`),
+    );
+    if ((breakdown.decay.food ?? 0) > 0) {
+      frag.append(kvRow('Decay (0.5%)', `-${formatNumber(breakdown.decay.food!)}`));
+    }
+    frag.append(kvRow('Net food', formatSigned(netFood)));
+    return frag;
+  }, false));
 
-    panel.append(collapsible(`econ-prod-${resource}`, `${capitalize(resource)} Production`, () => {
+  // Iron, Endurium, Octarine
+  for (const resource of ['iron', 'endurium', 'octarine'] as const) {
+    const prod = breakdown.production[resource];
+    const decay = breakdown.decay[resource] ?? 0;
+    const net = prod.total - decay;
+
+    panel.append(collapsible(`econ-${resource}`, `${capitalize(resource)}  ${formatSigned(net)}/tick`, () => {
       const frag = document.createElement('div');
       frag.className = 'key-value-list';
       for (const d of prod.details) {
         const bonusText = d.bonus !== 1 ? ` (x${d.bonus.toFixed(1)} bonus)` : '';
         frag.append(kvRow(`${d.planetName}: ${d.buildingCount} ${d.buildingType}${bonusText}`, `+${formatNumber(d.amount)}`));
       }
-      frag.append(kvRow('Total', formatNumber(prod.total)));
+      if (prod.total > 0) {
+        frag.append(kvRow('Total production', `+${formatNumber(prod.total)}`));
+      }
+      if (decay > 0) {
+        frag.append(kvRow('Decay (0.5%)', `-${formatNumber(decay)}`));
+      }
+      frag.append(kvRow(`Net ${resource}`, formatSigned(net)));
       return frag;
     }, false));
   }
-
-  // Expenses
-  panel.append(collapsible('econ-expenses', 'Expenses', () => {
-    const frag = document.createElement('div');
-    frag.className = 'key-value-list';
-    frag.append(
-      kvRow('Food consumption (pop)', formatNumber(breakdown.foodConsumption.populationCost)),
-      kvRow('Food consumption (units)', formatNumber(breakdown.foodConsumption.unitCost)),
-      kvRow('Food total', formatNumber(breakdown.foodConsumption.total)),
-    );
-    for (const [res, amount] of Object.entries(breakdown.decay)) {
-      if (amount && amount > 0) {
-        frag.append(kvRow(`${capitalize(res)} decay (0.5%)`, `-${formatNumber(amount)}`));
-      }
-    }
-    frag.append(
-      kvRow('Upkeep (buildings)', formatNumber(breakdown.upkeep.buildings)),
-      kvRow('Upkeep (units)', formatNumber(breakdown.upkeep.units)),
-      kvRow('Total upkeep (GC)', formatNumber(breakdown.upkeep.total)),
-    );
-    return frag;
-  }, true));
 
   // Population
   panel.append(collapsible('econ-population', 'Population', () => {
@@ -102,6 +105,9 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
     frag.append(kvRow('Growth rate', `${breakdown.populationGrowth.growthRate}% per tick`));
     if (breakdown.populationGrowth.welfareMultiplier !== 1) {
       frag.append(kvRow('Welfare multiplier', `x${breakdown.populationGrowth.welfareMultiplier.toFixed(2)}`));
+    }
+    if (breakdown.isStarving) {
+      frag.append(kvRow('Status', 'STARVING - income halved'));
     }
     return frag;
   }, false));

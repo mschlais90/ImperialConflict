@@ -38,6 +38,7 @@ export interface EconomyBreakdown {
   upkeep: { buildings: number; units: number; total: number };
   populationGrowth: { growthRate: number; welfareMultiplier: number };
   research: { rpPerTick: number; allocation: Record<ScienceKey, number>; sciencePercents: Record<ScienceKey, number> };
+  isStarving: boolean;
 }
 
 export function calcEconomyBreakdown(state: GameState, empireId: number): EconomyBreakdown {
@@ -97,6 +98,8 @@ export function calcEconomyBreakdown(state: GameState, empireId: number): Econom
 
   // Food consumption
   const foodConsumption = calcFoodConsumption(planets);
+  const projectedFood = empire.resources.food + production.food.total - foodConsumption.total - Math.trunc((empire.resources.food + production.food.total) * 0.005);
+  const isStarving = projectedFood < 0;
 
   // Decay
   const decay: Partial<Record<ResourceKey, number>> = {};
@@ -131,6 +134,7 @@ export function calcEconomyBreakdown(state: GameState, empireId: number): Econom
     upkeep: { buildings: buildingUpkeep, units: unitUpkeep, total: buildingUpkeep + unitUpkeep },
     populationGrowth: { growthRate: 5, welfareMultiplier },
     research: { rpPerTick, allocation: { ...empire.researchAllocation }, sciencePercents },
+    isStarving,
   };
 }
 

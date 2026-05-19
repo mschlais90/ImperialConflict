@@ -291,6 +291,17 @@ input[type="number"] {
   color: #ffaaa6;
 }
 
+/* Per-tick resource colors */
+.tick-positive {
+  color: #6fcf6f;
+  font-size: 12px;
+}
+
+.tick-negative {
+  color: #ff7b7b;
+  font-size: 12px;
+}
+
 /* Collapsible sections */
 details.collapsible {
   margin-top: 6px;

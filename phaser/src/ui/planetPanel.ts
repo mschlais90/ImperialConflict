@@ -44,10 +44,14 @@ export function renderPlanetPanel(context: UiContext): HTMLElement {
   const owner = selectedPlanet.ownerId >= 0 ? getEmpire(state, selectedPlanet.ownerId) : undefined;
   const details: Array<[string, string]> = [
     ['System', system?.systemName ?? 'Unknown'],
-    ['Owner', owner?.empireName ?? 'Uncolonized'],
+  ];
+  if (owner) {
+    details.push(['Owner', owner.empireName]);
+  }
+  details.push(
     ['Size', `${countBuildingsAndQueue(selectedPlanet)}/${formatNumber(selectedPlanet.size)}`],
     ['Population', formatNumber(selectedPlanet.population)],
-  ];
+  );
   if (selectedPlanet.hasPortal) {
     details.push(['Portal', 'Active']);
   }
@@ -409,7 +413,10 @@ function queueList(planet: Planet): HTMLElement {
 
   const entries = Array.from(grouped.values()).slice(0, 6);
   return keyValueList(entries.map((g) => {
-    const label = g.count > 1 ? `${g.itemType} x${g.count}` : g.itemType;
+    const displayName = (BUILDINGS as Record<string, { name: string }>)[g.itemType]?.name
+      ?? (UNITS as Record<string, { name: string }>)[g.itemType]?.name
+      ?? g.itemType;
+    const label = g.count > 1 ? `${displayName} x${g.count}` : displayName;
     return [label, `${g.ticksRemaining} ticks`];
   }));
 }
