@@ -108,25 +108,21 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
 
     const label = document.createElement('span');
     label.className = 'build-label';
-    label.textContent = `${BUILDINGS[key].name}`;
-
-    const countLabel = document.createElement('span');
-    countLabel.className = 'build-count';
-    countLabel.textContent = `${built}`;
+    label.textContent = `${BUILDINGS[key].name} ${built} (${affordable})`;
 
     const costLabel = document.createElement('span');
     costLabel.className = 'build-cost';
     costLabel.textContent = resourceCostText(cost);
 
-    const input = numberInput(affordable, { min: 0 });
+    const input = numberInput(0, { min: 0 });
     input.className = 'build-input';
     inputs.set(key, input);
 
-    row.append(label, countLabel, costLabel, input);
+    row.append(label, costLabel, input);
     buildForm.append(row);
   }
 
-  const queueAllBtn = button('Queue All', () => {
+  const queueAllBtn = button('Build', () => {
     let anyQueued = false;
     for (const key of BUILDING_KEYS) {
       const input = inputs.get(key)!;
