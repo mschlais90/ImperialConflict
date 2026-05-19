@@ -236,21 +236,8 @@ function assignHomePlanet(state: GameState, empire: Empire, homeSystemIndex: num
 function setStartingPlanetState(planet: Planet, empireId: number): void {
   planet.ownerId = empireId;
   planet.population = planet.size * 10;
-  planet.buildings = {
-    mine: 3,
-    farm: 3,
-    cash_factory: 2,
-    refinery: 1,
-    research_center: 1,
-    living_quarter: 1,
-  };
-  planet.units = {
-    fighter: 20,
-    bomber: 0,
-    soldier: 50,
-    droid: 0,
-    transport: 1,
-  };
+  planet.buildings = {};
+  planet.units = {};
 }
 
 function systemDistanceFromCenter(system: SolarSystem): number {

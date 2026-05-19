@@ -7,6 +7,12 @@ import { button, formatNumber, labeledControl, numberInput, parseIntegerInput, r
 import type { UiContext } from './types';
 
 const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
+
+function countBuildingsAndQueue(planet: Planet): number {
+  const built = BUILDING_KEYS.reduce((sum, key) => sum + (planet.buildings[key] ?? 0), 0);
+  const queued = planet.buildQueue.filter((order) => order.category === 'building').length;
+  return built + queued;
+}
 const COMBAT_UNITS: CombatUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport'];
 const PLANET_UNITS: PlanetUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport', 'explorer', 'agent', 'wizard'];
 
@@ -30,7 +36,7 @@ export function renderPlanetPanel(context: UiContext): HTMLElement {
   const details: Array<[string, string]> = [
     ['System', system?.systemName ?? 'Unknown'],
     ['Owner', owner?.empireName ?? 'Uncolonized'],
-    ['Size', formatNumber(selectedPlanet.size)],
+    ['Size', `${countBuildingsAndQueue(selectedPlanet)}/${formatNumber(selectedPlanet.size)}`],
     ['Population', formatNumber(selectedPlanet.population)],
   ];
   if (selectedPlanet.hasPortal) {
@@ -63,7 +69,10 @@ function renderOwnedPlanet(context: UiContext, planet: Planet): HTMLElement {
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel-stack';
-  wrapper.append(subtitle('Buildings'), keyValueList(BUILDING_KEYS.map((key) => [BUILDINGS[key].name, planet.buildings[key] ?? 0])));
+  const builtBuildings = BUILDING_KEYS.filter((key) => (planet.buildings[key] ?? 0) > 0);
+  wrapper.append(subtitle('Buildings'), builtBuildings.length > 0
+    ? keyValueList(builtBuildings.map((key) => [BUILDINGS[key].name, planet.buildings[key] ?? 0]))
+    : emptyText('No buildings.'));
   wrapper.append(subtitle('Queue'), queueList(planet));
   wrapper.append(subtitle('Build'), buildControls(context, planet));
   wrapper.append(subtitle('Units'), keyValueList(PLANET_UNITS.map((key) => [UNITS[key].name, planet.units[key] ?? 0])));
