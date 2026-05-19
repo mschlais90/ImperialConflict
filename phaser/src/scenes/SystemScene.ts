@@ -25,6 +25,8 @@ export class SystemScene extends Phaser.Scene {
 
   create(): void {
     const controller = this.getController();
+    controller.activeScene = 'system';
+    controller.switchToGalaxy = () => this.scene.start('GalaxyScene');
     const refreshScene = () => this.renderSystem();
     controller.refreshScene = refreshScene;
     this.cameras.main.setBackgroundColor('#050914');

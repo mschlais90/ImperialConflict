@@ -29,7 +29,7 @@ describe('player commands', () => {
     const home = getPlanetsForEmpire(state, player.id)[0];
     const result = trainUnits(state, { empireId: player.id, planetId: home.id, unitType: 'soldier', count: 2 });
     expect(result.ok).toBe(true);
-    expect(home.units.soldier).toBe(52);
+    expect(home.units.soldier).toBe(2);
   });
 
   it('rejects research allocation totals that are not 100', () => {
@@ -56,6 +56,7 @@ describe('player commands', () => {
     const player = state.empires[0];
     const target = getPlanetsForEmpire(state, state.empires[1].id)[0];
     const home = getPlanetsForEmpire(state, player.id)[0];
+    home.units = { soldier: 50, transport: 1 };
     const result = sendFleet(state, {
       empireId: player.id,
       sourcePlanetId: home.id,

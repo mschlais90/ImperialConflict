@@ -19,7 +19,7 @@ describe('economy and ticks', () => {
     const home = getPlanetsForEmpire(state, player.id)[0];
     home.buildQueue.push({ itemType: 'farm', ticksRemaining: 1, category: 'building' });
     advanceTick(state);
-    expect(home.buildings.farm).toBe(4);
+    expect(home.buildings.farm).toBe(1);
   });
 
   it('completes build queue items and adds units', () => {
@@ -34,6 +34,9 @@ describe('economy and ticks', () => {
   it('produces resources, applies food consumption, and generates research', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
     const player = getPlayerEmpire(state)!;
+    const home = getPlanetsForEmpire(state, player.id)[0];
+    // Give starting buildings so the test has something to produce with
+    home.buildings = { mine: 3, farm: 3, research_center: 1 };
     const foodBefore = player.resources.food;
     const ironBefore = player.resources.iron;
     advanceTick(state);

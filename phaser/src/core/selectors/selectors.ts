@@ -1,5 +1,5 @@
 import { UNITS } from '../data/units';
-import type { CombatUnitKey, Empire, Fleet, Planet, PlanetUnitKey, SolarSystem } from '../models/types';
+import type { CombatUnitKey, Empire, Fleet, Planet, PlanetUnitKey, ScienceKey, SolarSystem } from '../models/types';
 import type { GameState } from '../galaxy/galaxyData';
 
 const PLANET_NETWORTH_UNITS: PlanetUnitKey[] = [
@@ -73,6 +73,11 @@ export function calcTravelTicks(state: GameState, fromSystemId: number, toSystem
   const dx = fromSystem.position.x - toSystem.position.x;
   const dy = fromSystem.position.y - toSystem.position.y;
   return Math.max(Math.ceil(Math.hypot(dx, dy)), 1);
+}
+
+export function calcSciencePercent(state: GameState, empire: Empire, science: ScienceKey): number {
+  const networth = Math.max(calcEmpireNetworth(state, empire.id), 1);
+  return 100 * (1 - Math.exp(-empire.researchPoints[science] / (100 * networth)));
 }
 
 export function calcEmpireNetworth(state: GameState, empireId: number): number {

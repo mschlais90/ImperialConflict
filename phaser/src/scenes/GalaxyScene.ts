@@ -21,6 +21,10 @@ export class GalaxyScene extends Phaser.Scene {
     const state = this.requireState(controller);
     const camera = this.cameras.main;
 
+    controller.activeScene = 'galaxy';
+    controller.switchToGalaxy = () => this.scene.start('GalaxyScene');
+    controller.overlay.render();
+
     camera.setBackgroundColor('#030610');
     camera.setZoom(1);
     camera.centerOn(0, 0);

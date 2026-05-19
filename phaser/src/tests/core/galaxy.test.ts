@@ -22,7 +22,7 @@ describe('galaxy generation', () => {
       const planets = getPlanetsForEmpire(state, empire.id);
       expect(planets).toHaveLength(1);
       expect(planets[0].population).toBe(planets[0].size * 10);
-      expect(planets[0].buildings.mine).toBe(3);
+      expect(Object.keys(planets[0].buildings)).toHaveLength(0);
       expect(empire.resources.gc).toBe(5000);
     }
   });

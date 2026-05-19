@@ -1,104 +1,55 @@
 import { UNITS } from '../core/data/units';
-import { trainUnits } from '../core/commands/playerCommands';
-import type { CombatUnitKey, Fleet, Planet, UnitKey } from '../core/models/types';
+import type { CombatUnitKey, Fleet, Planet } from '../core/models/types';
 import { calcTravelTicks, getPlanet, getPlanetsForEmpire } from '../core/selectors/selectors';
-import { button, labeledControl, numberInput, parseIntegerInput, resourceCostText, select } from './dom';
+import { button, formatNumber } from './dom';
 import { fleetForm } from './planetPanel';
 import type { UiContext } from './types';
 
-const TRAINABLE_UNITS: Array<Exclude<UnitKey, 'explorer'>> = [
-  'fighter',
-  'bomber',
-  'soldier',
-  'droid',
-  'transport',
-  'agent',
-  'wizard',
-];
-
 export function renderFleetPanel(context: UiContext): HTMLElement {
+  const panel = document.createElement('section');
+  panel.className = 'side-panel interactive';
+  const title = document.createElement('h2');
+  title.textContent = 'Fleets';
+  panel.append(title, renderFleetContent(context));
+  return panel;
+}
+
+export function renderFleetContent(context: UiContext): HTMLElement {
   const state = context.controller.state;
   if (!state) {
     throw new Error('Fleet panel requires game state.');
   }
 
-  const panel = document.createElement('section');
-  panel.className = 'side-panel interactive';
-
-  const title = document.createElement('h2');
-  title.textContent = 'Fleets';
-  panel.append(title);
+  const frag = document.createElement('div');
+  frag.className = 'panel-stack';
 
   const ownedPlanets = getPlanetsForEmpire(state, context.player.id);
-  panel.append(subtitle('Train'), trainControls(context, ownedPlanets));
 
+  // Send to selected target
   const selectedTarget = state.selectedPlanetId === null ? undefined : getPlanet(state, state.selectedPlanetId);
   if (selectedTarget && selectedTarget.ownerId !== context.player.id) {
-    panel.append(
+    frag.append(
       subtitle('Send to selected'),
       ownedPlanets.length > 0 ? fleetForm(context, selectedTarget, ownedPlanets) : emptyText('No owned planets can send fleets.'),
     );
   } else {
-    panel.append(emptyText('Select a neutral or enemy planet to send fleets.'));
+    frag.append(emptyText('Select a neutral or enemy planet to send fleets.'));
   }
 
+  // Active fleets
   const active = state.fleets.filter((fleet) => fleet.ownerId === context.player.id);
-  panel.append(subtitle('Active'), active.length > 0 ? fleetList(active, state) : emptyText('No fleets in transit.'));
+  frag.append(subtitle('Active'), active.length > 0 ? fleetList(active, state) : emptyText('No fleets in transit.'));
 
   // Fleet summary
-  panel.append(subtitle('Fleet Summary'), fleetSummary(context, ownedPlanets, active));
+  frag.append(subtitle('Fleet Summary'), fleetSummary(ownedPlanets, active));
 
   // Recall section
   const portalPlanets = ownedPlanets.filter((p) => p.hasPortal);
   if (active.length > 0 && portalPlanets.length > 0) {
-    panel.append(subtitle('Recall to Portal'), recallControls(context, active, portalPlanets));
+    frag.append(subtitle('Recall to Portal'), recallControls(context, active, portalPlanets));
   }
 
-  return panel;
-}
-
-function trainControls(context: UiContext, ownedPlanets: Planet[]): HTMLElement {
-  const state = context.controller.state;
-  if (!state) {
-    throw new Error('Train controls require game state.');
-  }
-
-  if (ownedPlanets.length === 0) {
-    return emptyText('No owned planets.');
-  }
-
-  const form = document.createElement('div');
-  form.className = 'inline-form wrap';
-  const planetSelect = select(
-    ownedPlanets.map((planet) => ({ label: planet.planetName, value: planet.id })),
-    context.controller.state?.selectedPlanetId ?? ownedPlanets[0].id,
-  );
-  const unitSelect = select(
-    TRAINABLE_UNITS.map((unit) => ({ label: `${UNITS[unit].name} (${resourceCostText(UNITS[unit].cost)})`, value: unit })),
-    'fighter',
-  );
-  const count = numberInput(1, { min: 1 });
-  form.append(
-    labeledControl('Planet', planetSelect),
-    labeledControl('Unit', unitSelect),
-    labeledControl('Count', count),
-    button('Train', () => {
-      const parsedCount = parseIntegerInput(count.value, { label: 'Train count', min: 1, max: 999_999 });
-      if (!parsedCount.ok) {
-        context.setNotice(parsedCount.message, true);
-        return;
-      }
-      context.runCommand(() =>
-        trainUnits(state, {
-          empireId: context.player.id,
-          planetId: Number(planetSelect.value),
-          unitType: unitSelect.value as Exclude<UnitKey, 'explorer'>,
-          count: parsedCount.value,
-        }),
-      );
-    }),
-  );
-  return form;
+  return frag;
 }
 
 function fleetList(fleets: Fleet[], state: { planets: Planet[] }): HTMLElement {
@@ -127,7 +78,7 @@ function formatUnits(units: Partial<Record<string, number>>): string {
   return parts.length > 0 ? parts.join(', ') : 'empty';
 }
 
-function fleetSummary(_context: UiContext, planets: Planet[], fleets: Fleet[]): HTMLElement {
+function fleetSummary(planets: Planet[], fleets: Fleet[]): HTMLElement {
   const totals: Record<string, { stationed: number; transit: number }> = {};
   for (const key of ['fighter', 'bomber', 'soldier', 'droid', 'transport'] as CombatUnitKey[]) {
     totals[key] = { stationed: 0, transit: 0 };
@@ -151,7 +102,7 @@ function fleetSummary(_context: UiContext, planets: Planet[], fleets: Fleet[]): 
     const total = val.stationed + val.transit;
     if (total === 0) continue;
     const row = document.createElement('div');
-    row.innerHTML = `<span>${UNITS[key as UnitKey].name}</span><strong>${val.stationed} + ${val.transit} in transit = ${total}</strong>`;
+    row.innerHTML = `<span>${UNITS[key as CombatUnitKey].name}</span><strong>${formatNumber(val.stationed)} + ${formatNumber(val.transit)} in transit = ${formatNumber(total)}</strong>`;
     list.append(row);
   }
   if (list.children.length === 0) {
@@ -177,7 +128,6 @@ function recallControls(context: UiContext, fleets: Fleet[], portalPlanets: Plan
     const target = state.planets.find((p) => p.id === fleet.targetPlanetId);
     const targetName = target?.planetName ?? `Planet ${fleet.targetPlanetId}`;
 
-    // Find nearest portal
     let nearestPortal: Planet | null = null;
     let nearestTicks = Infinity;
     for (const p of portalPlanets) {

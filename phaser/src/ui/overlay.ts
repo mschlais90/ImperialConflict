@@ -1,12 +1,14 @@
 import type { AppController, AppOverlay } from '../app/appController';
 import { createNewGame } from '../core/engines/gameManager';
 import { getPlayerEmpire } from '../core/selectors/selectors';
-import { clearElement } from './dom';
-import { renderFleetPanel } from './fleetPanel';
+import { clearElement, collapsible } from './dom';
+import { renderEconomyPanel } from './economyPanel';
+import { renderFleetContent } from './fleetPanel';
 import { renderHud } from './hud';
-import { renderNotifications } from './notifications';
+import { renderNotificationsContent } from './notifications';
 import { renderPlanetPanel } from './planetPanel';
-import { renderResearchPanel } from './researchPanel';
+import { renderResearchContent } from './researchPanel';
+import { renderStandingsPanel } from './standingsPanel';
 import { renderStartScreen } from './startScreen';
 import type { UiContext } from './types';
 
@@ -23,8 +25,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   let hudPanel: HTMLElement | null = null;
   let leftPanel: HTMLElement | null = null;
   let rightPanel: HTMLElement | null = null;
-  let notificationsPanel: HTMLElement | null = null;
   let gameOverScreen: HTMLElement | null = null;
+  let viewMode: 'normal' | 'economy' | 'standings' = 'normal';
 
   const overlay: AppOverlay = {
     render,
@@ -33,11 +35,38 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     showGameOver,
   };
 
+  // Global keybindings
+  document.addEventListener('keydown', (event) => {
+    const active = document.activeElement;
+    if (active instanceof HTMLInputElement || active instanceof HTMLSelectElement || active instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    const state = controller.state;
+    if (!state || state.currentState === 'main_menu') return;
+
+    switch (event.key.toLowerCase()) {
+      case 'g':
+        viewMode = 'normal';
+        controller.switchToGalaxy?.();
+        break;
+      case 'e':
+        viewMode = viewMode === 'economy' ? 'normal' : 'economy';
+        render();
+        break;
+      case 'a':
+        viewMode = viewMode === 'standings' ? 'normal' : 'standings';
+        render();
+        break;
+    }
+  });
+
   function showStartScreen(): void {
     clearElement(root);
     renderStartScreen(root, (empireName) => {
       notice = null;
       forcedGameOver = null;
+      viewMode = 'normal';
       if (controller.startNewGame) {
         controller.startNewGame(empireName);
         return;
@@ -56,29 +85,44 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   function refreshAfterTick(): void {
     const state = controller.state;
     const player = state ? getPlayerEmpire(state) : undefined;
-    if (!state || state.currentState === 'main_menu' || !player || !hudPanel || !notificationsPanel || !leftPanel || !rightPanel) {
+    if (!state || state.currentState === 'main_menu' || !player || !hudPanel || !leftPanel || !rightPanel) {
       render();
       return;
     }
 
+    // Input focus preservation: skip panel re-render when user is typing
+    const activeEl = document.activeElement;
+    const leftHasFocus = leftPanel.contains(activeEl) && (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLSelectElement);
+    const rightHasFocus = rightPanel.contains(activeEl) && (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLSelectElement);
+
     const context = createContext(player);
+
+    // Always refresh HUD
     const nextHudPanel = renderHud(context);
     hudPanel.replaceWith(nextHudPanel);
     hudPanel = nextHudPanel;
 
-    const nextLeftPanel = document.createElement('div');
-    nextLeftPanel.className = 'overlay-left';
-    nextLeftPanel.append(renderPlanetPanel(context));
-    leftPanel.replaceWith(nextLeftPanel);
-    leftPanel = nextLeftPanel;
+    // Refresh left panel only if no input focus
+    if (!leftHasFocus) {
+      const nextLeftPanel = document.createElement('div');
+      nextLeftPanel.className = 'overlay-left';
+      if (controller.activeScene !== 'galaxy') {
+        nextLeftPanel.append(renderLeftContent(context));
+      }
+      leftPanel.replaceWith(nextLeftPanel);
+      leftPanel = nextLeftPanel;
+    }
 
-    const nextNotificationsPanel = renderNotifications(state.events, notice);
-    const nextRightPanel = document.createElement('div');
-    nextRightPanel.className = 'overlay-right';
-    nextRightPanel.append(renderFleetPanel(context), renderResearchPanel(context), nextNotificationsPanel);
-    rightPanel.replaceWith(nextRightPanel);
-    rightPanel = nextRightPanel;
-    notificationsPanel = nextNotificationsPanel;
+    // Refresh right panel only if no input focus
+    if (!rightHasFocus) {
+      const nextRightPanel = document.createElement('div');
+      nextRightPanel.className = 'overlay-right';
+      if (controller.activeScene !== 'galaxy') {
+        nextRightPanel.append(renderRightPanel(context, state));
+      }
+      rightPanel.replaceWith(nextRightPanel);
+      rightPanel = nextRightPanel;
+    }
 
     syncGameOverPanel();
   }
@@ -87,7 +131,6 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     hudPanel = null;
     leftPanel = null;
     rightPanel = null;
-    notificationsPanel = null;
     gameOverScreen = null;
     clearElement(root);
     const state = controller.state;
@@ -112,17 +155,45 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     const body = document.createElement('div');
     body.className = 'overlay-body';
+
     leftPanel = document.createElement('div');
     leftPanel.className = 'overlay-left';
-    leftPanel.append(renderPlanetPanel(context));
+
     rightPanel = document.createElement('div');
     rightPanel.className = 'overlay-right';
-    notificationsPanel = renderNotifications(state.events, notice);
-    rightPanel.append(renderFleetPanel(context), renderResearchPanel(context), notificationsPanel);
+
+    // Only populate panels when NOT in galaxy view
+    if (controller.activeScene !== 'galaxy') {
+      leftPanel.append(renderLeftContent(context));
+      rightPanel.append(renderRightPanel(context, state));
+    }
+
     body.append(leftPanel, rightPanel);
     shell.append(body);
     root.append(shell);
     syncGameOverPanel();
+  }
+
+  function renderLeftContent(context: UiContext): HTMLElement {
+    switch (viewMode) {
+      case 'economy':
+        return renderEconomyPanel(context);
+      case 'standings':
+        return renderStandingsPanel(context);
+      default:
+        return renderPlanetPanel(context);
+    }
+  }
+
+  function renderRightPanel(context: UiContext, state: typeof controller.state): HTMLElement {
+    const panel = document.createElement('section');
+    panel.className = 'side-panel interactive';
+    panel.append(
+      collapsible('fleet-mgmt', 'Fleet Management', () => renderFleetContent(context), true),
+      collapsible('research', 'Research', () => renderResearchContent(context), false),
+      collapsible('notifications', 'Notifications', () => renderNotificationsContent(state!.events, notice), false),
+    );
+    return panel;
   }
 
   function createContext(player: NonNullable<ReturnType<typeof getPlayerEmpire>>): UiContext {
@@ -155,7 +226,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       return;
     }
 
-    const nextGameOverScreen = gameOverPanel(playerWon ?? false);
+    const nextGameOverScreen = gameOverScreenPanel(playerWon ?? false);
     if (gameOverScreen) {
       gameOverScreen.replaceWith(nextGameOverScreen);
     } else {
@@ -174,7 +245,7 @@ function errorPanel(message: string): HTMLElement {
   return panel;
 }
 
-function gameOverPanel(playerWon: boolean): HTMLElement {
+function gameOverScreenPanel(playerWon: boolean): HTMLElement {
   const shell = document.createElement('div');
   shell.className = 'game-over-screen interactive';
   const panel = document.createElement('div');

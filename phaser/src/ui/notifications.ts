@@ -3,26 +3,30 @@ import type { EventLogEntry } from '../core/events/eventLog';
 export function renderNotifications(events: EventLogEntry[], notice: { message: string; isError: boolean } | null): HTMLElement {
   const panel = document.createElement('section');
   panel.className = 'notifications-panel interactive';
-
   const title = document.createElement('h2');
   title.textContent = 'Notifications';
-  panel.append(title);
+  panel.append(title, renderNotificationsContent(events, notice));
+  return panel;
+}
+
+export function renderNotificationsContent(events: EventLogEntry[], notice: { message: string; isError: boolean } | null): HTMLElement {
+  const frag = document.createElement('div');
 
   if (notice) {
     const item = document.createElement('div');
     item.className = notice.isError ? 'notice error' : 'notice';
     item.textContent = notice.message;
-    panel.append(item);
+    frag.append(item);
   }
 
   for (const event of [...events].reverse().slice(0, 6)) {
     const item = document.createElement('div');
     item.className = 'notice';
     item.textContent = eventText(event);
-    panel.append(item);
+    frag.append(item);
   }
 
-  return panel;
+  return frag;
 }
 
 function eventText(event: EventLogEntry): string {

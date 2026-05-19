@@ -33,7 +33,6 @@ export function renderHud(context: UiContext): HTMLElement {
   meta.className = 'hud-meta';
   meta.append(
     stat('Tick', formatNumber(state.currentTick)),
-    stat('Speed', `${state.currentSpeed}x`),
     stat('Net worth', formatNumber(calcEmpireNetworth(state, player.id))),
     stat('Planets', formatNumber(getPlanetsForEmpire(state, player.id).length)),
   );

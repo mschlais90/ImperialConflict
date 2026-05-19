@@ -6,17 +6,21 @@ import type { UiContext } from './types';
 const SCIENCE_KEYS: ScienceKey[] = ['military', 'welfare', 'economy', 'construction', 'resources'];
 
 export function renderResearchPanel(context: UiContext): HTMLElement {
+  const panel = document.createElement('section');
+  panel.className = 'side-panel interactive';
+  const title = document.createElement('h2');
+  title.textContent = 'Research';
+  panel.append(title, renderResearchContent(context));
+  return panel;
+}
+
+export function renderResearchContent(context: UiContext): HTMLElement {
   const state = context.controller.state;
   if (!state) {
     throw new Error('Research panel requires game state.');
   }
 
-  const panel = document.createElement('section');
-  panel.className = 'side-panel interactive';
-
-  const title = document.createElement('h2');
-  title.textContent = 'Research';
-  panel.append(title);
+  const frag = document.createElement('div');
 
   const inputs = new Map<ScienceKey, HTMLInputElement>();
   const total = document.createElement('div');
@@ -42,7 +46,7 @@ export function renderResearchPanel(context: UiContext): HTMLElement {
     input.addEventListener('input', updateTotal);
     inputs.set(science, input);
     row.append(input);
-    panel.append(row);
+    frag.append(row);
   }
 
   const apply = button('Apply research', () => {
@@ -60,9 +64,9 @@ export function renderResearchPanel(context: UiContext): HTMLElement {
     context.runCommand(() => setResearchAllocation(state, { empireId: context.player.id, allocation }));
   });
 
-  panel.append(total, apply);
+  frag.append(total, apply);
   updateTotal();
-  return panel;
+  return frag;
 }
 
 function labelText(value: string): Text {

@@ -13,6 +13,8 @@ export interface AppController {
   overlay: AppOverlay;
   refreshScene: (() => void) | null;
   startNewGame: ((empireName: string) => void) | null;
+  activeScene: 'galaxy' | 'system';
+  switchToGalaxy: (() => void) | null;
 }
 
 export const APP_CONTROLLER_KEY = 'appController';

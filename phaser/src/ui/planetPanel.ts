@@ -1,9 +1,9 @@
-import { BUILDINGS } from '../core/data/buildings';
+import { BUILDINGS, getBuildCost } from '../core/data/buildings';
 import { UNITS } from '../core/data/units';
-import { queueBuilding, queueExplorer, sendExplorer, sendFleet } from '../core/commands/playerCommands';
-import type { BuildingKey, CombatUnitKey, Planet, PlanetUnitKey } from '../core/models/types';
-import { calcTravelTicks, getEmpire, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
-import { button, formatNumber, labeledControl, numberInput, parseIntegerInput, resourceCostText, select } from './dom';
+import { queueBuilding, queueExplorer, sendExplorer, sendFleet, trainUnits } from '../core/commands/playerCommands';
+import type { BuildingKey, CombatUnitKey, Planet, PlanetUnitKey, UnitKey } from '../core/models/types';
+import { calcSciencePercent, calcTravelTicks, getEmpire, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
+import { button, collapsible, formatNumber, labeledControl, maxAffordable, numberInput, parseIntegerInput, resourceCostText, select } from './dom';
 import type { UiContext } from './types';
 
 const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
@@ -14,7 +14,16 @@ function countBuildingsAndQueue(planet: Planet): number {
   return built + queued;
 }
 const COMBAT_UNITS: CombatUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport'];
-const PLANET_UNITS: PlanetUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport', 'explorer', 'agent', 'wizard'];
+const TRAINABLE_UNITS: Array<Exclude<UnitKey, 'explorer'>> = [
+  'fighter',
+  'bomber',
+  'soldier',
+  'droid',
+  'transport',
+  'agent',
+  'wizard',
+];
+const PLANET_DISPLAY_UNITS: PlanetUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport', 'explorer', 'agent', 'wizard'];
 
 export function renderPlanetPanel(context: UiContext): HTMLElement {
   const state = context.controller.state;
@@ -69,75 +78,189 @@ function renderOwnedPlanet(context: UiContext, planet: Planet): HTMLElement {
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel-stack';
-  const builtBuildings = BUILDING_KEYS.filter((key) => (planet.buildings[key] ?? 0) > 0);
-  wrapper.append(subtitle('Buildings'), builtBuildings.length > 0
-    ? keyValueList(builtBuildings.map((key) => [BUILDINGS[key].name, planet.buildings[key] ?? 0]))
-    : emptyText('No buildings.'));
-  wrapper.append(subtitle('Queue'), queueList(planet));
-  wrapper.append(subtitle('Build'), buildControls(context, planet));
-  wrapper.append(subtitle('Units'), keyValueList(PLANET_UNITS.map((key) => [UNITS[key].name, planet.units[key] ?? 0])));
-  wrapper.append(subtitle('Explorers'), explorerBuildControls(context, planet));
+
+  wrapper.append(
+    collapsible('planet-buildings', 'Buildings', () => buildingsSection(context, planet), true),
+    collapsible('planet-fleets', 'Units & Training', () => unitsSection(context, planet), false),
+  );
+
   return wrapper;
 }
 
-function buildControls(context: UiContext, planet: Planet): HTMLElement {
-  const state = context.controller.state;
-  if (!state) {
-    throw new Error('Build controls require game state.');
+function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
+  const state = context.controller.state!;
+  const constructionSci = calcSciencePercent(state, context.player, 'construction');
+  const frag = document.createElement('div');
+  frag.className = 'panel-stack';
+
+  // Current buildings + build inputs
+  const buildForm = document.createElement('div');
+  buildForm.className = 'build-grid';
+  const inputs = new Map<BuildingKey, HTMLInputElement>();
+
+  for (const key of BUILDING_KEYS) {
+    const built = planet.buildings[key] ?? 0;
+    const cost = getBuildCost(key, constructionSci, planet);
+    const affordable = maxAffordable(context.player.resources, cost);
+
+    const row = document.createElement('div');
+    row.className = 'build-row';
+
+    const label = document.createElement('span');
+    label.className = 'build-label';
+    label.textContent = `${BUILDINGS[key].name}`;
+
+    const countLabel = document.createElement('span');
+    countLabel.className = 'build-count';
+    countLabel.textContent = `${built}`;
+
+    const costLabel = document.createElement('span');
+    costLabel.className = 'build-cost';
+    costLabel.textContent = resourceCostText(cost);
+
+    const input = numberInput(affordable, { min: 0 });
+    input.className = 'build-input';
+    inputs.set(key, input);
+
+    row.append(label, countLabel, costLabel, input);
+    buildForm.append(row);
   }
 
-  const form = document.createElement('div');
-  form.className = 'inline-form';
-  const buildingSelect = select(
-    BUILDING_KEYS.map((key) => ({ label: `${BUILDINGS[key].name} (${resourceCostText(BUILDINGS[key].cost)})`, value: key })),
-    'mine',
-  );
-  const count = numberInput(1, { min: 1 });
-  form.append(
-    labeledControl('Building', buildingSelect),
-    labeledControl('Count', count),
-    button('Queue', () => {
-      const parsedCount = parseIntegerInput(count.value, { label: 'Build count', min: 1, max: 999 });
-      if (!parsedCount.ok) {
-        context.setNotice(parsedCount.message, true);
+  const queueAllBtn = button('Queue All', () => {
+    let anyQueued = false;
+    for (const key of BUILDING_KEYS) {
+      const input = inputs.get(key)!;
+      const parsed = parseIntegerInput(input.value, { label: BUILDINGS[key].name, min: 0, max: 999 });
+      if (!parsed.ok) {
+        context.setNotice(parsed.message, true);
         return;
       }
-      context.runCommand(() =>
-        queueBuilding(state, {
+      if (parsed.value > 0) {
+        const result = queueBuilding(state, {
           empireId: context.player.id,
           planetId: planet.id,
-          buildingType: buildingSelect.value as BuildingKey,
-          count: parsedCount.value,
-        }),
-      );
-    }),
-  );
-  return form;
-}
+          buildingType: key,
+          count: parsed.value,
+        });
+        if (!result.ok) {
+          context.setNotice(result.message, true);
+          return;
+        }
+        anyQueued = true;
+      }
+    }
+    if (anyQueued) {
+      context.setNotice('Buildings queued.');
+      context.controller.refreshScene?.();
+    }
+  });
+  queueAllBtn.classList.add('primary');
 
-function explorerBuildControls(context: UiContext, planet: Planet): HTMLElement {
-  const state = context.controller.state;
-  if (!state) {
-    throw new Error('Explorer controls require game state.');
-  }
+  frag.append(buildForm, queueAllBtn);
 
-  const form = document.createElement('div');
-  form.className = 'inline-form';
-  const count = numberInput(1, { min: 1 });
-  form.append(
-    labeledControl('Count', count),
-    button(`Queue explorer (${resourceCostText(UNITS.explorer.cost)})`, () => {
-      const parsedCount = parseIntegerInput(count.value, { label: 'Explorer count', min: 1, max: 999 });
-      if (!parsedCount.ok) {
-        context.setNotice(parsedCount.message, true);
+  // Explorer queue
+  const explorerCost = resourceCostText(UNITS.explorer.cost);
+  const explorerAffordable = maxAffordable(context.player.resources, UNITS.explorer.cost);
+  const explorerRow = document.createElement('div');
+  explorerRow.className = 'inline-form';
+  const explorerInput = numberInput(explorerAffordable, { min: 0 });
+  explorerRow.append(
+    labeledControl(`Explorer (${explorerCost})`, explorerInput),
+    button('Queue', () => {
+      const parsed = parseIntegerInput(explorerInput.value, { label: 'Explorer count', min: 1, max: 999 });
+      if (!parsed.ok) {
+        context.setNotice(parsed.message, true);
         return;
       }
       context.runCommand(() =>
-        queueExplorer(state, { empireId: context.player.id, planetId: planet.id, count: parsedCount.value }),
+        queueExplorer(state, { empireId: context.player.id, planetId: planet.id, count: parsed.value }),
       );
     }),
   );
-  return form;
+  frag.append(subtitle('Explorers'), explorerRow);
+
+  // Build queue
+  frag.append(subtitle('Queue'), queueList(planet));
+
+  return frag;
+}
+
+function unitsSection(context: UiContext, planet: Planet): HTMLElement {
+  const state = context.controller.state!;
+  const frag = document.createElement('div');
+  frag.className = 'panel-stack';
+
+  // Current unit counts
+  const unitList = PLANET_DISPLAY_UNITS.filter((key) => (planet.units[key] ?? 0) > 0);
+  if (unitList.length > 0) {
+    frag.append(keyValueList(unitList.map((key) => [UNITS[key].name, planet.units[key] ?? 0])));
+  }
+
+  // Train inputs
+  const trainForm = document.createElement('div');
+  trainForm.className = 'build-grid';
+  const inputs = new Map<Exclude<UnitKey, 'explorer'>, HTMLInputElement>();
+
+  for (const key of TRAINABLE_UNITS) {
+    const cost = UNITS[key].cost;
+    const affordable = maxAffordable(context.player.resources, cost);
+
+    const row = document.createElement('div');
+    row.className = 'build-row';
+
+    const label = document.createElement('span');
+    label.className = 'build-label';
+    label.textContent = UNITS[key].name;
+
+    const countLabel = document.createElement('span');
+    countLabel.className = 'build-count';
+    countLabel.textContent = `${planet.units[key] ?? 0}`;
+
+    const costLabel = document.createElement('span');
+    costLabel.className = 'build-cost';
+    costLabel.textContent = resourceCostText(cost);
+
+    const input = numberInput(affordable, { min: 0 });
+    input.className = 'build-input';
+    inputs.set(key, input);
+
+    row.append(label, countLabel, costLabel, input);
+    trainForm.append(row);
+  }
+
+  const trainAllBtn = button('Train All', () => {
+    let anyTrained = false;
+    for (const key of TRAINABLE_UNITS) {
+      const input = inputs.get(key)!;
+      const parsed = parseIntegerInput(input.value, { label: UNITS[key].name, min: 0, max: 999_999 });
+      if (!parsed.ok) {
+        context.setNotice(parsed.message, true);
+        return;
+      }
+      if (parsed.value > 0) {
+        const result = trainUnits(state, {
+          empireId: context.player.id,
+          planetId: planet.id,
+          unitType: key,
+          count: parsed.value,
+        });
+        if (!result.ok) {
+          context.setNotice(result.message, true);
+          return;
+        }
+        anyTrained = true;
+      }
+    }
+    if (anyTrained) {
+      context.setNotice('Units trained.');
+      context.controller.refreshScene?.();
+    }
+  });
+  trainAllBtn.classList.add('primary');
+
+  frag.append(subtitle('Train'), trainForm, trainAllBtn);
+
+  return frag;
 }
 
 function renderUncolonizedPlanet(context: UiContext, target: Planet): HTMLElement {
@@ -151,7 +274,6 @@ function renderUncolonizedPlanet(context: UiContext, target: Planet): HTMLElemen
 
   const playerPlanets = getPlanetsForEmpire(state, context.player.id);
 
-  // Find fastest route from portal planets (pooled explorers)
   const portalPlanets = playerPlanets.filter((p) => p.hasPortal);
   const portalExplorerCount = portalPlanets.reduce((sum, p) => sum + (p.units.explorer ?? 0), 0);
   let bestPortal: Planet | null = null;
@@ -166,7 +288,6 @@ function renderUncolonizedPlanet(context: UiContext, target: Planet): HTMLElemen
     }
   }
 
-  // Find fastest route from non-portal planets with explorers
   let bestDirect: Planet | null = null;
   let bestDirectTicks = Infinity;
   for (const p of playerPlanets) {
@@ -184,7 +305,6 @@ function renderUncolonizedPlanet(context: UiContext, target: Planet): HTMLElemen
     return wrapper;
   }
 
-  // Pick whichever route is fastest
   const usePortal = bestPortal && (!bestDirect || bestPortalTicks <= bestDirectTicks);
   const source = usePortal ? bestPortal! : bestDirect!;
   const ticks = usePortal ? bestPortalTicks : bestDirectTicks;
@@ -280,7 +400,6 @@ function queueList(planet: Planet): HTMLElement {
     return emptyText('Queue is empty.');
   }
 
-  // Aggregate orders by itemType + ticksRemaining
   const grouped = new Map<string, { itemType: string; ticksRemaining: number; count: number }>();
   for (const order of planet.buildQueue) {
     const key = `${order.itemType}:${order.ticksRemaining}`;

@@ -43,6 +43,8 @@ const controller: AppController = {
   },
   refreshScene: null,
   startNewGame: null,
+  activeScene: 'galaxy',
+  switchToGalaxy: null,
 };
 
 controller.overlay = createOverlay(uiRoot, controller);

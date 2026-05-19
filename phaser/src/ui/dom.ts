@@ -89,3 +89,33 @@ export function resourceCostText(cost: Partial<Record<ResourceKey, number>>): st
 
   return parts.length > 0 ? parts.join(', ') : 'Free';
 }
+
+const collapsibleState = new Map<string, boolean>();
+
+export function collapsible(id: string, title: string, contentFn: () => HTMLElement, defaultExpanded: boolean): HTMLElement {
+  const details = document.createElement('details');
+  details.className = 'collapsible';
+  const isOpen = collapsibleState.get(id) ?? defaultExpanded;
+  details.open = isOpen;
+
+  const summary = document.createElement('summary');
+  summary.textContent = title;
+  details.append(summary, contentFn());
+
+  details.addEventListener('toggle', () => {
+    collapsibleState.set(id, details.open);
+  });
+
+  return details;
+}
+
+export function maxAffordable(resources: Record<ResourceKey, number>, cost: Partial<Record<ResourceKey, number>>): number {
+  let max = Infinity;
+  for (const resource of RESOURCE_ORDER) {
+    const amount = cost[resource];
+    if (amount !== undefined && amount > 0) {
+      max = Math.min(max, Math.floor(resources[resource] / amount));
+    }
+  }
+  return max === Infinity ? 0 : Math.max(max, 0);
+}

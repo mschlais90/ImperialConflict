@@ -287,6 +287,120 @@ input[type="number"] {
   color: #ffaaa6;
 }
 
+/* Collapsible sections */
+details.collapsible {
+  margin-top: 6px;
+}
+
+details.collapsible > summary {
+  cursor: pointer;
+  list-style: none;
+  color: #c7d5ee;
+  font-size: 13px;
+  text-transform: uppercase;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(130, 154, 196, 0.18);
+  user-select: none;
+}
+
+details.collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.collapsible > summary::before {
+  content: '\25B6  ';
+  font-size: 10px;
+}
+
+details.collapsible[open] > summary::before {
+  content: '\25BC  ';
+  font-size: 10px;
+}
+
+/* Build/train grid */
+.build-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.build-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto 60px;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.build-label {
+  color: #c7d5ee;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.build-count {
+  color: #aebbd4;
+  min-width: 24px;
+  text-align: right;
+}
+
+.build-cost {
+  color: #8694ab;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.build-input {
+  width: 60px !important;
+}
+
+/* Standings table */
+.standings-table {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.standings-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(130, 154, 196, 0.12);
+}
+
+.standings-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #8694ab;
+}
+
+.standings-player {
+  background: rgba(47, 111, 218, 0.15);
+  border-radius: 4px;
+  padding: 6px 4px;
+}
+
+.standings-eliminated {
+  opacity: 0.5;
+}
+
+/* Hide empty panels (galaxy view) */
+.overlay-left:empty,
+.overlay-right:empty {
+  display: none;
+}
+
+/* Overflow fixes */
+.main-panel,
+.overlay-left {
+  overflow-x: hidden;
+}
+
 @media (max-width: 760px) {
   .hud-panel,
   .overlay-body {
