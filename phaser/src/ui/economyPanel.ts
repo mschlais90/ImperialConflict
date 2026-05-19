@@ -20,6 +20,24 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
 
   const breakdown = calcEconomyBreakdown(state, context.player.id);
 
+  // Per-tick summary for all resources
+  const netGc = breakdown.income.total - breakdown.upkeep.total;
+  const netFood = breakdown.production.food.total - breakdown.foodConsumption.total - (breakdown.decay.food ?? 0);
+  const netIron = breakdown.production.iron.total - (breakdown.decay.iron ?? 0);
+  const netEndurium = breakdown.production.endurium.total - (breakdown.decay.endurium ?? 0);
+  const netOctarine = breakdown.production.octarine.total - (breakdown.decay.octarine ?? 0);
+
+  const summary = document.createElement('div');
+  summary.className = 'key-value-list';
+  summary.append(
+    kvRow('GC', formatSigned(netGc)),
+    kvRow('Food', formatSigned(netFood)),
+    kvRow('Iron', formatSigned(netIron)),
+    kvRow('Endurium', formatSigned(netEndurium)),
+    kvRow('Octarine', formatSigned(netOctarine)),
+  );
+  panel.append(summary);
+
   // Income
   panel.append(collapsible('econ-income', 'Income (GC)', () => {
     const frag = document.createElement('div');
@@ -107,6 +125,11 @@ function kvRow(label: string, value: string): HTMLElement {
   const row = document.createElement('div');
   row.innerHTML = `<span>${label}</span><strong>${value}</strong>`;
   return row;
+}
+
+function formatSigned(value: number): string {
+  const text = formatNumber(Math.abs(value));
+  return value >= 0 ? `+${text}` : `-${text}`;
 }
 
 function capitalize(s: string): string {

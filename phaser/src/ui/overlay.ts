@@ -104,6 +104,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     // Refresh left panel only if no input focus
     if (!leftHasFocus) {
+      const leftScroll = leftPanel.querySelector('.main-panel')?.scrollTop ?? 0;
       const nextLeftPanel = document.createElement('div');
       nextLeftPanel.className = 'overlay-left';
       if (controller.activeScene !== 'galaxy') {
@@ -111,10 +112,13 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       }
       leftPanel.replaceWith(nextLeftPanel);
       leftPanel = nextLeftPanel;
+      const nextMainPanel = leftPanel.querySelector('.main-panel');
+      if (nextMainPanel) nextMainPanel.scrollTop = leftScroll;
     }
 
     // Refresh right panel only if no input focus
     if (!rightHasFocus) {
+      const rightScroll = rightPanel.querySelector('.side-panel')?.scrollTop ?? 0;
       const nextRightPanel = document.createElement('div');
       nextRightPanel.className = 'overlay-right';
       if (controller.activeScene !== 'galaxy') {
@@ -122,6 +126,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       }
       rightPanel.replaceWith(nextRightPanel);
       rightPanel = nextRightPanel;
+      const nextSidePanel = rightPanel.querySelector('.side-panel');
+      if (nextSidePanel) nextSidePanel.scrollTop = rightScroll;
     }
 
     syncGameOverPanel();
