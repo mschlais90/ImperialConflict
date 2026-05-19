@@ -21,6 +21,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   let notice: { message: string; isError: boolean } | null = null;
   let forcedGameOver: boolean | null = null;
   let hudPanel: HTMLElement | null = null;
+  let leftPanel: HTMLElement | null = null;
+  let rightPanel: HTMLElement | null = null;
   let notificationsPanel: HTMLElement | null = null;
   let gameOverScreen: HTMLElement | null = null;
 
@@ -54,23 +56,37 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   function refreshAfterTick(): void {
     const state = controller.state;
     const player = state ? getPlayerEmpire(state) : undefined;
-    if (!state || state.currentState === 'main_menu' || !player || !hudPanel || !notificationsPanel) {
+    if (!state || state.currentState === 'main_menu' || !player || !hudPanel || !notificationsPanel || !leftPanel || !rightPanel) {
       render();
       return;
     }
 
     const context = createContext(player);
     const nextHudPanel = renderHud(context);
-    const nextNotificationsPanel = renderNotifications(state.events, notice);
     hudPanel.replaceWith(nextHudPanel);
-    notificationsPanel.replaceWith(nextNotificationsPanel);
     hudPanel = nextHudPanel;
+
+    const nextLeftPanel = document.createElement('div');
+    nextLeftPanel.className = 'overlay-left';
+    nextLeftPanel.append(renderPlanetPanel(context));
+    leftPanel.replaceWith(nextLeftPanel);
+    leftPanel = nextLeftPanel;
+
+    const nextNotificationsPanel = renderNotifications(state.events, notice);
+    const nextRightPanel = document.createElement('div');
+    nextRightPanel.className = 'overlay-right';
+    nextRightPanel.append(renderFleetPanel(context), renderResearchPanel(context), nextNotificationsPanel);
+    rightPanel.replaceWith(nextRightPanel);
+    rightPanel = nextRightPanel;
     notificationsPanel = nextNotificationsPanel;
+
     syncGameOverPanel();
   }
 
   function render(): void {
     hudPanel = null;
+    leftPanel = null;
+    rightPanel = null;
     notificationsPanel = null;
     gameOverScreen = null;
     clearElement(root);
@@ -96,14 +112,14 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     const body = document.createElement('div');
     body.className = 'overlay-body';
-    const left = document.createElement('div');
-    left.className = 'overlay-left';
-    left.append(renderPlanetPanel(context));
-    const right = document.createElement('div');
-    right.className = 'overlay-right';
+    leftPanel = document.createElement('div');
+    leftPanel.className = 'overlay-left';
+    leftPanel.append(renderPlanetPanel(context));
+    rightPanel = document.createElement('div');
+    rightPanel.className = 'overlay-right';
     notificationsPanel = renderNotifications(state.events, notice);
-    right.append(renderFleetPanel(context), renderResearchPanel(context), notificationsPanel);
-    body.append(left, right);
+    rightPanel.append(renderFleetPanel(context), renderResearchPanel(context), notificationsPanel);
+    body.append(leftPanel, rightPanel);
     shell.append(body);
     root.append(shell);
     syncGameOverPanel();
