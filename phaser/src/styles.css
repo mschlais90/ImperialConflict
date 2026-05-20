@@ -355,7 +355,7 @@ details.collapsible[open] > summary::before {
 
 .build-row {
   display: grid;
-  grid-template-columns: 1fr auto 60px;
+  grid-template-columns: minmax(80px, 1fr) auto auto;
   gap: 6px;
   align-items: center;
   font-size: 12px;
@@ -372,13 +372,22 @@ details.collapsible[open] > summary::before {
   color: #8694ab;
   font-size: 11px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 120px;
+}
+
+.build-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .build-input {
   width: 60px !important;
+}
+
+.build-max {
+  color: #8694ab;
+  font-size: 11px;
 }
 
 /* Standings table */

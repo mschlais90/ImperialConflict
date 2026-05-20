@@ -19,7 +19,8 @@ export function renderNotificationsContent(events: EventLogEntry[], notice: { me
     frag.append(item);
   }
 
-  for (const event of [...events].reverse().slice(0, 6)) {
+  const filtered = events.filter((e) => e.type !== 'building_completed' && e.type !== 'speed_changed');
+  for (const event of [...filtered].reverse().slice(0, 6)) {
     const item = document.createElement('div');
     item.className = 'notice';
     item.textContent = eventText(event);

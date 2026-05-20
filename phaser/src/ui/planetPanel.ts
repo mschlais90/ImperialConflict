@@ -163,9 +163,9 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   const explorerAffordable = maxAffordable(context.player.resources, UNITS.explorer.cost);
   const explorerRow = document.createElement('div');
   explorerRow.className = 'inline-form';
-  const explorerInput = numberInput(explorerAffordable, { min: 0 });
+  const explorerInput = numberInput(0, { min: 0 });
   explorerRow.append(
-    labeledControl(`Explorer (${explorerCost})`, explorerInput),
+    labeledControl(`Explorer (${explorerCost}) max: ${explorerAffordable}`, explorerInput),
     button('Queue', () => {
       const parsed = parseIntegerInput(explorerInput.value, { label: 'Explorer count', min: 1, max: 999 });
       if (!parsed.ok) {
@@ -210,21 +210,23 @@ function unitsSection(context: UiContext, planet: Planet): HTMLElement {
 
     const label = document.createElement('span');
     label.className = 'build-label';
-    label.textContent = UNITS[key].name;
-
-    const countLabel = document.createElement('span');
-    countLabel.className = 'build-count';
-    countLabel.textContent = `${planet.units[key] ?? 0}`;
+    label.textContent = `${UNITS[key].name} ${planet.units[key] ?? 0}`;
 
     const costLabel = document.createElement('span');
     costLabel.className = 'build-cost';
     costLabel.textContent = resourceCostText(cost);
 
-    const input = numberInput(affordable, { min: 0 });
+    const inputWrapper = document.createElement('span');
+    inputWrapper.className = 'build-input-wrapper';
+    const input = numberInput(0, { min: 0 });
     input.className = 'build-input';
     inputs.set(key, input);
+    const maxLabel = document.createElement('span');
+    maxLabel.className = 'build-max';
+    maxLabel.textContent = `(${affordable})`;
+    inputWrapper.append(input, maxLabel);
 
-    row.append(label, countLabel, costLabel, input);
+    row.append(label, costLabel, inputWrapper);
     trainForm.append(row);
   }
 
