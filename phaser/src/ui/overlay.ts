@@ -1,6 +1,10 @@
 import type { AppController, AppOverlay } from '../app/appController';
+import type { BattleReport } from '../core/engines/combatEngine';
 import { createNewGame } from '../core/engines/gameManager';
-import { getPlayerEmpire } from '../core/selectors/selectors';
+import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
+import { getEmpire, getPlayerEmpire } from '../core/selectors/selectors';
+import { renderBattleReport } from './battleReport';
+import { renderBattleHistoryPanel } from './battleHistory';
 import { clearElement, collapsible } from './dom';
 import { renderEconomyPanel } from './economyPanel';
 import { renderFleetContent } from './fleetPanel';
@@ -26,7 +30,11 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   let leftPanel: HTMLElement | null = null;
   let rightPanel: HTMLElement | null = null;
   let gameOverScreen: HTMLElement | null = null;
-  let viewMode: 'normal' | 'economy' | 'standings' = 'normal';
+  let battleReportScreen: HTMLElement | null = null;
+  let battleReportQueue: BattleReport[] = [];
+  let lastSeenBattleEventId = -1;
+  let speedBeforeBattle: number | null = null;
+  let viewMode: 'normal' | 'economy' | 'standings' | 'history' = 'normal';
 
   const overlay: AppOverlay = {
     render,
@@ -58,6 +66,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         viewMode = viewMode === 'standings' ? 'normal' : 'standings';
         render();
         break;
+      case 'h':
+        viewMode = viewMode === 'history' ? 'normal' : 'history';
+        render();
+        break;
     }
   });
 
@@ -67,6 +79,11 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       notice = null;
       forcedGameOver = null;
       viewMode = 'normal';
+      battleReportQueue = [];
+      lastSeenBattleEventId = -1;
+      speedBeforeBattle = null;
+      battleReportScreen?.remove();
+      battleReportScreen = null;
       if (controller.startNewGame) {
         controller.startNewGame(empireName);
         return;
@@ -131,6 +148,69 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     }
 
     syncGameOverPanel();
+    checkForNewBattles();
+  }
+
+  function checkForNewBattles(): void {
+    const state = controller.state;
+    if (!state) return;
+    const player = getPlayerEmpire(state);
+    if (!player) return;
+
+    const newBattles = state.events.filter(
+      (e) => e.type === 'battle_resolved' && e.id > lastSeenBattleEventId
+        && (e.attackerId === player.id || e.defenderId === player.id),
+    );
+
+    if (newBattles.length > 0) {
+      lastSeenBattleEventId = newBattles[newBattles.length - 1].id;
+      for (const event of newBattles) {
+        if (event.type === 'battle_resolved') {
+          battleReportQueue.push(event.report);
+        }
+      }
+      if (!battleReportScreen) {
+        showNextBattleReport();
+      }
+    }
+  }
+
+  function showNextBattleReport(): void {
+    const state = controller.state;
+    if (!state || battleReportQueue.length === 0) {
+      battleReportScreen?.remove();
+      battleReportScreen = null;
+      if (speedBeforeBattle !== null && state) {
+        setSpeed(state, speedBeforeBattle as 0 | 1 | 2 | 4);
+        speedBeforeBattle = null;
+        render();
+      }
+      return;
+    }
+
+    if (speedBeforeBattle === null) {
+      speedBeforeBattle = state.currentSpeed;
+      setSpeed(state, SPEEDS.PAUSED);
+    }
+
+    const report = battleReportQueue.shift()!;
+    const player = getPlayerEmpire(state);
+    const isPlayerAttacker = player !== undefined && report.attackerId === player.id;
+    const attackerEmpire = getEmpire(state, report.attackerId);
+    const defenderEmpire = getEmpire(state, report.defenderId);
+    const attackerName = attackerEmpire?.empireName ?? 'Unknown';
+    const defenderName = defenderEmpire?.empireName ?? 'Unknown';
+
+    const reportEl = renderBattleReport(report, attackerName, defenderName, isPlayerAttacker, () => {
+      showNextBattleReport();
+    });
+
+    if (battleReportScreen) {
+      battleReportScreen.replaceWith(reportEl);
+    } else {
+      root.append(reportEl);
+    }
+    battleReportScreen = reportEl;
   }
 
   function render(): void {
@@ -186,6 +266,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         return renderEconomyPanel(context);
       case 'standings':
         return renderStandingsPanel(context);
+      case 'history':
+        return renderBattleHistoryPanel(context);
       default:
         return renderPlanetPanel(context);
     }
