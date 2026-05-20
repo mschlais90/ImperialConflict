@@ -84,7 +84,7 @@ export function createNewGame(options: NewGameOptions = {}): GameState {
 
   state.currentState = 'playing';
   state.currentTick = 0;
-  state.currentSpeed = 1;
+  state.currentSpeed = 0;
 
   generateGalaxy(state, rng, playerEmpireName);
   appendEvent(state, { type: 'game_started', tick: state.currentTick, empireName: playerEmpireName });
@@ -235,7 +235,9 @@ function assignHomePlanet(state: GameState, empire: Empire, homeSystemIndex: num
 
 function setStartingPlanetState(planet: Planet, empireId: number): void {
   planet.ownerId = empireId;
+  planet.size = 250;
   planet.population = planet.size * 10;
+  planet.resourceBonuses = {};
   planet.buildings = {};
   planet.units = {};
 }

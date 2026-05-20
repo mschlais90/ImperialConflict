@@ -322,6 +322,18 @@ details.collapsible > summary::-webkit-details-marker {
   display: none;
 }
 
+details.collapsible > summary:has(.econ-summary-row) {
+  display: flex;
+  align-items: center;
+}
+
+.econ-summary-row {
+  display: flex;
+  justify-content: space-between;
+  flex: 1;
+  gap: 10px;
+}
+
 details.collapsible > summary::before {
   content: '\25B6  ';
   font-size: 10px;

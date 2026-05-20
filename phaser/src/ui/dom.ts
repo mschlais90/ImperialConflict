@@ -92,14 +92,18 @@ export function resourceCostText(cost: Partial<Record<ResourceKey, number>>): st
 
 const collapsibleState = new Map<string, boolean>();
 
-export function collapsible(id: string, title: string, contentFn: () => HTMLElement, defaultExpanded: boolean): HTMLElement {
+export function collapsible(id: string, title: string | HTMLElement, contentFn: () => HTMLElement, defaultExpanded: boolean): HTMLElement {
   const details = document.createElement('details');
   details.className = 'collapsible';
   const isOpen = collapsibleState.get(id) ?? defaultExpanded;
   details.open = isOpen;
 
   const summary = document.createElement('summary');
-  summary.textContent = title;
+  if (typeof title === 'string') {
+    summary.textContent = title;
+  } else {
+    summary.append(title);
+  }
   details.append(summary, contentFn());
 
   details.addEventListener('toggle', () => {

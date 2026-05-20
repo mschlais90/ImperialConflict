@@ -12,7 +12,7 @@ describe('galaxy generation', () => {
     expect(state.empires).toHaveLength(4);
     expect(state.planets.length).toBeGreaterThanOrEqual(150);
     expect(state.planets.length).toBeLessThanOrEqual(450);
-    expect(state.currentSpeed).toBe(1);
+    expect(state.currentSpeed).toBe(0);
     expect(getPlayerEmpire(state)?.empireName).toBe('Aurora League');
   });
 

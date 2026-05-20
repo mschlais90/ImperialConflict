@@ -25,7 +25,7 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
     ? Math.trunc(breakdown.income.total / 2) - breakdown.upkeep.total
     : breakdown.income.total - breakdown.upkeep.total;
 
-  panel.append(collapsible('econ-gc', `GC  ${formatSigned(netGc)}/tick`, () => {
+  panel.append(collapsible('econ-gc', summaryRow('GC', netGc), () => {
     const frag = document.createElement('div');
     frag.className = 'key-value-list';
     frag.append(
@@ -53,7 +53,7 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
 
   // Food
   const netFood = breakdown.production.food.total - breakdown.foodConsumption.total - (breakdown.decay.food ?? 0);
-  panel.append(collapsible('econ-food', `Food  ${formatSigned(netFood)}/tick`, () => {
+  panel.append(collapsible('econ-food', summaryRow('Food', netFood), () => {
     const frag = document.createElement('div');
     frag.className = 'key-value-list';
     for (const d of breakdown.production.food.details) {
@@ -80,7 +80,7 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
     const decay = breakdown.decay[resource] ?? 0;
     const net = prod.total - decay;
 
-    panel.append(collapsible(`econ-${resource}`, `${capitalize(resource)}  ${formatSigned(net)}/tick`, () => {
+    panel.append(collapsible(`econ-${resource}`, summaryRow(capitalize(resource), net), () => {
       const frag = document.createElement('div');
       frag.className = 'key-value-list';
       for (const d of prod.details) {
@@ -125,6 +125,14 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
   }, false));
 
   return panel;
+}
+
+function summaryRow(label: string, net: number): HTMLElement {
+  const row = document.createElement('span');
+  row.className = 'econ-summary-row';
+  const colorClass = net >= 0 ? 'tick-positive' : 'tick-negative';
+  row.innerHTML = `<span>${label}</span><span class="${colorClass}">${formatSigned(net)}/tick</span>`;
+  return row;
 }
 
 function kvRow(label: string, value: string): HTMLElement {

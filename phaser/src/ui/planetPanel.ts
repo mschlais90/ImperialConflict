@@ -411,7 +411,7 @@ function queueList(planet: Planet): HTMLElement {
     }
   }
 
-  const entries = Array.from(grouped.values()).slice(0, 6);
+  const entries = Array.from(grouped.values()).sort((a, b) => a.ticksRemaining - b.ticksRemaining).slice(0, 6);
   return keyValueList(entries.map((g) => {
     const displayName = (BUILDINGS as Record<string, { name: string }>)[g.itemType]?.name
       ?? (UNITS as Record<string, { name: string }>)[g.itemType]?.name
