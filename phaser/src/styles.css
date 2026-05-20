@@ -292,11 +292,13 @@ input[type="number"] {
 }
 
 /* Per-tick resource colors */
+.hud-stat .tick-positive,
 .tick-positive {
   color: #6fcf6f;
   font-size: 12px;
 }
 
+.hud-stat .tick-negative,
 .tick-negative {
   color: #ff7b7b;
   font-size: 12px;
