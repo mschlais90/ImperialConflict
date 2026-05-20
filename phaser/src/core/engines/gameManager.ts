@@ -226,7 +226,7 @@ function assignHomePlanet(state: GameState, empire: Empire, homeSystemIndex: num
   empire.homePlanetId = homePlanet.id;
   empire.resources = {
     gc: 5000,
-    food: 6000,
+    food: 10000,
     iron: 500,
     endurium: 50,
     octarine: 25,
