@@ -9,6 +9,7 @@ import { clearElement, collapsible } from './dom';
 import { renderEconomyPanel } from './economyPanel';
 import { renderFleetContent } from './fleetPanel';
 import { renderHud } from './hud';
+import { renderMassBuildPanel } from './massBuild';
 import { renderNotificationsContent } from './notifications';
 import { renderPlanetPanel } from './planetPanel';
 import { renderResearchContent } from './researchPanel';
@@ -34,7 +35,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   let battleReportQueue: BattleReport[] = [];
   let lastSeenBattleEventId = -1;
   let speedBeforeBattle: number | null = null;
-  let viewMode: 'normal' | 'economy' | 'standings' | 'history' = 'normal';
+  let viewMode: 'normal' | 'economy' | 'standings' | 'history' | 'massBuild' = 'normal';
 
   const overlay: AppOverlay = {
     render,
@@ -68,6 +69,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         break;
       case 'h':
         viewMode = viewMode === 'history' ? 'normal' : 'history';
+        render();
+        break;
+      case 'b':
+        viewMode = viewMode === 'massBuild' ? 'normal' : 'massBuild';
         render();
         break;
     }
@@ -268,6 +273,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         return renderStandingsPanel(context);
       case 'history':
         return renderBattleHistoryPanel(context);
+      case 'massBuild':
+        return renderMassBuildPanel(context);
       default:
         return renderPlanetPanel(context);
     }

@@ -411,6 +411,58 @@ input[type="number"] {
   font-size: 12px;
 }
 
+/* Mass Build */
+.mass-build-toggle-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mass-build-table {
+  display: grid;
+  grid-template-columns: 24px 1fr auto auto 1fr;
+  gap: 2px 8px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.mass-build-header {
+  color: #8694ab;
+  font-weight: bold;
+  font-size: 11px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(100, 70, 140, 0.3);
+}
+
+.mass-build-cell {
+  color: #c7d5ee;
+  padding: 2px 0;
+  display: flex;
+  align-items: center;
+}
+
+.mass-build-overbuild {
+  color: #ffaa44;
+}
+
+.mass-build-bonus {
+  color: #88ccff;
+  font-size: 11px;
+}
+
+.mass-build-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(100, 70, 140, 0.3);
+}
+
+.mass-build-cost-preview {
+  color: #8694ab;
+  font-size: 11px;
+}
+
 .start-panel h1 {
   margin: 0 0 18px;
   font-size: 32px;
