@@ -4,7 +4,7 @@ import { performAgentOp, performWizardSpell, type AgentOperationType, type Spell
 import { appendEvent } from '../events/eventLog';
 import type { GameState } from '../galaxy/galaxyData';
 import type { BuildingKey, CombatUnitKey, Empire, Planet, ResourceKey, ScienceKey, UnitKey } from '../models/types';
-import { calcEmpireNetworth, calcTravelTicks, getEmpire, getPlanet } from '../selectors/selectors';
+import { calcEmpireNetworth, calcTravelTicks, getEmpire, getPlanet, getPlanetsForEmpire } from '../selectors/selectors';
 
 export type CommandResult = { ok: true; message: string } | { ok: false; message: string };
 type CommandFailure = { ok: false; message: string };
@@ -180,11 +180,21 @@ export function sendExplorer(
   if (target.ownerId >= 0) {
     return fail('Explorer target must be unowned');
   }
-  if ((resolved.planet.units.explorer ?? 0) <= 0) {
+  // Portal pooling: if source has a portal but no explorer, find any portal planet with one
+  let explorerDonor = resolved.planet;
+  if ((resolved.planet.units.explorer ?? 0) <= 0 && resolved.planet.hasPortal) {
+    const donor = getPlanetsForEmpire(state, input.empireId).find(
+      (p) => p.id !== resolved.planet.id && p.hasPortal && (p.units.explorer ?? 0) > 0,
+    );
+    if (donor !== undefined) {
+      explorerDonor = donor;
+    }
+  }
+  if ((explorerDonor.units.explorer ?? 0) <= 0) {
     return fail('No explorer available');
   }
 
-  resolved.planet.units.explorer = (resolved.planet.units.explorer ?? 0) - 1;
+  explorerDonor.units.explorer = (explorerDonor.units.explorer ?? 0) - 1;
   const fleet = {
     id: state.nextFleetId,
     ownerId: input.empireId,
