@@ -258,8 +258,12 @@ function phaseGroundVsGround(
   const attackerDroids = Math.min(getCount(attackerUnits, 'droid'), transportCapacity);
   const defenderSoldiers = getCount(defenderUnits, 'soldier');
   const defenderDroids = getCount(defenderUnits, 'droid');
-  const attackerPower = Math.trunc((attackerSoldiers * 5 + attackerDroids * 6) * attackerMilitaryBonus);
-  const defenderPower = Math.trunc((defenderSoldiers * 6 + defenderDroids * 7) * defenderMilitaryBonus);
+  const attackerPower = Math.trunc(
+    (attackerSoldiers * UNITS.soldier.groundAttack + attackerDroids * UNITS.droid.groundAttack) * attackerMilitaryBonus,
+  );
+  const defenderPower = Math.trunc(
+    (defenderSoldiers * UNITS.soldier.groundDefense + defenderDroids * UNITS.droid.groundDefense) * defenderMilitaryBonus,
+  );
   const attackerWon = attackerPower > defenderPower;
 
   let attackerLossPct = 0;
@@ -304,7 +308,7 @@ function killStrandedGround(attackerUnits: UnitCounts): { soldiersKilled: number
   let soldiersKilled = 0;
   let droidsKilled = 0;
 
-  if (totalGround > transportCapacity) {
+  if (totalGround > transportCapacity && totalGround > 0) {
     const excess = totalGround - transportCapacity;
     soldiersKilled = Math.min(Math.trunc((excess * soldiers) / totalGround + 0.5), soldiers);
     droidsKilled = Math.min(excess - soldiersKilled, droids);

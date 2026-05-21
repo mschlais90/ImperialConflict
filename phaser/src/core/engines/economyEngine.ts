@@ -263,7 +263,7 @@ function calculateIncome(state: GameState, empire: Empire, empirePlanets: Planet
     totalBuildings += getTotalBuildings(planet);
   }
 
-  const base = Math.trunc(totalPopulation / 30) + totalCashFactories * 8;
+  const base = 100 + Math.trunc(totalPopulation / 30) + totalCashFactories * 8;
   const taxBonus = 1 + (2 * totalTaxOffices) / (totalBuildings + 1);
   const economyMultiplier = 1 + getSciencePercent(state, empire, 'economy') / 100;
   return Math.trunc(base * taxBonus * economyMultiplier);
