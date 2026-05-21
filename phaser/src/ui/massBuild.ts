@@ -136,6 +136,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   buildingLabel.textContent = 'Building: ';
   const buildingSelect = document.createElement('select');
   for (const key of BUILDING_KEYS) {
+    if (key === 'portal') continue;
     const opt = document.createElement('option');
     opt.value = key;
     opt.textContent = BUILDINGS[key].name;

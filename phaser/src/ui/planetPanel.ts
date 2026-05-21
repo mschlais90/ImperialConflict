@@ -103,6 +103,9 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   const inputs = new Map<BuildingKey, HTMLInputElement>();
 
   for (const key of BUILDING_KEYS) {
+    if (key === 'portal' && (planet.hasPortal || planet.buildQueue.some((o) => o.category === 'building' && o.itemType === 'portal'))) {
+      continue;
+    }
     const built = planet.buildings[key] ?? 0;
     const cost = getBuildCost(key, constructionSci, planet);
     const affordable = maxAffordable(context.player.resources, cost);
