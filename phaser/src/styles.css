@@ -91,6 +91,7 @@ select {
 .hud-resources,
 .hud-meta,
 .speed-controls,
+.save-load-controls,
 .inline-form {
   display: flex;
   gap: 8px;
@@ -218,8 +219,194 @@ h3 {
   gap: 6px;
 }
 
+.fleet-unit-row {
+  display: grid;
+  grid-template-columns: 1fr auto 60px;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: #c7d5ee;
+}
+
+.fleet-available {
+  color: #8694ab;
+  font-size: 11px;
+}
+
+.fleet-btn-row {
+  display: flex;
+  gap: 8px;
+}
+
 .inline-form.wrap {
   flex-wrap: wrap;
+}
+
+/* Build UI */
+.cost-unaffordable {
+  color: #ff4444 !important;
+}
+
+.overbuild-warning {
+  font-size: 11px;
+  color: #ffa040;
+  margin: 2px 0 4px;
+}
+
+/* Operations Panel */
+.ops-forces {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: #c7d5ee;
+  margin-bottom: 8px;
+}
+
+.ops-target-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.ops-section {
+  margin-top: 10px;
+}
+
+.ops-cost {
+  font-size: 11px;
+  color: #8694ab;
+  margin: 2px 0 6px;
+}
+
+.ops-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(130, 154, 196, 0.1);
+}
+
+.ops-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ops-name {
+  font-size: 12px;
+  color: #e8edf7;
+  font-weight: 600;
+}
+
+.ops-desc {
+  font-size: 10px;
+  color: #8694ab;
+}
+
+.ops-chance {
+  font-size: 10px;
+  color: #6fcf6f;
+}
+
+.ops-debuff {
+  font-size: 11px;
+  color: #ff8080;
+  padding: 2px 0;
+}
+
+/* Fleet Management */
+.stationed-system {
+  font-size: 11px;
+  color: #8694ab;
+  text-transform: uppercase;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.stationed-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 1px 0 1px 8px;
+  color: #c7d5ee;
+}
+
+.stationed-planet {
+  color: #e8edf7;
+}
+
+.stationed-units {
+  color: #aebbd4;
+}
+
+.recall-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+/* Shortcut Help */
+.shortcut-help {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.shortcut-help-panel {
+  background: rgba(8, 13, 27, 0.95);
+  border: 1px solid rgba(130, 154, 196, 0.3);
+  border-radius: 6px;
+  padding: 16px 24px;
+  min-width: 220px;
+}
+
+.shortcut-help-panel h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #e8edf7;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 12px;
+  color: #c7d5ee;
+}
+
+.shortcut-row kbd {
+  display: inline-block;
+  min-width: 28px;
+  text-align: center;
+  padding: 2px 6px;
+  background: rgba(130, 154, 196, 0.15);
+  border: 1px solid rgba(130, 154, 196, 0.3);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 11px;
+  color: #e8edf7;
+}
+
+/* Settings */
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #c7d5ee;
+  cursor: pointer;
+  padding: 6px 0;
 }
 
 input,
@@ -593,7 +780,7 @@ details.collapsible[open] > summary::before {
 
 .standings-row {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  grid-template-columns: 1fr auto auto auto auto;
   gap: 12px;
   padding: 6px 0;
   border-bottom: 1px solid rgba(130, 154, 196, 0.12);

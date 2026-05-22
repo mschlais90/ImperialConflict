@@ -1,3 +1,4 @@
+import { saveToStorage, loadFromStorage, hasSave } from '../core/persistence/saveLoad';
 import { calcEmpireNetworth, getPlanetsForEmpire } from '../core/selectors/selectors';
 import { calcEconomyBreakdown } from '../core/selectors/economySelectors';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
@@ -66,7 +67,27 @@ export function renderHud(context: UiContext): HTMLElement {
     speeds.append(speedButton);
   }
 
-  panel.append(resources, meta, speeds);
+  const saveLoad = document.createElement('div');
+  saveLoad.className = 'save-load-controls';
+  saveLoad.append(
+    button('Save', () => {
+      saveToStorage(state);
+      context.setNotice('Game saved.');
+    }),
+    button('Load', () => {
+      if (!hasSave()) {
+        context.setNotice('No saved game found.', true);
+        return;
+      }
+      const loaded = loadFromStorage();
+      if (loaded) {
+        controller.state = loaded;
+        controller.overlay.render();
+      }
+    }),
+  );
+
+  panel.append(resources, meta, speeds, saveLoad);
   return panel;
 }
 

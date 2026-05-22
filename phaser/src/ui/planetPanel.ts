@@ -1,4 +1,4 @@
-import { BUILDINGS, getBuildCost } from '../core/data/buildings';
+import { BUILDINGS, getBuildCost, getOverbuildMultiplier } from '../core/data/buildings';
 import { UNITS } from '../core/data/units';
 import { queueBuilding, queueExplorer, sendExplorer, sendFleet, trainUnits } from '../core/commands/playerCommands';
 import type { BuildingKey, CombatUnitKey, Planet, PlanetUnitKey, UnitKey } from '../core/models/types';
@@ -97,6 +97,15 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   const frag = document.createElement('div');
   frag.className = 'panel-stack';
 
+  // Overbuild warning
+  const overbuild = getOverbuildMultiplier(planet);
+  if (overbuild > 1) {
+    const warn = document.createElement('p');
+    warn.className = 'overbuild-warning';
+    warn.textContent = `Overbuilt: ${Math.trunc((overbuild - 1) * 100)}% cost increase`;
+    frag.append(warn);
+  }
+
   // Current buildings + build inputs
   const buildForm = document.createElement('div');
   buildForm.className = 'build-grid';
@@ -118,7 +127,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
     label.textContent = `${BUILDINGS[key].name} ${built} (${affordable})`;
 
     const costLabel = document.createElement('span');
-    costLabel.className = 'build-cost';
+    costLabel.className = affordable === 0 ? 'build-cost cost-unaffordable' : 'build-cost';
     costLabel.textContent = resourceCostText(cost);
 
     const input = numberInput(0, { min: 0 });
@@ -368,35 +377,80 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[])
   form.append(labeledControl('Source', sourceSelect));
 
   const inputs = new Map<CombatUnitKey, HTMLInputElement>();
-  for (const unit of COMBAT_UNITS) {
-    const input = numberInput(0, { min: 0 });
-    inputs.set(unit, input);
-    form.append(labeledControl(UNITS[unit].name, input));
+  const availableLabels = new Map<CombatUnitKey, HTMLSpanElement>();
+
+  function getSourcePlanet(): Planet {
+    return sources.find((p) => p.id === Number(sourceSelect.value)) ?? sources[0];
   }
 
-  form.append(
-    button('Send fleet', () => {
-      const units: Partial<Record<CombatUnitKey, number>> = {};
-      for (const unit of COMBAT_UNITS) {
-        const parsedCount = parseIntegerInput(inputs.get(unit)?.value ?? '', { label: UNITS[unit].name, min: 0, max: 999_999 });
-        if (!parsedCount.ok) {
-          context.setNotice(parsedCount.message, true);
-          return;
-        }
-        if (parsedCount.value > 0) {
-          units[unit] = parsedCount.value;
-        }
+  for (const unit of COMBAT_UNITS) {
+    const source = getSourcePlanet();
+    const available = source.units[unit] ?? 0;
+    const input = numberInput(0, { min: 0, max: available });
+    inputs.set(unit, input);
+
+    const row = document.createElement('div');
+    row.className = 'fleet-unit-row';
+    const label = document.createElement('span');
+    label.textContent = UNITS[unit].name;
+    const avail = document.createElement('span');
+    avail.className = 'fleet-available';
+    avail.textContent = `(${available})`;
+    availableLabels.set(unit, avail);
+    row.append(label, avail, input);
+    form.append(row);
+  }
+
+  function updateAvailable(): void {
+    const source = getSourcePlanet();
+    for (const unit of COMBAT_UNITS) {
+      const available = source.units[unit] ?? 0;
+      const avail = availableLabels.get(unit)!;
+      avail.textContent = `(${available})`;
+      const input = inputs.get(unit)!;
+      input.max = String(available);
+      if (Number(input.value) > available) {
+        input.value = String(available);
       }
-      context.runCommand(() =>
-        sendFleet(state, {
-          empireId: context.player.id,
-          sourcePlanetId: Number(sourceSelect.value),
-          targetPlanetId: target.id,
-          units,
-        }),
-      );
-    }),
-  );
+    }
+  }
+
+  sourceSelect.addEventListener('change', updateAvailable);
+
+  const sendAllBtn = button('Send all', () => {
+    const source = getSourcePlanet();
+    for (const unit of COMBAT_UNITS) {
+      const available = source.units[unit] ?? 0;
+      inputs.get(unit)!.value = String(available);
+    }
+  });
+
+  const sendBtn = button('Send fleet', () => {
+    const units: Partial<Record<CombatUnitKey, number>> = {};
+    for (const unit of COMBAT_UNITS) {
+      const parsedCount = parseIntegerInput(inputs.get(unit)?.value ?? '', { label: UNITS[unit].name, min: 0, max: 999_999 });
+      if (!parsedCount.ok) {
+        context.setNotice(parsedCount.message, true);
+        return;
+      }
+      if (parsedCount.value > 0) {
+        units[unit] = parsedCount.value;
+      }
+    }
+    context.runCommand(() =>
+      sendFleet(state, {
+        empireId: context.player.id,
+        sourcePlanetId: Number(sourceSelect.value),
+        targetPlanetId: target.id,
+        units,
+      }),
+    );
+  });
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'fleet-btn-row';
+  btnRow.append(sendAllBtn, sendBtn);
+  form.append(btnRow);
   return form;
 }
 

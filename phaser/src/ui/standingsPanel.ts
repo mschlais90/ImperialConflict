@@ -1,6 +1,9 @@
+import type { CombatUnitKey } from '../core/models/types';
 import { calcEmpireNetworth, getPlanetsForEmpire } from '../core/selectors/selectors';
 import { formatNumber } from './dom';
 import type { UiContext } from './types';
+
+const COMBAT_KEYS: CombatUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport'];
 
 export function renderStandingsPanel(context: UiContext): HTMLElement {
   const state = context.controller.state;
@@ -20,9 +23,18 @@ export function renderStandingsPanel(context: UiContext): HTMLElement {
 
   const empireData = state.empires.map((empire) => {
     const nw = calcEmpireNetworth(state, empire.id);
-    const planets = getPlanetsForEmpire(state, empire.id).length;
+    const empirePlanets = getPlanetsForEmpire(state, empire.id);
+    const planets = empirePlanets.length;
+    let military = 0;
+    for (const p of empirePlanets) {
+      for (const k of COMBAT_KEYS) military += p.units[k] ?? 0;
+    }
+    for (const f of state.fleets) {
+      if (f.ownerId !== empire.id || f.isExploration) continue;
+      for (const k of COMBAT_KEYS) military += f.units[k] ?? 0;
+    }
     const eliminated = state.events.some((e) => e.type === 'empire_eliminated' && e.empireId === empire.id);
-    return { empire, nw, planets, eliminated };
+    return { empire, nw, planets, military, eliminated };
   });
 
   empireData.sort((a, b) => b.nw - a.nw);
@@ -33,7 +45,7 @@ export function renderStandingsPanel(context: UiContext): HTMLElement {
   // Header
   const header = document.createElement('div');
   header.className = 'standings-row standings-header';
-  header.innerHTML = '<span>Empire</span><span>Networth</span><span>Planets</span><span>Status</span>';
+  header.innerHTML = '<span>Empire</span><span>Networth</span><span>Planets</span><span>Military</span><span>Status</span>';
   table.append(header);
 
   for (const row of empireData) {
@@ -56,10 +68,13 @@ export function renderStandingsPanel(context: UiContext): HTMLElement {
     const planets = document.createElement('span');
     planets.textContent = String(row.planets);
 
+    const military = document.createElement('span');
+    military.textContent = formatNumber(row.military);
+
     const status = document.createElement('span');
     status.textContent = row.eliminated ? 'Eliminated' : 'Active';
 
-    rowEl.append(name, nw, planets, status);
+    rowEl.append(name, nw, planets, military, status);
     table.append(rowEl);
   }
 

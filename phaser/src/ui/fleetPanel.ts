@@ -1,17 +1,98 @@
 import { UNITS } from '../core/data/units';
 import type { CombatUnitKey, Fleet, Planet } from '../core/models/types';
-import { calcTravelTicks, getPlanet, getPlanetsForEmpire } from '../core/selectors/selectors';
+import { calcTravelTicks, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
 import { button, formatNumber } from './dom';
 import { fleetForm } from './planetPanel';
 import type { UiContext } from './types';
 
-export function renderFleetPanel(context: UiContext): HTMLElement {
+export function renderFleetManagementPanel(context: UiContext): HTMLElement {
+  const state = context.controller.state;
+  if (!state) throw new Error('Fleet management requires game state.');
+
   const panel = document.createElement('section');
-  panel.className = 'side-panel interactive';
+  panel.className = 'main-panel interactive';
+
   const title = document.createElement('h2');
-  title.textContent = 'Fleets';
-  panel.append(title, renderFleetContent(context));
+  title.textContent = 'Fleet Management';
+  const hint = document.createElement('p');
+  hint.className = 'empty-text';
+  hint.textContent = 'Press F to return';
+  panel.append(title, hint);
+
+  const ownedPlanets = getPlanetsForEmpire(state, context.player.id);
+  const active = state.fleets.filter((f) => f.ownerId === context.player.id);
+
+  // Fleet summary totals
+  panel.append(subtitle('Fleet Summary'), fleetSummary(ownedPlanets, active));
+
+  // Stationed units by planet, grouped by system
+  panel.append(subtitle('Stationed Units'), stationedByPlanet(context, ownedPlanets));
+
+  // Active fleets with recall
+  panel.append(subtitle('Fleets in Transit'), active.length > 0 ? fleetList(active, state) : emptyText('No fleets in transit.'));
+
+  const portalPlanets = ownedPlanets.filter((p) => p.hasPortal);
+  if (active.length > 0 && portalPlanets.length > 0) {
+    panel.append(subtitle('Recall to Portal'), recallControls(context, active, portalPlanets));
+  }
+
   return panel;
+}
+
+function stationedByPlanet(context: UiContext, planets: Planet[]): HTMLElement {
+  const state = context.controller.state!;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'stationed-list';
+
+  const COMBAT_KEYS: CombatUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport'];
+  const planetsWithUnits = planets.filter((p) =>
+    COMBAT_KEYS.some((k) => (p.units[k] ?? 0) > 0),
+  );
+
+  if (planetsWithUnits.length === 0) {
+    return emptyText('No stationed combat units.');
+  }
+
+  // Group by system
+  const bySystem = new Map<number, Planet[]>();
+  for (const p of planetsWithUnits) {
+    const list = bySystem.get(p.systemId) ?? [];
+    list.push(p);
+    bySystem.set(p.systemId, list);
+  }
+
+  for (const [systemId, systemPlanets] of bySystem) {
+    const sys = getSystem(state, systemId);
+    const sysName = sys?.systemName ?? `System ${systemId}`;
+    const sysHeader = document.createElement('div');
+    sysHeader.className = 'stationed-system';
+    sysHeader.textContent = sysName;
+    wrapper.append(sysHeader);
+
+    for (const planet of systemPlanets) {
+      const row = document.createElement('div');
+      row.className = 'stationed-row';
+      const name = document.createElement('span');
+      name.className = 'stationed-planet';
+      name.textContent = planet.planetName;
+      const units = document.createElement('span');
+      units.className = 'stationed-units';
+      units.textContent = formatUnitsFromPlanet(planet, COMBAT_KEYS);
+      row.append(name, units);
+      wrapper.append(row);
+    }
+  }
+
+  return wrapper;
+}
+
+function formatUnitsFromPlanet(planet: Planet, keys: CombatUnitKey[]): string {
+  const parts: string[] = [];
+  for (const key of keys) {
+    const count = planet.units[key] ?? 0;
+    if (count > 0) parts.push(`${count}${UNIT_ABBREV[key]}`);
+  }
+  return parts.join(', ');
 }
 
 export function renderFleetContent(context: UiContext): HTMLElement {

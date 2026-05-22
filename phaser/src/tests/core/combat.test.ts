@@ -154,5 +154,6 @@ function stubRng(values: number[]) {
     floatRange: (min: number, max: number) => min + next() * (max - min),
     intRange: (min: number, max: number) => Math.floor(min + next() * (max - min + 1)),
     pick: <T>(items: readonly T[]) => items[Math.min(Math.floor(next() * items.length), items.length - 1)]!,
+    getState: () => 0,
   };
 }

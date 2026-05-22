@@ -3,10 +3,11 @@ export interface Rng {
   floatRange(min: number, max: number): number;
   intRange(min: number, max: number): number;
   pick<T>(items: readonly T[]): T;
+  getState(): number;
 }
 
-export function createSeededRng(seed: number): Rng {
-  let state = seed >>> 0;
+function buildRng(initialState: number): Rng {
+  let state = initialState >>> 0;
 
   const next = (): number => {
     state = (state * 1664525 + 1013904223) >>> 0;
@@ -24,5 +25,14 @@ export function createSeededRng(seed: number): Rng {
 
       return items[Math.floor(next() * items.length)];
     },
+    getState: () => state,
   };
+}
+
+export function createSeededRng(seed: number): Rng {
+  return buildRng(seed);
+}
+
+export function createRngFromState(internalState: number): Rng {
+  return buildRng(internalState);
 }

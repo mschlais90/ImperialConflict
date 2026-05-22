@@ -7,12 +7,14 @@ import { renderBattleReport } from './battleReport';
 import { renderBattleHistoryPanel } from './battleHistory';
 import { clearElement, collapsible } from './dom';
 import { renderEconomyPanel } from './economyPanel';
-import { renderFleetContent } from './fleetPanel';
+import { renderFleetContent, renderFleetManagementPanel } from './fleetPanel';
 import { renderHud } from './hud';
 import { renderMassBuildPanel } from './massBuild';
 import { renderNotificationsContent } from './notifications';
+import { renderOpsPanel } from './opsPanel';
 import { renderPlanetPanel } from './planetPanel';
 import { renderResearchContent } from './researchPanel';
+import { renderSettingsPanel, shouldShowCombatPopups } from './settingsPanel';
 import { renderStandingsPanel } from './standingsPanel';
 import { renderStartScreen } from './startScreen';
 import type { UiContext } from './types';
@@ -35,7 +37,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   let battleReportQueue: BattleReport[] = [];
   let lastSeenBattleEventId = -1;
   let speedBeforeBattle: number | null = null;
-  let viewMode: 'normal' | 'economy' | 'standings' | 'history' | 'massBuild' = 'normal';
+  let viewMode: 'normal' | 'economy' | 'standings' | 'history' | 'massBuild' | 'ops' | 'fleet' | 'settings' = 'normal';
 
   const overlay: AppOverlay = {
     render,
@@ -75,8 +77,64 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         viewMode = viewMode === 'massBuild' ? 'normal' : 'massBuild';
         render();
         break;
+      case 'o':
+        viewMode = viewMode === 'ops' ? 'normal' : 'ops';
+        render();
+        break;
+      case 'f':
+        viewMode = viewMode === 'fleet' ? 'normal' : 'fleet';
+        render();
+        break;
+      case 's':
+        viewMode = viewMode === 'settings' ? 'normal' : 'settings';
+        render();
+        break;
+      case '?':
+        toggleShortcutHelp();
+        break;
     }
   });
+
+  let shortcutHelpEl: HTMLElement | null = null;
+
+  function toggleShortcutHelp(): void {
+    if (shortcutHelpEl) {
+      shortcutHelpEl.remove();
+      shortcutHelpEl = null;
+      return;
+    }
+    const shortcuts = [
+      ['G', 'Galaxy view'],
+      ['E', 'Economy'],
+      ['A', 'Standings'],
+      ['H', 'Battle History'],
+      ['B', 'Mass Build'],
+      ['F', 'Fleet Management'],
+      ['O', 'Operations'],
+      ['S', 'Settings'],
+      ['ESC', 'Close / Galaxy'],
+      ['?', 'This help'],
+    ];
+    const overlay = document.createElement('div');
+    overlay.className = 'shortcut-help interactive';
+    const panel = document.createElement('div');
+    panel.className = 'shortcut-help-panel';
+    const title = document.createElement('h3');
+    title.textContent = 'Keyboard Shortcuts';
+    panel.append(title);
+    for (const [key, desc] of shortcuts) {
+      const row = document.createElement('div');
+      row.className = 'shortcut-row';
+      row.innerHTML = `<kbd>${key}</kbd><span>${desc}</span>`;
+      panel.append(row);
+    }
+    overlay.append(panel);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) toggleShortcutHelp();
+    });
+    root.append(overlay);
+    shortcutHelpEl = overlay;
+  }
 
   function showStartScreen(): void {
     clearElement(root);
@@ -169,13 +227,15 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     if (newBattles.length > 0) {
       lastSeenBattleEventId = newBattles[newBattles.length - 1].id;
-      for (const event of newBattles) {
-        if (event.type === 'battle_resolved') {
-          battleReportQueue.push(event.report);
+      if (shouldShowCombatPopups()) {
+        for (const event of newBattles) {
+          if (event.type === 'battle_resolved') {
+            battleReportQueue.push(event.report);
+          }
         }
-      }
-      if (!battleReportScreen) {
-        showNextBattleReport();
+        if (!battleReportScreen) {
+          showNextBattleReport();
+        }
       }
     }
   }
@@ -275,6 +335,12 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         return renderBattleHistoryPanel(context);
       case 'massBuild':
         return renderMassBuildPanel(context);
+      case 'ops':
+        return renderOpsPanel(context);
+      case 'fleet':
+        return renderFleetManagementPanel(context);
+      case 'settings':
+        return renderSettingsPanel(context);
       default:
         return renderPlanetPanel(context);
     }

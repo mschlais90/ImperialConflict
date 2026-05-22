@@ -247,6 +247,7 @@ describe('AI controller', () => {
         const op = items.find((item) => item === 'destroy_cash' || item === 'reduce_food');
         return op ?? items[0];
       },
+      getState: () => 0,
     };
 
     processAiTurn(state, ai.id, 100);
@@ -290,6 +291,7 @@ describe('AI controller', () => {
         const reduceFood = items.find((item) => item === 'reduce_food');
         return reduceFood ?? items[0];
       },
+      getState: () => 0,
     };
 
     processEconomyTick(state);

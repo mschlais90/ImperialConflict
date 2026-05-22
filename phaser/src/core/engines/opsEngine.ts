@@ -20,14 +20,14 @@ export function getSpellCost(state: GameState, attacker: Empire): number {
 
 export type OpDifficulty = 'soft' | 'hard';
 
-const AGENT_OP_DIFFICULTY: Record<AgentOperationType, OpDifficulty> = {
+export const AGENT_OP_DIFFICULTY: Record<AgentOperationType, OpDifficulty> = {
   spy: 'soft',
   destroy_cash: 'hard',
   destroy_units: 'hard',
   sabotage_portal: 'hard',
 };
 
-const SPELL_DIFFICULTY: Record<SpellType, OpDifficulty> = {
+export const SPELL_DIFFICULTY: Record<SpellType, OpDifficulty> = {
   vision: 'soft',
   hypnotize: 'hard',
   reduce_food: 'hard',
