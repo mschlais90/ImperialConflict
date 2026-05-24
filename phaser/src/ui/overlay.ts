@@ -254,7 +254,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     if (!leftHasFocus) {
       const leftScroll = leftPanel.querySelector('.main-panel')?.scrollTop ?? 0;
       const nextLeftPanel = document.createElement('div');
-      nextLeftPanel.className = 'overlay-left overlay-left-full';
+      nextLeftPanel.className = isFullPage ? 'overlay-left overlay-left-full' : 'overlay-left';
       if (controller.activeScene !== 'galaxy' || isFullPage) {
         nextLeftPanel.append(renderLeftContent(context));
       }
@@ -359,10 +359,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     shell.append(hudPanel);
 
     const body = document.createElement('div');
-    body.className = 'overlay-body overlay-body-full';
+    body.className = isFullPage ? 'overlay-body overlay-body-full' : 'overlay-body';
 
     leftPanel = document.createElement('div');
-    leftPanel.className = 'overlay-left overlay-left-full';
+    leftPanel.className = isFullPage ? 'overlay-left overlay-left-full' : 'overlay-left';
 
     // Only populate panels when NOT in galaxy view (or when a menu view is active)
     if (controller.activeScene !== 'galaxy' || isFullPage) {

@@ -127,8 +127,8 @@ select {
   min-height: 0;
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(280px, 420px) minmax(280px, 360px);
-  justify-content: space-between;
+  grid-template-columns: minmax(280px, 420px);
+  justify-content: start;
   gap: 12px;
 }
 
