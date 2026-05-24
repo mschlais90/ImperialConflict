@@ -1,7 +1,7 @@
 import type { AppController, AppOverlay } from '../app/appController';
 import type { BattleReport } from '../core/engines/combatEngine';
 import { createNewGame } from '../core/engines/gameManager';
-import { saveToStorage, loadFromStorage, hasSave } from '../core/persistence/saveLoad';
+import { downloadSave, uploadSave } from '../core/persistence/saveLoad';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { getEmpire, getPlayerEmpire } from '../core/selectors/selectors';
 import { renderBattleReport } from './battleReport';
@@ -209,22 +209,28 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         render();
       },
       save: () => {
-        saveToStorage(state);
         menuOpen = false;
-        context.setNotice('Game saved.');
+        downloadSave(state);
+        context.setNotice('Save file downloaded.');
       },
       load: () => {
-        if (!hasSave()) {
-          menuOpen = false;
-          context.setNotice('No saved game found.', true);
-          return;
-        }
-        const loaded = loadFromStorage();
-        if (loaded) {
-          controller.state = loaded;
-          menuOpen = false;
-          controller.overlay.render();
-        }
+        menuOpen = false;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.addEventListener('change', () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          uploadSave(file).then((loaded) => {
+            controller.state = loaded;
+            context.setNotice(`Loaded: ${file.name}`);
+            controller.overlay.render();
+          }).catch(() => {
+            context.setNotice('Failed to load save file.', true);
+          });
+        });
+        input.click();
+        render();
       },
     };
   }
