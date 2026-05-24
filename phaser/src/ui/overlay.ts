@@ -1,7 +1,7 @@
 import type { AppController, AppOverlay } from '../app/appController';
 import type { BattleReport } from '../core/engines/combatEngine';
 import { createNewGame } from '../core/engines/gameManager';
-import { downloadSave, uploadSave } from '../core/persistence/saveLoad';
+import { downloadSave, uploadSave, getSavedDirHandle, saveToDirectory, listSavesInDirectory, loadFromDirectory } from '../core/persistence/saveLoad';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { getEmpire, getPlayerEmpire } from '../core/selectors/selectors';
 import { renderBattleReport } from './battleReport';
@@ -210,27 +210,29 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       },
       save: () => {
         menuOpen = false;
-        downloadSave(state);
-        context.setNotice('Save file downloaded.');
+        getSavedDirHandle().then((dir) => {
+          if (dir) {
+            saveToDirectory(state).then((filename) => {
+              context.setNotice(`Saved: ${filename}`);
+            }).catch(() => {
+              downloadSave(state);
+              context.setNotice('Save file downloaded.');
+            });
+          } else {
+            downloadSave(state);
+            context.setNotice('Save file downloaded.');
+          }
+        });
       },
       load: () => {
         menuOpen = false;
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.addEventListener('change', () => {
-          const file = input.files?.[0];
-          if (!file) return;
-          uploadSave(file).then((loaded) => {
-            controller.state = loaded;
-            context.setNotice(`Loaded: ${file.name}`);
-            controller.overlay.render();
-          }).catch(() => {
-            context.setNotice('Failed to load save file.', true);
-          });
+        getSavedDirHandle().then((dir) => {
+          if (dir) {
+            showLoadPicker(context);
+          } else {
+            openFilePicker(context);
+          }
         });
-        input.click();
-        render();
       },
     };
   }
@@ -468,6 +470,84 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       root.append(nextGameOverScreen);
     }
     gameOverScreen = nextGameOverScreen;
+  }
+
+  function openFilePicker(context: UiContext): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      uploadSave(file).then((loaded) => {
+        controller.state = loaded;
+        context.setNotice(`Loaded: ${file.name}`);
+        controller.overlay.render();
+      }).catch(() => {
+        context.setNotice('Failed to load save file.', true);
+      });
+    });
+    input.click();
+  }
+
+  function showLoadPicker(context: UiContext): void {
+    listSavesInDirectory().then((entries) => {
+      if (entries.length === 0) {
+        context.setNotice('No save files found in directory.', true);
+        return;
+      }
+      // Show a modal with the list of saves
+      const overlay = document.createElement('div');
+      overlay.className = 'load-picker-overlay interactive';
+      const panel = document.createElement('div');
+      panel.className = 'load-picker-panel';
+      const title = document.createElement('h3');
+      title.textContent = 'Load Save';
+      panel.append(title);
+
+      for (const entry of entries) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'load-picker-item';
+        const name = document.createElement('span');
+        name.textContent = entry.name;
+        const date = document.createElement('span');
+        date.className = 'load-picker-date';
+        date.textContent = new Date(entry.lastModified).toLocaleString();
+        row.append(name, date);
+        row.addEventListener('click', () => {
+          loadFromDirectory(entry).then((loaded) => {
+            overlay.remove();
+            controller.state = loaded;
+            context.setNotice(`Loaded: ${entry.name}`);
+            controller.overlay.render();
+          }).catch(() => {
+            context.setNotice('Failed to load save file.', true);
+          });
+        });
+        panel.append(row);
+      }
+
+      // Browse button to use file picker instead
+      const browseBtn = document.createElement('button');
+      browseBtn.type = 'button';
+      browseBtn.className = 'load-picker-item load-picker-browse';
+      browseBtn.textContent = 'Browse other files...';
+      browseBtn.addEventListener('click', () => {
+        overlay.remove();
+        openFilePicker(context);
+      });
+      panel.append(browseBtn);
+
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+      });
+      overlay.append(panel);
+      root.append(overlay);
+    }).catch(() => {
+      // Fallback to file picker if directory listing fails
+      openFilePicker(context);
+    });
   }
 
   return overlay;
