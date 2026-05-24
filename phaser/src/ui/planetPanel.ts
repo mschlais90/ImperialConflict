@@ -1,6 +1,7 @@
 import { BUILDINGS, getBuildCost, getOverbuildMultiplier } from '../core/data/buildings';
 import { UNITS } from '../core/data/units';
-import { queueBuilding, queueExplorer, sendExplorer, sendFleet, trainUnits } from '../core/commands/playerCommands';
+import { queueBuilding, queueExplorer, sendExplorer, sendFleet, sendPortalFleet, trainUnits } from '../core/commands/playerCommands';
+import type { GameState } from '../core/galaxy/galaxyData';
 import type { BuildingKey, CombatUnitKey, Planet, PlanetUnitKey, UnitKey } from '../core/models/types';
 import { calcSciencePercent, calcTravelTicks, getEmpire, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
 import { button, collapsible, formatNumber, labeledControl, maxAffordable, numberInput, parseIntegerInput, resourceCostText, select } from './dom';
@@ -141,7 +142,8 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   const queueAllBtn = button('Build', () => {
     let anyQueued = false;
     for (const key of BUILDING_KEYS) {
-      const input = inputs.get(key)!;
+      const input = inputs.get(key);
+      if (!input) continue;
       const parsed = parseIntegerInput(input.value, { label: BUILDINGS[key].name, min: 0, max: 999 });
       if (!parsed.ok) {
         context.setNotice(parsed.message, true);
@@ -171,8 +173,19 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   frag.append(buildForm, queueAllBtn);
 
   // Explorer queue
+  const allPlanets = getPlanetsForEmpire(state, context.player.id);
+  const totalExplorers = allPlanets.reduce((sum, p) => sum + (p.units.explorer ?? 0), 0);
+  const queuedExplorers = allPlanets.reduce(
+    (sum, p) => sum + p.buildQueue.filter((o) => o.category === 'unit' && o.itemType === 'explorer').length,
+    0,
+  );
   const explorerCost = resourceCostText(UNITS.explorer.cost);
   const explorerAffordable = maxAffordable(context.player.resources, UNITS.explorer.cost);
+
+  const explorerCount = document.createElement('div');
+  explorerCount.className = 'explorer-count';
+  explorerCount.textContent = `Idle: ${totalExplorers}` + (queuedExplorers > 0 ? ` | Building: ${queuedExplorers}` : '');
+
   const explorerRow = document.createElement('div');
   explorerRow.className = 'inline-form';
   const explorerInput = numberInput(0, { min: 0 });
@@ -189,7 +202,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
       );
     }),
   );
-  frag.append(subtitle('Explorers'), explorerRow);
+  frag.append(subtitle('Explorers'), explorerCount, explorerRow);
 
   // Build queue
   frag.append(subtitle('Queue'), queueList(planet));
@@ -345,19 +358,27 @@ function renderEnemyPlanet(context: UiContext, target: Planet): HTMLElement {
 
   const wrapper = document.createElement('div');
   wrapper.className = 'panel-stack';
-  const sources = getPlanetsForEmpire(state, context.player.id).filter((planet) =>
+  const allPlanets = getPlanetsForEmpire(state, context.player.id);
+  const sources = allPlanets.filter((planet) =>
     COMBAT_UNITS.some((unit) => (planet.units[unit] ?? 0) > 0),
   );
+  const portalPlanets = allPlanets.filter((p) => p.hasPortal);
+  const hasPortalUnits = portalPlanets.some((p) =>
+    COMBAT_UNITS.some((unit) => (p.units[unit] ?? 0) > 0),
+  );
+
   if (sources.length === 0) {
     wrapper.append(emptyText('No combat units available.'));
     return wrapper;
   }
 
-  wrapper.append(subtitle('Attack'), fleetForm(context, target, sources));
+  wrapper.append(subtitle('Attack'), fleetForm(context, target, sources, hasPortalUnits ? portalPlanets : []));
   return wrapper;
 }
 
-export function fleetForm(context: UiContext, target: Planet, sources: Planet[]): HTMLElement {
+const PORTAL_NETWORK_VALUE = -999;
+
+export function fleetForm(context: UiContext, target: Planet, sources: Planet[], portalPlanets: Planet[] = []): HTMLElement {
   const state = context.controller.state;
   if (!state) {
     throw new Error('Fleet form requires game state.');
@@ -365,27 +386,44 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[])
 
   const form = document.createElement('div');
   form.className = 'fleet-form';
-  if (sources.length === 0) {
+  if (sources.length === 0 && portalPlanets.length === 0) {
     form.append(emptyText('No source planets available.'));
     return form;
   }
 
-  const sourceSelect = select(
-    sources.map((planet) => ({ label: planet.planetName, value: planet.id })),
-    sources[0].id,
-  );
+  const hasPortalOption = portalPlanets.length > 0;
+
+  const sourceOptions: Array<{ label: string; value: number }> = [];
+  if (hasPortalOption) {
+    const nearestTicks = getNearestPortalTicks(state, portalPlanets, target);
+    sourceOptions.push({ label: `\u{1F310} Portal Network (${nearestTicks} ticks)`, value: PORTAL_NETWORK_VALUE });
+  }
+  for (const planet of sources) {
+    const ticks = calcTravelTicks(state, planet.systemId, target.systemId);
+    sourceOptions.push({ label: `${planet.planetName} (${ticks} ticks)`, value: planet.id });
+  }
+
+  const defaultValue = hasPortalOption ? PORTAL_NETWORK_VALUE : sources[0].id;
+  const sourceSelect = select(sourceOptions, defaultValue);
   form.append(labeledControl('Source', sourceSelect));
 
   const inputs = new Map<CombatUnitKey, HTMLInputElement>();
   const availableLabels = new Map<CombatUnitKey, HTMLSpanElement>();
 
-  function getSourcePlanet(): Planet {
-    return sources.find((p) => p.id === Number(sourceSelect.value)) ?? sources[0];
+  function isPortalMode(): boolean {
+    return Number(sourceSelect.value) === PORTAL_NETWORK_VALUE;
+  }
+
+  function getAvailableUnits(unit: CombatUnitKey): number {
+    if (isPortalMode()) {
+      return portalPlanets.reduce((sum, p) => sum + (p.units[unit] ?? 0), 0);
+    }
+    const source = sources.find((p) => p.id === Number(sourceSelect.value)) ?? sources[0];
+    return source.units[unit] ?? 0;
   }
 
   for (const unit of COMBAT_UNITS) {
-    const source = getSourcePlanet();
-    const available = source.units[unit] ?? 0;
+    const available = getAvailableUnits(unit);
     const input = numberInput(0, { min: 0, max: available });
     inputs.set(unit, input);
 
@@ -402,9 +440,8 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[])
   }
 
   function updateAvailable(): void {
-    const source = getSourcePlanet();
     for (const unit of COMBAT_UNITS) {
-      const available = source.units[unit] ?? 0;
+      const available = getAvailableUnits(unit);
       const avail = availableLabels.get(unit)!;
       avail.textContent = `(${available})`;
       const input = inputs.get(unit)!;
@@ -418,9 +455,8 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[])
   sourceSelect.addEventListener('change', updateAvailable);
 
   const sendAllBtn = button('Send all', () => {
-    const source = getSourcePlanet();
     for (const unit of COMBAT_UNITS) {
-      const available = source.units[unit] ?? 0;
+      const available = getAvailableUnits(unit);
       inputs.get(unit)!.value = String(available);
     }
   });
@@ -437,14 +473,24 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[])
         units[unit] = parsedCount.value;
       }
     }
-    context.runCommand(() =>
-      sendFleet(state, {
-        empireId: context.player.id,
-        sourcePlanetId: Number(sourceSelect.value),
-        targetPlanetId: target.id,
-        units,
-      }),
-    );
+    if (isPortalMode()) {
+      context.runCommand(() =>
+        sendPortalFleet(state, {
+          empireId: context.player.id,
+          targetPlanetId: target.id,
+          units,
+        }),
+      );
+    } else {
+      context.runCommand(() =>
+        sendFleet(state, {
+          empireId: context.player.id,
+          sourcePlanetId: Number(sourceSelect.value),
+          targetPlanetId: target.id,
+          units,
+        }),
+      );
+    }
   });
 
   const btnRow = document.createElement('div');
@@ -452,6 +498,15 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[])
   btnRow.append(sendAllBtn, sendBtn);
   form.append(btnRow);
   return form;
+}
+
+function getNearestPortalTicks(state: GameState, portalPlanets: Planet[], target: Planet): number {
+  let best = Infinity;
+  for (const p of portalPlanets) {
+    const ticks = calcTravelTicks(state, p.systemId, target.systemId);
+    if (ticks < best) best = ticks;
+  }
+  return best === Infinity ? 1 : best;
 }
 
 function queueList(planet: Planet): HTMLElement {

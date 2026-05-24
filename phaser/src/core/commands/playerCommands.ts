@@ -165,6 +165,97 @@ export function sendFleet(
   return ok(`Fleet sent to ${target.planetName}`);
 }
 
+export function sendPortalFleet(
+  state: GameState,
+  input: {
+    empireId: number;
+    targetPlanetId: number;
+    units: Partial<Record<CombatUnitKey, number>>;
+  },
+): CommandResult {
+  const empire = getEmpire(state, input.empireId);
+  if (empire === undefined) {
+    return fail('Empire not found');
+  }
+  const target = getPlanet(state, input.targetPlanetId);
+  if (target === undefined) {
+    return fail('Target planet not found');
+  }
+
+  const portalPlanets = getPlanetsForEmpire(state, input.empireId).filter((p) => p.hasPortal);
+  if (portalPlanets.length === 0) {
+    return fail('No portal planets available');
+  }
+
+  const requested = normalizeCombatUnits(input.units);
+  const totalUnits = Object.values(requested).reduce((total, count) => total + count, 0);
+  if (totalUnits <= 0) {
+    return fail('Select units to send');
+  }
+
+  // Check total available across all portal planets
+  for (const unit of COMBAT_UNIT_KEYS) {
+    const available = portalPlanets.reduce((sum, p) => sum + (p.units[unit] ?? 0), 0);
+    if (available < (requested[unit] ?? 0)) {
+      return fail(`Not enough ${unit} across portal planets`);
+    }
+  }
+
+  const groundUnits = (requested.soldier ?? 0) + (requested.droid ?? 0);
+  const transportCapacity = (requested.transport ?? 0) * (UNITS.transport.capacity ?? 100);
+  if (groundUnits > transportCapacity) {
+    return fail('Not enough transport capacity');
+  }
+
+  // Deduct units from portal planets (drain each planet in order)
+  const remaining: Partial<Record<CombatUnitKey, number>> = { ...requested };
+  for (const planet of portalPlanets) {
+    for (const unit of COMBAT_UNIT_KEYS) {
+      const need = remaining[unit] ?? 0;
+      if (need <= 0) continue;
+      const available = planet.units[unit] ?? 0;
+      const take = Math.min(need, available);
+      planet.units[unit] = available - take;
+      remaining[unit] = need - take;
+    }
+  }
+
+  // Find nearest portal planet for travel time
+  let nearestSystem = portalPlanets[0].systemId;
+  let nearestTicks = Infinity;
+  for (const p of portalPlanets) {
+    const ticks = calcTravelTicks(state, p.systemId, target.systemId);
+    if (ticks < nearestTicks) {
+      nearestTicks = ticks;
+      nearestSystem = p.systemId;
+    }
+  }
+
+  const fleet = {
+    id: state.nextFleetId,
+    ownerId: input.empireId,
+    units: requested,
+    originSystemId: nearestSystem,
+    targetSystemId: target.systemId,
+    targetPlanetId: target.id,
+    ticksRemaining: nearestTicks,
+    isExploration: false,
+  };
+  state.nextFleetId += 1;
+  state.fleets.push(fleet);
+  appendEvent(state, {
+    type: 'fleet_launched',
+    tick: state.currentTick,
+    fleetId: fleet.id,
+    ownerId: fleet.ownerId,
+    originSystemId: fleet.originSystemId,
+    targetSystemId: fleet.targetSystemId,
+    targetPlanetId: fleet.targetPlanetId,
+  });
+
+  return ok(`Portal fleet sent to ${target.planetName} (${nearestTicks} ticks)`);
+}
+
 export function sendExplorer(
   state: GameState,
   input: { empireId: number; sourcePlanetId: number; targetPlanetId: number },

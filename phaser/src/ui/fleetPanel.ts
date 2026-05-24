@@ -109,9 +109,13 @@ export function renderFleetContent(context: UiContext): HTMLElement {
   // Send to selected target
   const selectedTarget = state.selectedPlanetId === null ? undefined : getPlanet(state, state.selectedPlanetId);
   if (selectedTarget && selectedTarget.ownerId !== context.player.id) {
+    const portalPlanets = ownedPlanets.filter((p) => p.hasPortal);
+    const hasPortalUnits = portalPlanets.some((p) =>
+      ['fighter', 'bomber', 'soldier', 'droid', 'transport'].some((u) => (p.units[u as keyof typeof p.units] ?? 0) > 0),
+    );
     frag.append(
       subtitle('Send to selected'),
-      ownedPlanets.length > 0 ? fleetForm(context, selectedTarget, ownedPlanets) : emptyText('No owned planets can send fleets.'),
+      ownedPlanets.length > 0 ? fleetForm(context, selectedTarget, ownedPlanets, hasPortalUnits ? portalPlanets : []) : emptyText('No owned planets can send fleets.'),
     );
   } else {
     frag.append(emptyText('Select a neutral or enemy planet to send fleets.'));

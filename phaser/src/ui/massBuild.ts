@@ -87,6 +87,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   table.append(
     hdrCell(''),
     hdrCell('Planet'),
+    hdrCell(''),
     hdrCell('Built'),
     hdrCell('OB%'),
     hdrCell('Bonuses'),
@@ -116,13 +117,14 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     cbCell.append(cb);
 
     const nameCell = textCell(planet.planetName);
+    const portalCell = textCell(planet.hasPortal ? '\u{1F310}' : '');
     const builtCell = textCell(`${total}/${planet.size}`);
     const obCell = textCell(ob > 0 ? `${ob}%` : '-');
     if (ob > 0) obCell.classList.add('mass-build-overbuild');
     const bonusCell = textCell(bonus || '-');
     if (bonus) bonusCell.classList.add('mass-build-bonus');
 
-    table.append(cbCell, nameCell, builtCell, obCell, bonusCell);
+    table.append(cbCell, nameCell, portalCell, builtCell, obCell, bonusCell);
   }
 
   container.append(table);
@@ -136,10 +138,9 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   buildingLabel.textContent = 'Building: ';
   const buildingSelect = document.createElement('select');
   for (const key of BUILDING_KEYS) {
-    if (key === 'portal') continue;
     const opt = document.createElement('option');
     opt.value = key;
-    opt.textContent = BUILDINGS[key].name;
+    opt.textContent = key === 'portal' ? '\u{1F310} ' + BUILDINGS[key].name : BUILDINGS[key].name;
     buildingSelect.append(opt);
   }
   buildingLabel.append(buildingSelect);
@@ -157,8 +158,13 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
 
   function updateCostPreview(): void {
     const buildingType = buildingSelect.value as BuildingKey;
+    const isPortal = buildingType === 'portal';
+    countInput.disabled = isPortal;
+    if (isPortal) countInput.value = '1';
     const baseCost = getBuildCost(buildingType, constructionSci);
-    costPreview.textContent = `Cost per unit: ${resourceCostText(baseCost)}`;
+    costPreview.textContent = isPortal
+      ? `Cost per portal: ${resourceCostText(baseCost)} (skips planets that already have one)`
+      : `Cost per unit: ${resourceCostText(baseCost)}`;
   }
 
   buildingSelect.addEventListener('change', updateCostPreview);
@@ -171,8 +177,14 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
       context.setNotice(parsed.message, true);
       return;
     }
-    const count = parsed.value;
-    const selectedPlanets = planets.filter((p) => selected.has(p.id));
+    const isPortal = buildingType === 'portal';
+    const count = isPortal ? 1 : parsed.value;
+    let selectedPlanets = planets.filter((p) => selected.has(p.id));
+    if (isPortal) {
+      selectedPlanets = selectedPlanets.filter(
+        (p) => !p.hasPortal && !p.buildQueue.some((o) => o.category === 'building' && o.itemType === 'portal'),
+      );
+    }
     if (selectedPlanets.length === 0) {
       context.setNotice('No planets selected.', true);
       return;

@@ -1,14 +1,15 @@
 import type { AppController, AppOverlay } from '../app/appController';
 import type { BattleReport } from '../core/engines/combatEngine';
 import { createNewGame } from '../core/engines/gameManager';
+import { saveToStorage, loadFromStorage, hasSave } from '../core/persistence/saveLoad';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { getEmpire, getPlayerEmpire } from '../core/selectors/selectors';
 import { renderBattleReport } from './battleReport';
 import { renderBattleHistoryPanel } from './battleHistory';
-import { clearElement, collapsible } from './dom';
+import { clearElement } from './dom';
 import { renderEconomyPanel } from './economyPanel';
-import { renderFleetContent, renderFleetManagementPanel } from './fleetPanel';
-import { renderHud } from './hud';
+import { renderFleetManagementPanel } from './fleetPanel';
+import { renderHud, type MenuCallbacks } from './hud';
 import { renderMassBuildPanel } from './massBuild';
 import { renderNotificationsContent } from './notifications';
 import { renderOpsPanel } from './opsPanel';
@@ -31,13 +32,13 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   let forcedGameOver: boolean | null = null;
   let hudPanel: HTMLElement | null = null;
   let leftPanel: HTMLElement | null = null;
-  let rightPanel: HTMLElement | null = null;
   let gameOverScreen: HTMLElement | null = null;
   let battleReportScreen: HTMLElement | null = null;
   let battleReportQueue: BattleReport[] = [];
   let lastSeenBattleEventId = -1;
   let speedBeforeBattle: number | null = null;
-  let viewMode: 'normal' | 'economy' | 'standings' | 'history' | 'massBuild' | 'ops' | 'fleet' | 'settings' = 'normal';
+  let viewMode: 'normal' | 'economy' | 'standings' | 'history' | 'massBuild' | 'ops' | 'fleet' | 'settings' | 'research' | 'notifications' = 'normal';
+  let menuOpen = false;
 
   const overlay: AppOverlay = {
     render,
@@ -59,35 +60,65 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     switch (event.key.toLowerCase()) {
       case 'g':
         viewMode = 'normal';
+        menuOpen = false;
         controller.switchToGalaxy?.();
         break;
       case 'e':
         viewMode = viewMode === 'economy' ? 'normal' : 'economy';
+        menuOpen = false;
         render();
         break;
       case 'a':
         viewMode = viewMode === 'standings' ? 'normal' : 'standings';
+        menuOpen = false;
         render();
         break;
       case 'h':
         viewMode = viewMode === 'history' ? 'normal' : 'history';
+        menuOpen = false;
         render();
         break;
       case 'b':
         viewMode = viewMode === 'massBuild' ? 'normal' : 'massBuild';
+        menuOpen = false;
         render();
         break;
       case 'o':
         viewMode = viewMode === 'ops' ? 'normal' : 'ops';
+        menuOpen = false;
         render();
         break;
       case 'f':
         viewMode = viewMode === 'fleet' ? 'normal' : 'fleet';
+        menuOpen = false;
+        render();
+        break;
+      case 'r':
+        viewMode = viewMode === 'research' ? 'normal' : 'research';
+        menuOpen = false;
+        render();
+        break;
+      case 'n':
+        viewMode = viewMode === 'notifications' ? 'normal' : 'notifications';
+        menuOpen = false;
         render();
         break;
       case 's':
         viewMode = viewMode === 'settings' ? 'normal' : 'settings';
+        menuOpen = false;
         render();
+        break;
+      case 'escape':
+        if (menuOpen) {
+          menuOpen = false;
+          render();
+          break;
+        }
+        if (viewMode !== 'normal') {
+          viewMode = 'normal';
+          render();
+          break;
+        }
         break;
       case '?':
         toggleShortcutHelp();
@@ -108,8 +139,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       ['E', 'Economy'],
       ['A', 'Standings'],
       ['H', 'Battle History'],
-      ['B', 'Mass Build'],
+      ['B', 'Planet Builder'],
       ['F', 'Fleet Management'],
+      ['R', 'Research'],
+      ['N', 'Notifications'],
       ['O', 'Operations'],
       ['S', 'Settings'],
       ['ESC', 'Close / Galaxy'],
@@ -162,23 +195,57 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     render();
   }
 
+  function createMenuCallbacks(state: NonNullable<typeof controller.state>, context: UiContext): MenuCallbacks {
+    return {
+      isOpen: menuOpen,
+      toggle: () => {
+        menuOpen = !menuOpen;
+        render();
+      },
+      selectView: (mode) => {
+        viewMode = mode as typeof viewMode;
+        menuOpen = false;
+        render();
+      },
+      save: () => {
+        saveToStorage(state);
+        menuOpen = false;
+        context.setNotice('Game saved.');
+      },
+      load: () => {
+        if (!hasSave()) {
+          menuOpen = false;
+          context.setNotice('No saved game found.', true);
+          return;
+        }
+        const loaded = loadFromStorage();
+        if (loaded) {
+          controller.state = loaded;
+          menuOpen = false;
+          controller.overlay.render();
+        }
+      },
+    };
+  }
+
   function refreshAfterTick(): void {
     const state = controller.state;
     const player = state ? getPlayerEmpire(state) : undefined;
-    if (!state || state.currentState === 'main_menu' || !player || !hudPanel || !leftPanel || !rightPanel) {
+    if (!state || state.currentState === 'main_menu' || !player || !hudPanel || !leftPanel) {
       render();
       return;
     }
 
+    const isFullPage = viewMode !== 'normal';
+
     // Input focus preservation: skip panel re-render when user is typing
     const activeEl = document.activeElement;
     const leftHasFocus = leftPanel.contains(activeEl) && (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLSelectElement);
-    const rightHasFocus = rightPanel.contains(activeEl) && (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLSelectElement);
 
     const context = createContext(player);
 
     // Always refresh HUD
-    const nextHudPanel = renderHud(context);
+    const nextHudPanel = renderHud(context, createMenuCallbacks(state, context));
     hudPanel.replaceWith(nextHudPanel);
     hudPanel = nextHudPanel;
 
@@ -186,28 +253,14 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     if (!leftHasFocus) {
       const leftScroll = leftPanel.querySelector('.main-panel')?.scrollTop ?? 0;
       const nextLeftPanel = document.createElement('div');
-      nextLeftPanel.className = 'overlay-left';
-      if (controller.activeScene !== 'galaxy') {
+      nextLeftPanel.className = 'overlay-left overlay-left-full';
+      if (controller.activeScene !== 'galaxy' || isFullPage) {
         nextLeftPanel.append(renderLeftContent(context));
       }
       leftPanel.replaceWith(nextLeftPanel);
       leftPanel = nextLeftPanel;
       const nextMainPanel = leftPanel.querySelector('.main-panel');
       if (nextMainPanel) nextMainPanel.scrollTop = leftScroll;
-    }
-
-    // Refresh right panel only if no input focus
-    if (!rightHasFocus) {
-      const rightScroll = rightPanel.querySelector('.side-panel')?.scrollTop ?? 0;
-      const nextRightPanel = document.createElement('div');
-      nextRightPanel.className = 'overlay-right';
-      if (controller.activeScene !== 'galaxy') {
-        nextRightPanel.append(renderRightPanel(context, state));
-      }
-      rightPanel.replaceWith(nextRightPanel);
-      rightPanel = nextRightPanel;
-      const nextSidePanel = rightPanel.querySelector('.side-panel');
-      if (nextSidePanel) nextSidePanel.scrollTop = rightScroll;
     }
 
     syncGameOverPanel();
@@ -281,7 +334,6 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   function render(): void {
     hudPanel = null;
     leftPanel = null;
-    rightPanel = null;
     gameOverScreen = null;
     clearElement(root);
     const state = controller.state;
@@ -298,28 +350,25 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     }
 
     const context = createContext(player);
+    const isFullPage = viewMode !== 'normal';
 
     const shell = document.createElement('div');
     shell.className = 'overlay-shell';
-    hudPanel = renderHud(context);
+    hudPanel = renderHud(context, createMenuCallbacks(state, context));
     shell.append(hudPanel);
 
     const body = document.createElement('div');
-    body.className = 'overlay-body';
+    body.className = 'overlay-body overlay-body-full';
 
     leftPanel = document.createElement('div');
-    leftPanel.className = 'overlay-left';
+    leftPanel.className = 'overlay-left overlay-left-full';
 
-    rightPanel = document.createElement('div');
-    rightPanel.className = 'overlay-right';
-
-    // Only populate panels when NOT in galaxy view
-    if (controller.activeScene !== 'galaxy') {
+    // Only populate panels when NOT in galaxy view (or when a menu view is active)
+    if (controller.activeScene !== 'galaxy' || isFullPage) {
       leftPanel.append(renderLeftContent(context));
-      rightPanel.append(renderRightPanel(context, state));
     }
 
-    body.append(leftPanel, rightPanel);
+    body.append(leftPanel);
     shell.append(body);
     root.append(shell);
     syncGameOverPanel();
@@ -341,19 +390,31 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         return renderFleetManagementPanel(context);
       case 'settings':
         return renderSettingsPanel(context);
+      case 'research':
+        return renderResearchFullPanel(context);
+      case 'notifications':
+        return renderNotificationsFullPanel(context);
       default:
         return renderPlanetPanel(context);
     }
   }
 
-  function renderRightPanel(context: UiContext, state: typeof controller.state): HTMLElement {
+  function renderResearchFullPanel(context: UiContext): HTMLElement {
     const panel = document.createElement('section');
-    panel.className = 'side-panel interactive';
-    panel.append(
-      collapsible('fleet-mgmt', 'Fleet Management', () => renderFleetContent(context), true),
-      collapsible('research', 'Research', () => renderResearchContent(context), false),
-      collapsible('notifications', 'Notifications', () => renderNotificationsContent(state!.events, notice), false),
-    );
+    panel.className = 'main-panel interactive';
+    const title = document.createElement('h2');
+    title.textContent = 'Research';
+    panel.append(title, renderResearchContent(context));
+    return panel;
+  }
+
+  function renderNotificationsFullPanel(_context: UiContext): HTMLElement {
+    const state = controller.state;
+    const panel = document.createElement('section');
+    panel.className = 'main-panel interactive';
+    const title = document.createElement('h2');
+    title.textContent = 'Notifications';
+    panel.append(title, renderNotificationsContent(state!.events, notice));
     return panel;
   }
 

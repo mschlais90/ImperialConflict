@@ -1,9 +1,16 @@
-import { saveToStorage, loadFromStorage, hasSave } from '../core/persistence/saveLoad';
 import { calcEmpireNetworth, getPlanetsForEmpire } from '../core/selectors/selectors';
 import { calcEconomyBreakdown } from '../core/selectors/economySelectors';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { button, formatNumber } from './dom';
 import type { UiContext } from './types';
+
+export interface MenuCallbacks {
+  isOpen: boolean;
+  toggle: () => void;
+  selectView: (mode: string) => void;
+  save: () => void;
+  load: () => void;
+}
 
 const SPEED_OPTIONS = [
   { label: 'Pause', value: SPEEDS.PAUSED },
@@ -12,7 +19,16 @@ const SPEED_OPTIONS = [
   { label: '4x', value: SPEEDS.FASTEST },
 ] as const;
 
-export function renderHud(context: UiContext): HTMLElement {
+const MENU_ITEMS: Array<{ label: string; key: string; mode: string | null }> = [
+  { label: 'Planet Builder', key: 'B', mode: 'massBuild' },
+  { label: 'Fleet Management', key: 'F', mode: 'fleet' },
+  { label: 'Research', key: 'R', mode: 'research' },
+  { label: 'Notifications', key: 'N', mode: 'notifications' },
+  { label: 'Save', key: '', mode: null },
+  { label: 'Load', key: '', mode: null },
+];
+
+export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement {
   const { controller, player } = context;
   const state = controller.state;
   if (!state) {
@@ -67,27 +83,49 @@ export function renderHud(context: UiContext): HTMLElement {
     speeds.append(speedButton);
   }
 
-  const saveLoad = document.createElement('div');
-  saveLoad.className = 'save-load-controls';
-  saveLoad.append(
-    button('Save', () => {
-      saveToStorage(state);
-      context.setNotice('Game saved.');
-    }),
-    button('Load', () => {
-      if (!hasSave()) {
-        context.setNotice('No saved game found.', true);
-        return;
-      }
-      const loaded = loadFromStorage();
-      if (loaded) {
-        controller.state = loaded;
-        controller.overlay.render();
-      }
-    }),
-  );
+  // Menu button
+  const menuWrapper = document.createElement('div');
+  menuWrapper.className = 'menu-wrapper';
 
-  panel.append(resources, meta, speeds, saveLoad);
+  const menuBtn = document.createElement('button');
+  menuBtn.type = 'button';
+  menuBtn.className = 'menu-button interactive';
+  menuBtn.innerHTML = menu?.isOpen ? '&#x2715;' : '&#9776;';
+  menuBtn.title = 'Menu';
+  if (menu) {
+    menuBtn.addEventListener('click', menu.toggle);
+  }
+  menuWrapper.append(menuBtn);
+
+  if (menu?.isOpen) {
+    const dropdown = document.createElement('div');
+    dropdown.className = 'menu-dropdown interactive';
+    for (const item of MENU_ITEMS) {
+      const menuItem = document.createElement('button');
+      menuItem.type = 'button';
+      menuItem.className = 'menu-item';
+      const labelSpan = document.createElement('span');
+      labelSpan.textContent = item.label;
+      menuItem.append(labelSpan);
+      if (item.key) {
+        const kbd = document.createElement('kbd');
+        kbd.textContent = item.key;
+        menuItem.append(kbd);
+      }
+      if (item.mode) {
+        const mode = item.mode;
+        menuItem.addEventListener('click', () => menu.selectView(mode));
+      } else if (item.label === 'Save') {
+        menuItem.addEventListener('click', () => menu.save());
+      } else if (item.label === 'Load') {
+        menuItem.addEventListener('click', () => menu.load());
+      }
+      dropdown.append(menuItem);
+    }
+    menuWrapper.append(dropdown);
+  }
+
+  panel.append(menuWrapper, resources, meta, speeds);
   return panel;
 }
 
