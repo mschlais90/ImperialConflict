@@ -28,7 +28,7 @@ const MENU_ITEMS: Array<{ label: string; key: string; mode: string | null }> = [
   { label: 'Load', key: '', mode: null },
 ];
 
-export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement {
+export function renderHud(context: UiContext, menu?: MenuCallbacks, currentNotice?: { message: string; isError: boolean } | null): HTMLElement {
   const { controller, player } = context;
   const state = controller.state;
   if (!state) {
@@ -126,6 +126,14 @@ export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement
   }
 
   panel.append(menuWrapper, resources, meta, speeds);
+
+  if (currentNotice) {
+    const noticeBar = document.createElement('div');
+    noticeBar.className = currentNotice.isError ? 'hud-notice hud-notice-error' : 'hud-notice';
+    noticeBar.textContent = currentNotice.message;
+    panel.append(noticeBar);
+  }
+
   return panel;
 }
 

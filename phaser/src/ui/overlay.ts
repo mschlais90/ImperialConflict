@@ -29,6 +29,7 @@ export interface OverlayApi {
 
 export function createOverlay(root: HTMLElement, controller: AppController): OverlayApi {
   let notice: { message: string; isError: boolean } | null = null;
+  let noticeTimer: ReturnType<typeof setTimeout> | null = null;
   let forcedGameOver: boolean | null = null;
   let hudPanel: HTMLElement | null = null;
   let leftPanel: HTMLElement | null = null;
@@ -245,7 +246,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     const context = createContext(player);
 
     // Always refresh HUD
-    const nextHudPanel = renderHud(context, createMenuCallbacks(state, context));
+    const nextHudPanel = renderHud(context, createMenuCallbacks(state, context), notice);
     hudPanel.replaceWith(nextHudPanel);
     hudPanel = nextHudPanel;
 
@@ -354,7 +355,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     const shell = document.createElement('div');
     shell.className = 'overlay-shell';
-    hudPanel = renderHud(context, createMenuCallbacks(state, context));
+    hudPanel = renderHud(context, createMenuCallbacks(state, context), notice);
     shell.append(hudPanel);
 
     const body = document.createElement('div');
@@ -432,6 +433,12 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       },
       setNotice(message, isError = false) {
         notice = { message, isError };
+        if (noticeTimer) clearTimeout(noticeTimer);
+        noticeTimer = setTimeout(() => {
+          notice = null;
+          noticeTimer = null;
+          render();
+        }, 3000);
         render();
       },
     };
