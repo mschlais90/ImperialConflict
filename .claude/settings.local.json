@@ -32,6 +32,7 @@
       "Bash(wait)",
       "Read(//tmp/**)",
       "Bash(\"/c/Users/mschl/Godot/Godot_v4.4.1-stable_win64_console.exe\" --path \"C:/Users/mschl/Documents/Projects/ImperialConflict\" --import)",
+      "Bash(cd:*)",
       "Bash(git init *)",
       "Bash(git add *)",
       "Bash(git add * && git commit *)",
