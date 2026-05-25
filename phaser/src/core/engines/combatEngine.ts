@@ -225,13 +225,9 @@ function phaseAirVsAir(
 
   const attackerTransports = getCount(attackerUnits, 'transport');
   if (defenderFighters > 0 && attackerTransports > 0) {
-    const screenFactor = clamp(defenderFighters / Math.max(attackerFighters, 1), 0, 1);
-    const effectiveAttackers = Math.trunc(defenderFighters * screenFactor);
-    if (effectiveAttackers > 0) {
-      const transportRatio = Math.min(effectiveAttackers / attackerTransports, 1);
-      transportsLost = Math.trunc(attackerTransports * transportRatio);
-      attackerUnits.transport = attackerTransports - transportsLost;
-    }
+    const lossRate = defenderFighters / (defenderFighters + Math.max(attackerFighters, 1));
+    transportsLost = Math.trunc(attackerTransports * lossRate);
+    attackerUnits.transport = attackerTransports - transportsLost;
   }
 
   attackerUnits.fighter = attackerFighters;
@@ -343,6 +339,3 @@ function rollFloat(state: GameState): number {
   return state.rng.float();
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}

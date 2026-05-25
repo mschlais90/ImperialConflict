@@ -173,12 +173,9 @@ func _phase_air_vs_air(atk: Dictionary, def: Dictionary, atk_mil_bonus: float = 
 	# Surviving defending fighters try to break through to attack transports.
 	# Attacker fighters shield transports — defenders must outnumber the screen.
 	if def_fighters > 0 and atk.get("transport", 0) > 0:
-		var screen_factor := clampf(float(def_fighters) / maxf(float(atk_fighters), 1.0), 0.0, 1.0)
-		var effective_attackers := int(def_fighters * screen_factor)
-		if effective_attackers > 0:
-			var transport_ratio := minf(float(effective_attackers) / float(atk.get("transport", 0)), 1.0)
-			transports_lost = int(atk.get("transport", 0) * transport_ratio)
-			atk["transport"] = atk.get("transport", 0) - transports_lost
+		var loss_rate := float(def_fighters) / (float(def_fighters) + maxf(float(atk_fighters), 1.0))
+		transports_lost = int(atk.get("transport", 0) * loss_rate)
+		atk["transport"] = atk.get("transport", 0) - transports_lost
 
 	atk["fighter"] = atk_fighters
 	def["fighter"] = def_fighters
