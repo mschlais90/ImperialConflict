@@ -401,6 +401,11 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     shell.append(body);
     root.append(shell, toastContainer);
     syncGameOverPanel();
+
+    // Re-attach battle report popup if one was showing before render cleared root
+    if (battleReportScreen) {
+      root.append(battleReportScreen);
+    }
   }
 
   function renderLeftContent(context: UiContext): HTMLElement {

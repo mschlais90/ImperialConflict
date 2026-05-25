@@ -14,7 +14,7 @@ export function renderBattleReport(
   onClose: () => void,
 ): HTMLElement {
   const screen = document.createElement('div');
-  screen.className = 'battle-report-screen';
+  screen.className = 'battle-report-screen interactive';
 
   const panel = document.createElement('div');
   panel.className = 'battle-report-panel';
