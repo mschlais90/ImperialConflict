@@ -6,5 +6,5 @@ export interface UiContext {
   controller: AppController;
   player: Empire;
   runCommand: (command: () => CommandResult) => void;
-  setNotice: (message: string, isError?: boolean) => void;
+  setNotice: (message: string, isError?: boolean, rerender?: boolean) => void;
 }

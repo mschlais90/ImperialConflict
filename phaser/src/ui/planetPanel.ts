@@ -164,7 +164,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
       }
     }
     if (anyQueued) {
-      context.setNotice('Buildings queued.');
+      context.setNotice('Buildings queued.', false, true);
       context.controller.refreshScene?.();
     }
   });
@@ -279,7 +279,7 @@ function unitsSection(context: UiContext, planet: Planet): HTMLElement {
       }
     }
     if (anyTrained) {
-      context.setNotice('Units trained.');
+      context.setNotice('Units trained.', false, true);
       context.controller.refreshScene?.();
     }
   });
