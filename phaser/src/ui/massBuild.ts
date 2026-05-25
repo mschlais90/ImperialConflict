@@ -10,6 +10,12 @@ const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
 // Persists selection across re-renders within the same session
 let persistedSelection: Set<number> | null = null;
 
+// Persists sort state across re-renders
+let sortColumn: SortColumn = 'name';
+let sortAsc = true;
+
+type SortColumn = 'name' | 'portal' | 'built' | 'lasers' | 'ob' | 'bonuses';
+
 const BONUS_LABELS: Record<ResourceKey, string> = {
   gc: 'GC',
   food: 'Food',
@@ -40,6 +46,42 @@ function bonusText(planet: Planet): string {
     .filter(([, mult]) => mult !== 1)
     .map(([res, mult]) => `${BONUS_LABELS[res]} x${mult.toFixed(1)}`)
     .join(', ');
+}
+
+function maxBonus(planet: Planet): number {
+  const entries = Object.entries(planet.resourceBonuses) as Array<[ResourceKey, number]>;
+  if (entries.length === 0) return 1;
+  return Math.max(...entries.map(([, mult]) => mult));
+}
+
+function sortPlanets(planets: Planet[]): Planet[] {
+  const sorted = [...planets];
+  const dir = sortAsc ? 1 : -1;
+  sorted.sort((a, b) => {
+    let cmp = 0;
+    switch (sortColumn) {
+      case 'name':
+        cmp = a.planetName.localeCompare(b.planetName);
+        break;
+      case 'portal':
+        cmp = (a.hasPortal ? 1 : 0) - (b.hasPortal ? 1 : 0);
+        break;
+      case 'built':
+        cmp = countBuildingsAndQueue(a) - countBuildingsAndQueue(b);
+        break;
+      case 'lasers':
+        cmp = (a.buildings.laser ?? 0) - (b.buildings.laser ?? 0);
+        break;
+      case 'ob':
+        cmp = overbuildPercent(a) - overbuildPercent(b);
+        break;
+      case 'bonuses':
+        cmp = maxBonus(a) - maxBonus(b);
+        break;
+    }
+    return cmp * dir;
+  });
+  return sorted;
 }
 
 export function renderMassBuildPanel(context: UiContext): HTMLElement {
@@ -97,21 +139,45 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   // Header
   const headerRow = document.createElement('div');
   headerRow.className = 'mass-build-row mass-build-row-header';
-  headerRow.append(
-    hdrCell(''),
-    hdrCell('Planet'),
-    hdrCell(''),
-    hdrCell('Built'),
-    hdrCell('Lasers'),
-    hdrCell('OB%'),
-    hdrCell('Bonuses'),
-  );
+
+  const HEADERS: Array<{ label: string; column: SortColumn | null }> = [
+    { label: '', column: null },
+    { label: 'Planet', column: 'name' },
+    { label: '', column: 'portal' },
+    { label: 'Built', column: 'built' },
+    { label: 'Lasers', column: 'lasers' },
+    { label: 'OB%', column: 'ob' },
+    { label: 'Bonuses', column: 'bonuses' },
+  ];
+
+  for (const hdr of HEADERS) {
+    const cell = document.createElement('span');
+    cell.className = 'mass-build-header';
+    if (hdr.column !== null) {
+      cell.classList.add('mass-build-header-sortable');
+      const arrow = sortColumn === hdr.column ? (sortAsc ? ' \u25B2' : ' \u25BC') : '';
+      cell.textContent = hdr.label + arrow;
+      const col = hdr.column;
+      cell.addEventListener('click', () => {
+        if (sortColumn === col) {
+          sortAsc = !sortAsc;
+        } else {
+          sortColumn = col;
+          sortAsc = true;
+        }
+        rebuildRows();
+      });
+    } else {
+      cell.textContent = hdr.label;
+    }
+    headerRow.append(cell);
+  }
   table.append(headerRow);
 
   const checkboxes = new Map<number, HTMLInputElement>();
-  const rows = new Map<number, HTMLElement>();
+  const rowElements = new Map<number, HTMLElement>();
 
-  for (const planet of planets) {
+  function createRow(planet: Planet): HTMLElement {
     const total = countBuildingsAndQueue(planet);
     const ob = overbuildPercent(planet);
     const bonus = bonusText(planet);
@@ -133,7 +199,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
       }
     });
     checkboxes.set(planet.id, cb);
-    rows.set(planet.id, row);
+    rowElements.set(planet.id, row);
 
     const cbCell = document.createElement('span');
     cbCell.className = 'mass-build-cell';
@@ -151,7 +217,37 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     if (bonus) bonusCell.classList.add('mass-build-bonus');
 
     row.append(cbCell, nameCell, portalCell, builtCell, laserCell, obCell, bonusCell);
-    table.append(row);
+    return row;
+  }
+
+  function rebuildRows(): void {
+    // Remove existing data rows (keep header)
+    while (table.children.length > 1) {
+      table.removeChild(table.lastChild!);
+    }
+    checkboxes.clear();
+    rowElements.clear();
+
+    // Update header arrows
+    for (let i = 0; i < HEADERS.length; i++) {
+      const hdr = HEADERS[i];
+      const cell = headerRow.children[i] as HTMLElement;
+      if (hdr.column !== null) {
+        const arrow = sortColumn === hdr.column ? (sortAsc ? ' \u25B2' : ' \u25BC') : '';
+        cell.textContent = hdr.label + arrow;
+      }
+    }
+
+    const sorted = sortPlanets(planets);
+    for (const planet of sorted) {
+      table.append(createRow(planet));
+    }
+  }
+
+  // Initial render
+  const sorted = sortPlanets(planets);
+  for (const planet of sorted) {
+    table.append(createRow(planet));
   }
 
   container.append(table);
@@ -255,18 +351,11 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   function refreshCheckboxes(): void {
     for (const [id, cb] of checkboxes) {
       cb.checked = selected.has(id);
-      rows.get(id)?.classList.toggle('mass-build-row-selected', selected.has(id));
+      rowElements.get(id)?.classList.toggle('mass-build-row-selected', selected.has(id));
     }
   }
 
   return panel;
-}
-
-function hdrCell(text: string): HTMLElement {
-  const cell = document.createElement('span');
-  cell.className = 'mass-build-header';
-  cell.textContent = text;
-  return cell;
 }
 
 function textCell(text: string): HTMLElement {

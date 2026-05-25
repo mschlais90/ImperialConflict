@@ -723,6 +723,15 @@ input[type="number"] {
   padding-bottom: 4px;
 }
 
+.mass-build-header-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.mass-build-header-sortable:hover {
+  color: #c7d5ee;
+}
+
 .mass-build-cell {
   color: #c7d5ee;
   padding: 2px 2px;

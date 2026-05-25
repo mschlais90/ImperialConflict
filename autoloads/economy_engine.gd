@@ -248,8 +248,13 @@ func _check_eliminations() -> void:
 		if empire.id in GameManager._eliminated_empires:
 			continue
 		var planet_count := GalaxyData.get_planets_for_empire(empire.id).size()
-		var fleet_count := GalaxyData.get_fleets_for_empire(empire.id).size()
-		if planet_count == 0 and fleet_count == 0:
+		if planet_count == 0:
+			# Remove any fleets in transit for the eliminated empire
+			var remaining_fleets: Array = []
+			for f in GalaxyData.fleets:
+				if f.owner_id != empire.id:
+					remaining_fleets.append(f)
+			GalaxyData.fleets = remaining_fleets
 			EventBus.empire_eliminated.emit(empire)
 
 

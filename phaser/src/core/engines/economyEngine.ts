@@ -382,8 +382,8 @@ function checkEliminations(state: GameState): void {
     }
 
     const planetCount = getPlanetsForEmpire(state, empire.id).length;
-    const fleetCount = state.fleets.filter((fleet) => fleet.ownerId === empire.id).length;
-    if (planetCount === 0 && fleetCount === 0) {
+    if (planetCount === 0) {
+      state.fleets = state.fleets.filter((fleet) => fleet.ownerId !== empire.id);
       appendEvent(state, { type: 'empire_eliminated', tick: state.currentTick, empireId: empire.id });
     }
   }
