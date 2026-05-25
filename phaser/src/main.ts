@@ -43,6 +43,7 @@ const controller: AppController = {
   },
   refreshScene: null,
   startNewGame: null,
+  loadGame: null,
   activeScene: 'galaxy',
   switchToGalaxy: null,
 };

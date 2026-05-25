@@ -13,6 +13,7 @@ export interface AppController {
   overlay: AppOverlay;
   refreshScene: (() => void) | null;
   startNewGame: ((empireName: string) => void) | null;
+  loadGame: ((state: GameState) => void) | null;
   activeScene: 'galaxy' | 'system';
   switchToGalaxy: (() => void) | null;
 }

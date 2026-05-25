@@ -174,6 +174,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
   function showStartScreen(): void {
     clearElement(root);
+    root.append(toastContainer);
     renderStartScreen(root, (empireName) => {
       forcedGameOver = null;
       viewMode = 'normal';
@@ -189,6 +190,24 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       controller.playerName = empireName;
       controller.state = createNewGame({ empireName });
       render();
+    }, () => {
+      getSavedDirHandle().then((dir) => {
+        if (dir) {
+          showLoadPicker({
+            controller,
+            player: undefined as never,
+            runCommand: () => {},
+            setNotice: (msg, isError) => showToast(msg, isError ?? false),
+          });
+        } else {
+          openFilePicker({
+            controller,
+            player: undefined as never,
+            runCommand: () => {},
+            setNotice: (msg, isError) => showToast(msg, isError ?? false),
+          });
+        }
+      });
     });
   }
 
@@ -493,9 +512,13 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       const file = input.files?.[0];
       if (!file) return;
       uploadSave(file).then((loaded) => {
-        controller.state = loaded;
-        context.setNotice(`Loaded: ${file.name}`);
-        controller.overlay.render();
+        if (controller.loadGame) {
+          controller.loadGame(loaded);
+        } else {
+          controller.state = loaded;
+          controller.overlay.render();
+        }
+        showToast(`Loaded: ${file.name}`, false);
       }).catch(() => {
         context.setNotice('Failed to load save file.', true);
       });
@@ -531,9 +554,13 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         row.addEventListener('click', () => {
           loadFromDirectory(entry).then((loaded) => {
             overlay.remove();
-            controller.state = loaded;
-            context.setNotice(`Loaded: ${entry.name}`);
-            controller.overlay.render();
+            if (controller.loadGame) {
+              controller.loadGame(loaded);
+            } else {
+              controller.state = loaded;
+              controller.overlay.render();
+            }
+            showToast(`Loaded: ${entry.name}`, false);
           }).catch(() => {
             context.setNotice('Failed to load save file.', true);
           });

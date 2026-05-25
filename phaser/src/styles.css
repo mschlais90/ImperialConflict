@@ -756,6 +756,11 @@ input[type="number"] {
   color: #c7d5ee;
 }
 
+.start-btn-row {
+  display: flex;
+  gap: 10px;
+}
+
 .notice {
   padding: 6px 0;
   border-top: 1px solid rgba(160, 181, 218, 0.14);

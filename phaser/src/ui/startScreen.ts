@@ -1,6 +1,6 @@
 import { button } from './dom';
 
-export function renderStartScreen(root: HTMLElement, onStart: (empireName: string) => void): void {
+export function renderStartScreen(root: HTMLElement, onStart: (empireName: string) => void, onLoad?: () => void): void {
   const shell = document.createElement('div');
   shell.className = 'start-screen interactive';
 
@@ -21,7 +21,17 @@ export function renderStartScreen(root: HTMLElement, onStart: (empireName: strin
   input.spellcheck = false;
 
   label.append(input);
-  panel.append(title, label, button('Start', () => panel.requestSubmit(), 'ui-button primary'));
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'start-btn-row';
+  btnRow.append(button('Start', () => panel.requestSubmit(), 'ui-button primary'));
+  if (onLoad) {
+    const loadBtn = button('Load', () => onLoad(), 'ui-button');
+    loadBtn.type = 'button';
+    btnRow.append(loadBtn);
+  }
+
+  panel.append(title, label, btnRow);
   panel.addEventListener('submit', (event) => {
     event.preventDefault();
     onStart(input.value.trim() || 'Player Empire');
