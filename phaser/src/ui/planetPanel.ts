@@ -405,7 +405,11 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[],
 
   const defaultValue = hasPortalOption ? PORTAL_NETWORK_VALUE : sources[0].id;
   const sourceSelect = select(sourceOptions, defaultValue);
-  form.append(labeledControl('Source', sourceSelect));
+  sourceSelect.className = 'fleet-source-select';
+  const sourceRow = document.createElement('label');
+  sourceRow.className = 'fleet-source-row';
+  sourceRow.append(document.createTextNode('Source'), sourceSelect);
+  form.append(sourceRow);
 
   const inputs = new Map<CombatUnitKey, HTMLInputElement>();
   const availableLabels = new Map<CombatUnitKey, HTMLSpanElement>();

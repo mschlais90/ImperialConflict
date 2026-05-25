@@ -25,9 +25,23 @@ export interface ProductionDetail {
   amount: number;
 }
 
+export interface BonusedPlanet {
+  planetName: string;
+  bonus: number;
+  extra: number;
+}
+
 export interface ResourceProduction {
   total: number;
   details: ProductionDetail[];
+  /** Aggregate: total building count across all planets for the primary building */
+  buildingCount: number;
+  /** Aggregate: base production before planet bonuses (but after science) */
+  baseProduction: number;
+  /** Aggregate: planet bonus contribution */
+  bonusTotal: number;
+  /** Per-planet bonus breakdown */
+  bonusedPlanets: BonusedPlanet[];
 }
 
 export interface EconomyBreakdown {
@@ -57,12 +71,15 @@ export function calcEconomyBreakdown(state: GameState, empireId: number): Econom
   );
 
   // Production
+  const emptyProd = (): ResourceProduction => ({
+    total: 0, details: [], buildingCount: 0, baseProduction: 0, bonusTotal: 0, bonusedPlanets: [],
+  });
   const production: Record<ResourceKey, ResourceProduction> = {
-    gc: { total: 0, details: [] },
-    food: { total: 0, details: [] },
-    iron: { total: 0, details: [] },
-    endurium: { total: 0, details: [] },
-    octarine: { total: 0, details: [] },
+    gc: emptyProd(),
+    food: emptyProd(),
+    iron: emptyProd(),
+    endurium: emptyProd(),
+    octarine: emptyProd(),
   };
 
   for (const planet of planets) {
@@ -74,15 +91,25 @@ export function calcEconomyBreakdown(state: GameState, empireId: number): Econom
       for (const resource of Object.keys(buildingProduction) as Array<ResourceKey | 'rp'>) {
         if (resource === 'rp') continue;
 
-        const baseAmount = (buildingProduction[resource] ?? 0) * count;
+        const perBuilding = buildingProduction[resource] ?? 0;
+        const baseAmount = perBuilding * count;
         const bonus = planet.resourceBonuses[resource] ?? 1;
+        const baseWithScience = Math.trunc(baseAmount * resourceMultiplier);
         let amount = Math.trunc(baseAmount * bonus * resourceMultiplier);
         if (resource === 'food' && foodReduction > 0) {
           amount = Math.trunc(amount * (1 - foodReduction));
         }
 
-        production[resource].total += amount;
-        production[resource].details.push({
+        const prod = production[resource];
+        prod.total += amount;
+        prod.buildingCount += count;
+        prod.baseProduction += baseWithScience;
+        if (bonus > 1 && count > 0) {
+          const extra = amount - baseWithScience;
+          prod.bonusTotal += extra;
+          prod.bonusedPlanets.push({ planetName: planet.planetName, bonus, extra });
+        }
+        prod.details.push({
           planetName: planet.planetName,
           buildingType: BUILDINGS[buildingType].name,
           buildingCount: count,

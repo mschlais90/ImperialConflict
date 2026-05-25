@@ -102,6 +102,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     hdrCell('Planet'),
     hdrCell(''),
     hdrCell('Built'),
+    hdrCell('Lasers'),
     hdrCell('OB%'),
     hdrCell('Bonuses'),
   );
@@ -138,15 +139,18 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     cbCell.className = 'mass-build-cell';
     cbCell.append(cb);
 
+    const lasers = planet.buildings.laser ?? 0;
+
     const nameCell = textCell(planet.planetName);
     const portalCell = textCell(planet.hasPortal ? '\u{1F310}' : '');
     const builtCell = textCell(`${total}/${planet.size}`);
+    const laserCell = textCell(lasers > 0 ? String(lasers) : '-');
     const obCell = textCell(ob > 0 ? `${ob}%` : '-');
     if (ob > 0) obCell.classList.add('mass-build-overbuild');
     const bonusCell = textCell(bonus || '-');
     if (bonus) bonusCell.classList.add('mass-build-bonus');
 
-    row.append(cbCell, nameCell, portalCell, builtCell, obCell, bonusCell);
+    row.append(cbCell, nameCell, portalCell, builtCell, laserCell, obCell, bonusCell);
     table.append(row);
   }
 
