@@ -7,6 +7,9 @@ import type { UiContext } from './types';
 
 const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
 
+// Persists selection across re-renders within the same session
+let persistedSelection: Set<number> | null = null;
+
 const BONUS_LABELS: Record<ResourceKey, string> = {
   gc: 'GC',
   food: 'Food',
@@ -62,8 +65,16 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   const container = document.createElement('div');
   container.className = 'panel-stack';
 
-  // Select all / deselect all
-  const selected = new Set<number>();
+  // Restore previous selection, filtering out planets no longer owned
+  const ownedIds = new Set(planets.map((p) => p.id));
+  if (persistedSelection) {
+    for (const id of persistedSelection) {
+      if (!ownedIds.has(id)) persistedSelection.delete(id);
+    }
+  } else {
+    persistedSelection = new Set<number>();
+  }
+  const selected = persistedSelection;
 
   const toggleRow = document.createElement('div');
   toggleRow.className = 'mass-build-toggle-row';
