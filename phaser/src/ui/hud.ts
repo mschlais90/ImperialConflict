@@ -22,6 +22,7 @@ const SPEED_OPTIONS = [
 const MENU_ITEMS: Array<{ label: string; key: string; mode: string | null }> = [
   { label: 'Planet Builder', key: 'B', mode: 'massBuild' },
   { label: 'Fleet Management', key: 'F', mode: 'fleet' },
+  { label: 'Special Ops', key: 'O', mode: 'ops' },
   { label: 'Research', key: 'R', mode: 'research' },
   { label: 'Notifications', key: 'N', mode: 'notifications' },
   { label: 'Save', key: '', mode: null },

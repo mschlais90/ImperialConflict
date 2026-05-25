@@ -146,7 +146,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       ['F', 'Fleet Management'],
       ['R', 'Research'],
       ['N', 'Notifications'],
-      ['O', 'Operations'],
+      ['O', 'Special Ops'],
       ['S', 'Settings'],
       ['ESC', 'Close / Galaxy'],
       ['?', 'This help'],

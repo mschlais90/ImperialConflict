@@ -63,7 +63,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   container.className = 'panel-stack';
 
   // Select all / deselect all
-  const selected = new Set<number>(planets.map((p) => p.id));
+  const selected = new Set<number>();
 
   const toggleRow = document.createElement('div');
   toggleRow.className = 'mass-build-toggle-row';
@@ -84,7 +84,9 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   table.className = 'mass-build-table';
 
   // Header
-  table.append(
+  const headerRow = document.createElement('div');
+  headerRow.className = 'mass-build-row mass-build-row-header';
+  headerRow.append(
     hdrCell(''),
     hdrCell('Planet'),
     hdrCell(''),
@@ -92,13 +94,19 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     hdrCell('OB%'),
     hdrCell('Bonuses'),
   );
+  table.append(headerRow);
 
   const checkboxes = new Map<number, HTMLInputElement>();
+  const rows = new Map<number, HTMLElement>();
 
   for (const planet of planets) {
     const total = countBuildingsAndQueue(planet);
     const ob = overbuildPercent(planet);
     const bonus = bonusText(planet);
+
+    const row = document.createElement('div');
+    row.className = 'mass-build-row';
+    if (selected.has(planet.id)) row.classList.add('mass-build-row-selected');
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -106,11 +114,14 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     cb.addEventListener('change', () => {
       if (cb.checked) {
         selected.add(planet.id);
+        row.classList.add('mass-build-row-selected');
       } else {
         selected.delete(planet.id);
+        row.classList.remove('mass-build-row-selected');
       }
     });
     checkboxes.set(planet.id, cb);
+    rows.set(planet.id, row);
 
     const cbCell = document.createElement('span');
     cbCell.className = 'mass-build-cell';
@@ -124,7 +135,8 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     const bonusCell = textCell(bonus || '-');
     if (bonus) bonusCell.classList.add('mass-build-bonus');
 
-    table.append(cbCell, nameCell, portalCell, builtCell, obCell, bonusCell);
+    row.append(cbCell, nameCell, portalCell, builtCell, obCell, bonusCell);
+    table.append(row);
   }
 
   container.append(table);
@@ -209,9 +221,9 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     if (successCount > 0) {
       const msg = `Queued ${count} ${BUILDINGS[buildingType].name} on ${successCount} planet${successCount > 1 ? 's' : ''}`;
       if (lastError) {
-        context.setNotice(`${msg} (${selectedPlanets.length - successCount} failed: ${lastError})`);
+        context.setNotice(`${msg} (${selectedPlanets.length - successCount} failed: ${lastError})`, false, true);
       } else {
-        context.setNotice(msg);
+        context.setNotice(msg, false, true);
       }
       context.controller.refreshScene?.();
     } else {
@@ -228,6 +240,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   function refreshCheckboxes(): void {
     for (const [id, cb] of checkboxes) {
       cb.checked = selected.has(id);
+      rows.get(id)?.classList.toggle('mass-build-row-selected', selected.has(id));
     }
   }
 
