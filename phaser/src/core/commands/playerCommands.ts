@@ -256,6 +256,79 @@ export function sendPortalFleet(
   return ok(`Portal fleet sent to ${target.planetName} (${nearestTicks} ticks)`);
 }
 
+export function recallToPortal(
+  state: GameState,
+  input: { empireId: number; sourcePlanetId: number },
+): CommandResult {
+  const resolved = requireOwnedPlanet(state, input.empireId, input.sourcePlanetId);
+  if (!resolved.ok) return resolved;
+
+  const source = resolved.planet;
+  if (source.hasPortal) {
+    return fail('Planet already has a portal');
+  }
+
+  const portalPlanets = getPlanetsForEmpire(state, input.empireId).filter((p) => p.hasPortal);
+  if (portalPlanets.length === 0) {
+    return fail('No portal planets available');
+  }
+
+  // Find nearest portal
+  let nearestPortal = portalPlanets[0];
+  let nearestTicks = Infinity;
+  for (const p of portalPlanets) {
+    const ticks = calcTravelTicks(state, source.systemId, p.systemId);
+    if (ticks < nearestTicks) {
+      nearestTicks = ticks;
+      nearestPortal = p;
+    }
+  }
+
+  // Gather all combat units from the planet
+  const units: Partial<Record<CombatUnitKey, number>> = {};
+  let totalUnits = 0;
+  for (const unit of COMBAT_UNIT_KEYS) {
+    const count = source.units[unit] ?? 0;
+    if (count > 0) {
+      units[unit] = count;
+      totalUnits += count;
+    }
+  }
+
+  if (totalUnits === 0) {
+    return fail('No combat units to recall');
+  }
+
+  // Deduct from source planet
+  for (const unit of COMBAT_UNIT_KEYS) {
+    if (units[unit]) source.units[unit] = 0;
+  }
+
+  const fleet = {
+    id: state.nextFleetId,
+    ownerId: input.empireId,
+    units,
+    originSystemId: source.systemId,
+    targetSystemId: nearestPortal.systemId,
+    targetPlanetId: nearestPortal.id,
+    ticksRemaining: nearestTicks,
+    isExploration: false,
+  };
+  state.nextFleetId += 1;
+  state.fleets.push(fleet);
+  appendEvent(state, {
+    type: 'fleet_launched',
+    tick: state.currentTick,
+    fleetId: fleet.id,
+    ownerId: fleet.ownerId,
+    originSystemId: fleet.originSystemId,
+    targetSystemId: fleet.targetSystemId,
+    targetPlanetId: fleet.targetPlanetId,
+  });
+
+  return ok(`Recalling units to ${nearestPortal.planetName} (${nearestTicks} ticks)`);
+}
+
 export function sendExplorer(
   state: GameState,
   input: { empireId: number; sourcePlanetId: number; targetPlanetId: number },

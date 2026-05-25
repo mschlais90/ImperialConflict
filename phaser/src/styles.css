@@ -335,10 +335,18 @@ h3 {
 
 .stationed-row {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
   padding: 1px 0 1px 8px;
   color: #c7d5ee;
+}
+
+.recall-btn {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  flex-shrink: 0;
 }
 
 .stationed-planet {

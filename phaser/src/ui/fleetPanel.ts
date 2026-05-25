@@ -1,4 +1,5 @@
 import { UNITS } from '../core/data/units';
+import { recallToPortal } from '../core/commands/playerCommands';
 import type { CombatUnitKey, Fleet, Planet } from '../core/models/types';
 import { calcTravelTicks, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
 import { button, formatNumber } from './dom';
@@ -53,6 +54,8 @@ function stationedByPlanet(context: UiContext, planets: Planet[]): HTMLElement {
     return emptyText('No stationed combat units.');
   }
 
+  const hasPortals = planets.some((p) => p.hasPortal);
+
   // Group by system
   const bySystem = new Map<number, Planet[]>();
   for (const p of planetsWithUnits) {
@@ -79,11 +82,33 @@ function stationedByPlanet(context: UiContext, planets: Planet[]): HTMLElement {
       units.className = 'stationed-units';
       units.textContent = formatUnitsFromPlanet(planet, COMBAT_KEYS);
       row.append(name, units);
+
+      if (hasPortals && !planet.hasPortal) {
+        const nearestTicks = getNearestPortalTicks(state, planet, planets);
+        const recallBtn = button(`Recall (${nearestTicks}t)`, () => {
+          context.runCommand(() =>
+            recallToPortal(state, { empireId: context.player.id, sourcePlanetId: planet.id }),
+          );
+        });
+        recallBtn.className = 'ui-button recall-btn';
+        row.append(recallBtn);
+      }
+
       wrapper.append(row);
     }
   }
 
   return wrapper;
+}
+
+function getNearestPortalTicks(state: Parameters<typeof calcTravelTicks>[0], planet: Planet, ownedPlanets: Planet[]): number {
+  let nearest = Infinity;
+  for (const p of ownedPlanets) {
+    if (!p.hasPortal) continue;
+    const ticks = calcTravelTicks(state, planet.systemId, p.systemId);
+    if (ticks < nearest) nearest = ticks;
+  }
+  return nearest;
 }
 
 function formatUnitsFromPlanet(planet: Planet, keys: CombatUnitKey[]): string {
