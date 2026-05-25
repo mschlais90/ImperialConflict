@@ -28,7 +28,6 @@ export interface OverlayApi {
 }
 
 export function createOverlay(root: HTMLElement, controller: AppController): OverlayApi {
-  let noticeTimer: ReturnType<typeof setTimeout> | null = null;
   let forcedGameOver: boolean | null = null;
 
   // Persistent toast container — lives outside the render cycle
@@ -441,8 +440,9 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         }
         render();
       },
-      setNotice(message, isError = false) {
+      setNotice(message, isError = false, rerender = false) {
         showToast(message, isError);
+        if (rerender) render();
       },
     };
   }
@@ -468,7 +468,6 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   }
 
   function showToast(message: string, isError: boolean): void {
-    if (noticeTimer) clearTimeout(noticeTimer);
     // Ensure toast container is in the DOM
     if (!toastContainer.parentElement) {
       root.append(toastContainer);
@@ -479,12 +478,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     toastContainer.append(toast);
     // Trigger enter animation on next frame
     requestAnimationFrame(() => toast.classList.add('toast-visible'));
-    noticeTimer = setTimeout(() => {
+    // Each toast manages its own removal independently
+    setTimeout(() => {
       toast.classList.remove('toast-visible');
-      toast.addEventListener('transitionend', () => toast.remove());
-      // Fallback removal if transitionend doesn't fire
-      setTimeout(() => toast.remove(), 400);
-      noticeTimer = null;
+      setTimeout(() => toast.remove(), 350);
     }, 3000);
   }
 
