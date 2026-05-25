@@ -172,6 +172,15 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     shortcutHelpEl = overlay;
   }
 
+  function syncLastSeenBattleId(): void {
+    const state = controller.state;
+    if (state && state.events.length > 0) {
+      lastSeenBattleEventId = state.events[state.events.length - 1].id;
+    } else {
+      lastSeenBattleEventId = -1;
+    }
+  }
+
   function showStartScreen(): void {
     clearElement(root);
     root.append(toastContainer);
@@ -179,16 +188,17 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       forcedGameOver = null;
       viewMode = 'normal';
       battleReportQueue = [];
-      lastSeenBattleEventId = -1;
       speedBeforeBattle = null;
       battleReportScreen?.remove();
       battleReportScreen = null;
       if (controller.startNewGame) {
         controller.startNewGame(empireName);
+        syncLastSeenBattleId();
         return;
       }
       controller.playerName = empireName;
       controller.state = createNewGame({ empireName });
+      syncLastSeenBattleId();
       render();
     }, () => {
       getSavedDirHandle().then((dir) => {
@@ -523,6 +533,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           controller.state = loaded;
           controller.overlay.render();
         }
+        syncLastSeenBattleId();
         showToast(`Loaded: ${file.name}`, false);
       }).catch(() => {
         context.setNotice('Failed to load save file.', true);
@@ -565,6 +576,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
               controller.state = loaded;
               controller.overlay.render();
             }
+            syncLastSeenBattleId();
             showToast(`Loaded: ${entry.name}`, false);
           }).catch(() => {
             context.setNotice('Failed to load save file.', true);
