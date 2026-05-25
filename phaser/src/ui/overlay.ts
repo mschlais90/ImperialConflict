@@ -28,9 +28,12 @@ export interface OverlayApi {
 }
 
 export function createOverlay(root: HTMLElement, controller: AppController): OverlayApi {
-  let notice: { message: string; isError: boolean } | null = null;
   let noticeTimer: ReturnType<typeof setTimeout> | null = null;
   let forcedGameOver: boolean | null = null;
+
+  // Persistent toast container — lives outside the render cycle
+  const toastContainer = document.createElement('div');
+  toastContainer.className = 'toast-container';
   let hudPanel: HTMLElement | null = null;
   let leftPanel: HTMLElement | null = null;
   let gameOverScreen: HTMLElement | null = null;
@@ -173,7 +176,6 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   function showStartScreen(): void {
     clearElement(root);
     renderStartScreen(root, (empireName) => {
-      notice = null;
       forcedGameOver = null;
       viewMode = 'normal';
       battleReportQueue = [];
@@ -254,7 +256,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     const context = createContext(player);
 
     // Always refresh HUD
-    const nextHudPanel = renderHud(context, createMenuCallbacks(state, context), notice);
+    const nextHudPanel = renderHud(context, createMenuCallbacks(state, context));
     hudPanel.replaceWith(nextHudPanel);
     hudPanel = nextHudPanel;
 
@@ -363,7 +365,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     const shell = document.createElement('div');
     shell.className = 'overlay-shell';
-    hudPanel = renderHud(context, createMenuCallbacks(state, context), notice);
+    hudPanel = renderHud(context, createMenuCallbacks(state, context));
     shell.append(hudPanel);
 
     const body = document.createElement('div');
@@ -379,7 +381,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     body.append(leftPanel);
     shell.append(body);
-    root.append(shell);
+    root.append(shell, toastContainer);
     syncGameOverPanel();
   }
 
@@ -423,7 +425,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     panel.className = 'main-panel interactive';
     const title = document.createElement('h2');
     title.textContent = 'Notifications';
-    panel.append(title, renderNotificationsContent(state!.events, notice));
+    panel.append(title, renderNotificationsContent(state!.events));
     return panel;
   }
 
@@ -433,21 +435,14 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       player,
       runCommand(command) {
         const result = command();
-        notice = { message: result.message, isError: !result.ok };
+        showToast(result.message, !result.ok);
         if (result.ok) {
           controller.refreshScene?.();
         }
         render();
       },
       setNotice(message, isError = false) {
-        notice = { message, isError };
-        if (noticeTimer) clearTimeout(noticeTimer);
-        noticeTimer = setTimeout(() => {
-          notice = null;
-          noticeTimer = null;
-          render();
-        }, 3000);
-        render();
+        showToast(message, isError);
       },
     };
   }
@@ -470,6 +465,27 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       root.append(nextGameOverScreen);
     }
     gameOverScreen = nextGameOverScreen;
+  }
+
+  function showToast(message: string, isError: boolean): void {
+    if (noticeTimer) clearTimeout(noticeTimer);
+    // Ensure toast container is in the DOM
+    if (!toastContainer.parentElement) {
+      root.append(toastContainer);
+    }
+    const toast = document.createElement('div');
+    toast.className = isError ? 'toast toast-error' : 'toast';
+    toast.textContent = message;
+    toastContainer.append(toast);
+    // Trigger enter animation on next frame
+    requestAnimationFrame(() => toast.classList.add('toast-visible'));
+    noticeTimer = setTimeout(() => {
+      toast.classList.remove('toast-visible');
+      toast.addEventListener('transitionend', () => toast.remove());
+      // Fallback removal if transitionend doesn't fire
+      setTimeout(() => toast.remove(), 400);
+      noticeTimer = null;
+    }, 3000);
   }
 
   function openFilePicker(context: UiContext): void {
