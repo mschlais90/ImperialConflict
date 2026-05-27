@@ -139,6 +139,39 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
     buildForm.append(row);
   }
 
+  // Live cost preview
+  const costPreview = document.createElement('div');
+  costPreview.className = 'build-cost-preview';
+
+  function updateCostPreview(): void {
+    const totals: Record<string, number> = {};
+    for (const key of BUILDING_KEYS) {
+      const input = inputs.get(key);
+      if (!input) continue;
+      const count = parseInt(input.value, 10);
+      if (!count || count <= 0) continue;
+      const cost = getBuildCost(key, constructionSci, planet);
+      for (const [res, amount] of Object.entries(cost)) {
+        totals[res] = (totals[res] ?? 0) + amount * count;
+      }
+    }
+    const entries = Object.entries(totals).filter(([, v]) => v > 0);
+    if (entries.length === 0) {
+      costPreview.textContent = '';
+      return;
+    }
+    const parts = entries.map(([res, amount]) => {
+      const available = (context.player.resources as Record<string, number>)[res] ?? 0;
+      const unaffordable = amount > available;
+      return `<span class="${unaffordable ? 'cost-unaffordable' : ''}">${formatNumber(amount)} ${res}</span>`;
+    });
+    costPreview.innerHTML = `Total: ${parts.join(', ')}`;
+  }
+
+  for (const input of inputs.values()) {
+    input.addEventListener('input', updateCostPreview);
+  }
+
   const queueAllBtn = button('Build', () => {
     let anyQueued = false;
     for (const key of BUILDING_KEYS) {
@@ -170,7 +203,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   });
   queueAllBtn.classList.add('primary');
 
-  frag.append(buildForm, queueAllBtn);
+  frag.append(buildForm, costPreview, queueAllBtn);
 
   // Explorer queue
   const allPlanets = getPlanetsForEmpire(state, context.player.id);

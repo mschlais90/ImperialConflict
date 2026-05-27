@@ -642,10 +642,19 @@ input[type="number"] {
   margin: 4px 0 12px;
 }
 
+.battle-report-btn-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
 .battle-report-close {
-  display: block;
-  margin: 0 auto;
   min-width: 120px;
+}
+
+.battle-report-skip {
+  min-width: 90px;
+  color: #8694ab;
 }
 
 /* Battle History */
@@ -964,6 +973,12 @@ details.collapsible[open] > summary::before {
   font-size: 11px;
 }
 
+.build-cost-preview {
+  font-size: 11px;
+  color: #aebbd4;
+  min-height: 16px;
+}
+
 /* Standings table */
 .standings-table {
   display: flex;
@@ -1068,6 +1083,11 @@ details.collapsible[open] > summary::before {
 
 .menu-item:hover {
   background: rgba(47, 111, 218, 0.2);
+}
+
+.menu-item-active {
+  border-left: 3px solid #2f6fda;
+  background: rgba(47, 111, 218, 0.12);
 }
 
 .menu-item kbd {

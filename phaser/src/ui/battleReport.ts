@@ -12,6 +12,7 @@ export function renderBattleReport(
   defenderName: string,
   isPlayerAttacker: boolean,
   onClose: () => void,
+  onSkipAll?: () => void,
 ): HTMLElement {
   const screen = document.createElement('div');
   screen.className = 'battle-report-screen interactive';
@@ -21,13 +22,26 @@ export function renderBattleReport(
 
   panel.append(renderBattleReportContent(report, attackerName, defenderName, isPlayerAttacker));
 
+  const btnRow = document.createElement('div');
+  btnRow.className = 'battle-report-btn-row';
+
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'ui-button primary battle-report-close';
   closeBtn.textContent = 'Continue';
   closeBtn.addEventListener('click', onClose);
-  panel.append(closeBtn);
+  btnRow.append(closeBtn);
 
+  if (onSkipAll) {
+    const skipBtn = document.createElement('button');
+    skipBtn.type = 'button';
+    skipBtn.className = 'ui-button battle-report-skip';
+    skipBtn.textContent = 'Skip All';
+    skipBtn.addEventListener('click', onSkipAll);
+    btnRow.append(skipBtn);
+  }
+
+  panel.append(btnRow);
   screen.append(panel);
   return screen;
 }

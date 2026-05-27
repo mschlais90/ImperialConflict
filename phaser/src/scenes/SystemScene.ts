@@ -149,9 +149,23 @@ export class SystemScene extends Phaser.Scene {
       ring.fillTriangle(radius + 12, -8, radius + 22, 0, radius + 12, 8);
     }
 
-    // Hit area for click detection
+    // Hit area for click and hover detection
     const hitZone = this.add.zone(x, y, (radius + 12) * 2, (radius + 12) * 2);
     hitZone.setInteractive({ useHandCursor: true });
+
+    const hoverRing = this.add.graphics({ x, y });
+    hoverRing.setAlpha(0);
+
+    hitZone.on('pointerover', () => {
+      hoverRing.clear();
+      hoverRing.lineStyle(2, 0xffffff, 0.35);
+      hoverRing.strokeCircle(0, 0, radius + 8);
+      hoverRing.setAlpha(1);
+    });
+    hitZone.on('pointerout', () => {
+      hoverRing.setAlpha(0);
+    });
+
     hitZone.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       if (!this.isCanvasTopTarget(pointer) || !pointer.leftButtonReleased() || pointer.getDistance() >= 8) {
         return;
@@ -197,7 +211,7 @@ export class SystemScene extends Phaser.Scene {
 
   private addBackButton(): void {
     const back = this.add
-      .text(18, 18, '< Back', {
+      .text(18, 18, '< Galaxy', {
         backgroundColor: '#182034',
         color: '#ffffff',
         fixedWidth: 82,

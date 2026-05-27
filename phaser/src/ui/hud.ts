@@ -6,6 +6,7 @@ import type { UiContext } from './types';
 
 export interface MenuCallbacks {
   isOpen: boolean;
+  currentViewMode: string;
   toggle: () => void;
   selectView: (mode: string) => void;
   save: () => void;
@@ -107,6 +108,9 @@ export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement
       const menuItem = document.createElement('button');
       menuItem.type = 'button';
       menuItem.className = 'menu-item';
+      if (item.mode && item.mode === menu.currentViewMode) {
+        menuItem.classList.add('menu-item-active');
+      }
       const labelSpan = document.createElement('span');
       labelSpan.textContent = item.label;
       menuItem.append(labelSpan);

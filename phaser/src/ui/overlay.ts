@@ -229,6 +229,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   function createMenuCallbacks(state: NonNullable<typeof controller.state>, context: UiContext): MenuCallbacks {
     return {
       isOpen: menuOpen,
+      currentViewMode: viewMode,
       toggle: () => {
         menuOpen = !menuOpen;
         render();
@@ -358,9 +359,14 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     const attackerName = attackerEmpire?.empireName ?? 'Unknown';
     const defenderName = defenderEmpire?.empireName ?? 'Unknown';
 
+    const skipAll = battleReportQueue.length > 0 ? () => {
+      battleReportQueue.length = 0;
+      showNextBattleReport();
+    } : undefined;
+
     const reportEl = renderBattleReport(report, attackerName, defenderName, isPlayerAttacker, () => {
       showNextBattleReport();
-    });
+    }, skipAll);
 
     if (battleReportScreen) {
       battleReportScreen.replaceWith(reportEl);
