@@ -14,17 +14,17 @@ function countBuildingsAndQueue(planet: Planet): number {
   const queued = planet.buildQueue.filter((order) => order.category === 'building').length;
   return built + queued;
 }
-const COMBAT_UNITS: CombatUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport'];
+const COMBAT_UNITS: CombatUnitKey[] = ['fighter', 'bomber', 'transport', 'soldier', 'droid'];
 const TRAINABLE_UNITS: Array<Exclude<UnitKey, 'explorer'>> = [
   'fighter',
   'bomber',
+  'transport',
   'soldier',
   'droid',
-  'transport',
   'agent',
   'wizard',
 ];
-const PLANET_DISPLAY_UNITS: PlanetUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport', 'explorer', 'agent', 'wizard'];
+const PLANET_DISPLAY_UNITS: PlanetUnitKey[] = ['fighter', 'bomber', 'transport', 'soldier', 'droid', 'explorer', 'agent', 'wizard'];
 
 export function renderPlanetPanel(context: UiContext): HTMLElement {
   const state = context.controller.state;

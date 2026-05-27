@@ -45,7 +45,7 @@ function stationedByPlanet(context: UiContext, planets: Planet[]): HTMLElement {
   const wrapper = document.createElement('div');
   wrapper.className = 'stationed-list';
 
-  const COMBAT_KEYS: CombatUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport'];
+  const COMBAT_KEYS: CombatUnitKey[] = ['fighter', 'bomber', 'transport', 'soldier', 'droid'];
   const planetsWithUnits = planets.filter((p) =>
     COMBAT_KEYS.some((k) => (p.units[k] ?? 0) > 0),
   );
@@ -181,7 +181,7 @@ const UNIT_ABBREV: Record<string, string> = { fighter: 'F', bomber: 'B', soldier
 
 function formatUnits(units: Partial<Record<string, number>>): string {
   const parts: string[] = [];
-  for (const key of ['fighter', 'bomber', 'soldier', 'droid', 'transport'] as CombatUnitKey[]) {
+  for (const key of ['fighter', 'bomber', 'transport', 'soldier', 'droid'] as CombatUnitKey[]) {
     const count = units[key] ?? 0;
     if (count > 0) parts.push(`${count}${UNIT_ABBREV[key]}`);
   }
@@ -190,7 +190,7 @@ function formatUnits(units: Partial<Record<string, number>>): string {
 
 function fleetSummary(planets: Planet[], fleets: Fleet[]): HTMLElement {
   const totals: Record<string, { stationed: number; transit: number }> = {};
-  for (const key of ['fighter', 'bomber', 'soldier', 'droid', 'transport'] as CombatUnitKey[]) {
+  for (const key of ['fighter', 'bomber', 'transport', 'soldier', 'droid'] as CombatUnitKey[]) {
     totals[key] = { stationed: 0, transit: 0 };
   }
 

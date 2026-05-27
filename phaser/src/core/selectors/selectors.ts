@@ -59,6 +59,17 @@ export function getSystemOwner(state: GameState, systemId: number): number {
   return bestId;
 }
 
+export function isSystemContested(state: GameState, systemId: number): boolean {
+  const owners = new Set<number>();
+  for (const planet of getPlanetsInSystem(state, systemId)) {
+    if (planet.ownerId >= 0) {
+      owners.add(planet.ownerId);
+      if (owners.size > 1) return true;
+    }
+  }
+  return false;
+}
+
 export function getFleetsForEmpire(state: GameState, empireId: number): Fleet[] {
   return state.fleets.filter((fleet) => fleet.ownerId === empireId);
 }

@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import { APP_CONTROLLER_KEY, type AppController } from '../app/appController';
-import { getEmpire, getSystemOwner } from '../core/selectors/selectors';
+import { getEmpire, getSystemOwner, isSystemContested } from '../core/selectors/selectors';
 
 const GODOT_SCALE = 20;
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 3;
 const NEUTRAL_COLOR = 0x70798a;
+const CONTESTED_COLOR = 0xff8c00;
 const HOME_MARKER_COLOR = 0xffffff;
 
 export class GalaxyScene extends Phaser.Scene {
@@ -90,7 +91,8 @@ export class GalaxyScene extends Phaser.Scene {
       const y = system.position.y * GODOT_SCALE;
       const ownerId = getSystemOwner(state, system.id);
       const owner = ownerId >= 0 ? getEmpire(state, ownerId) : undefined;
-      const color = owner ? this.toColorNumber(owner.color) : NEUTRAL_COLOR;
+      const contested = isSystemContested(state, system.id);
+      const color = contested ? CONTESTED_COLOR : owner ? this.toColorNumber(owner.color) : NEUTRAL_COLOR;
       const isHomeSystem = state.empires.some((empire) => empire.homeSystemId === system.id);
 
       const marker = this.add.graphics({ x, y });

@@ -23,6 +23,7 @@ const MENU_ITEMS: Array<{ label: string; key: string; mode: string | null }> = [
   { label: 'Planet Builder', key: 'B', mode: 'massBuild' },
   { label: 'Fleet Management', key: 'F', mode: 'fleet' },
   { label: 'Battle History', key: 'H', mode: 'history' },
+  { label: 'Economy', key: 'E', mode: 'economy' },
   { label: 'Special Ops', key: 'O', mode: 'ops' },
   { label: 'Research', key: 'R', mode: 'research' },
   { label: 'Notifications', key: 'N', mode: 'notifications' },

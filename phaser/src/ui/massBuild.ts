@@ -48,10 +48,14 @@ function bonusText(planet: Planet): string {
     .join(', ');
 }
 
-function maxBonus(planet: Planet): number {
+const RESOURCE_SORT_ORDER: Record<ResourceKey, number> = { gc: 0, food: 1, iron: 2, endurium: 3, octarine: 4 };
+
+function bonusSortKey(planet: Planet): [number, number] {
   const entries = Object.entries(planet.resourceBonuses) as Array<[ResourceKey, number]>;
-  if (entries.length === 0) return 1;
-  return Math.max(...entries.map(([, mult]) => mult));
+  const bonused = entries.filter(([, mult]) => mult !== 1);
+  if (bonused.length === 0) return [99, 0];
+  bonused.sort((a, b) => RESOURCE_SORT_ORDER[a[0]] - RESOURCE_SORT_ORDER[b[0]]);
+  return [RESOURCE_SORT_ORDER[bonused[0][0]], bonused[0][1]];
 }
 
 function sortPlanets(planets: Planet[]): Planet[] {
@@ -75,9 +79,12 @@ function sortPlanets(planets: Planet[]): Planet[] {
       case 'ob':
         cmp = overbuildPercent(a) - overbuildPercent(b);
         break;
-      case 'bonuses':
-        cmp = maxBonus(a) - maxBonus(b);
+      case 'bonuses': {
+        const [aType, aRatio] = bonusSortKey(a);
+        const [bType, bRatio] = bonusSortKey(b);
+        cmp = aType !== bType ? aType - bType : aRatio - bRatio;
         break;
+      }
     }
     return cmp * dir;
   });
