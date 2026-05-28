@@ -30,7 +30,7 @@ export function renderFleetManagementPanel(context: UiContext): HTMLElement {
   panel.append(subtitle('Stationed Units'), stationedByPlanet(context, ownedPlanets));
 
   // Active fleets with recall
-  panel.append(subtitle('Fleets in Transit'), active.length > 0 ? fleetList(active, state) : emptyText('No fleets in transit.'));
+  panel.append(subtitle(`Fleets in Transit (${active.length})`), active.length > 0 ? fleetList(active, state) : emptyText('No fleets in transit.'));
 
   const portalPlanets = ownedPlanets.filter((p) => p.hasPortal);
   if (active.length > 0 && portalPlanets.length > 0) {
@@ -166,7 +166,7 @@ function fleetList(fleets: Fleet[], state: { planets: Planet[] }): HTMLElement {
   const list = document.createElement('div');
   list.className = 'key-value-list';
   const sorted = [...fleets].sort((a, b) => a.ticksRemaining - b.ticksRemaining);
-  for (const fleet of sorted.slice(0, 8)) {
+  for (const fleet of sorted) {
     const target = state.planets.find((p) => p.id === fleet.targetPlanetId);
     const targetName = target?.planetName ?? `Planet ${fleet.targetPlanetId}`;
     const label = fleet.isExploration ? `Exploring -> ${targetName}` : `Fleet -> ${targetName} (${formatUnits(fleet.units)})`;
@@ -234,7 +234,7 @@ function recallControls(context: UiContext, fleets: Fleet[], portalPlanets: Plan
     return emptyText('No recallable fleets.');
   }
 
-  for (const fleet of nonExplore.slice(0, 6)) {
+  for (const fleet of nonExplore) {
     const target = state.planets.find((p) => p.id === fleet.targetPlanetId);
     const targetName = target?.planetName ?? `Planet ${fleet.targetPlanetId}`;
 

@@ -1,6 +1,6 @@
 import type { BattleReport } from '../core/engines/combatEngine';
 import { getEmpire } from '../core/selectors/selectors';
-import { renderBattleReportContent } from './battleReport';
+import { calcBattleLosses, renderBattleReportContent } from './battleReport';
 import { formatNumber } from './dom';
 import type { UiContext } from './types';
 
@@ -46,6 +46,24 @@ export function renderBattleHistoryPanel(context: UiContext): HTMLElement {
     return panel;
   }
 
+  // Stats banner
+  let wins = 0;
+  let totalPlayerLosses = 0;
+  let totalEnemyLosses = 0;
+  for (const entry of battles) {
+    const playerWon = entry.report.attackerWon === entry.isPlayerAttacker;
+    if (playerWon) wins++;
+    totalPlayerLosses += calcBattleLosses(entry.report, entry.isPlayerAttacker);
+    totalEnemyLosses += calcBattleLosses(entry.report, !entry.isPlayerAttacker);
+  }
+  const losses = battles.length - wins;
+  const winRate = battles.length > 0 ? Math.round((wins / battles.length) * 100) : 0;
+
+  const stats = document.createElement('div');
+  stats.className = 'battle-history-stats';
+  stats.textContent = `${wins}W ${losses}L (${winRate}%) | Your losses: ${formatNumber(totalPlayerLosses)} | Enemy losses: ${formatNumber(totalEnemyLosses)}`;
+  panel.append(stats);
+
   // Container that switches between list and detail view
   const container = document.createElement('div');
   container.className = 'panel-stack';
@@ -81,7 +99,7 @@ function renderList(container: HTMLElement, battles: BattleEntry[]): void {
     const { report } = entry;
     const playerWon = report.attackerWon === entry.isPlayerAttacker;
     const opponent = entry.isPlayerAttacker ? entry.defenderName : entry.attackerName;
-    const losses = calcTotalLosses(report, entry.isPlayerAttacker);
+    const losses = calcBattleLosses(report, entry.isPlayerAttacker);
 
     const tickCell = textCell(String(entry.tick));
     const resultCell = textCell(playerWon ? 'WON' : 'LOST');
@@ -122,37 +140,6 @@ function renderDetail(container: HTMLElement, battles: BattleEntry[], entry: Bat
     entry.isPlayerAttacker,
   );
   container.append(content);
-}
-
-function calcTotalLosses(report: BattleReport, isPlayerAttacker: boolean): number {
-  let losses = 0;
-  for (const phase of report.phases) {
-    switch (phase.phase) {
-      case 'Air vs Ground':
-        if (isPlayerAttacker) {
-          losses += phase.bombersLost + phase.transportsLost
-            + phase.groundLostToTransports.soldiersKilled
-            + phase.groundLostToTransports.droidsKilled;
-        }
-        break;
-      case 'Air vs Air':
-        losses += isPlayerAttacker ? phase.atkFightersLost : phase.defFightersLost;
-        if (isPlayerAttacker) {
-          losses += phase.transportsLostToFighters
-            + phase.groundLostToTransports.soldiersKilled
-            + phase.groundLostToTransports.droidsKilled;
-        }
-        break;
-      case 'Ground vs Ground':
-        if (isPlayerAttacker) {
-          losses += phase.atkSoldiersLost + phase.atkDroidsLost;
-        } else {
-          losses += phase.defSoldiersLost + phase.defDroidsLost;
-        }
-        break;
-    }
-  }
-  return losses;
 }
 
 function hdrCell(text: string): HTMLElement {

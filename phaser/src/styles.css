@@ -643,6 +643,9 @@ input[type="number"] {
 .battle-detail-value.loss {
   color: #ff8080;
 }
+.battle-detail-value.battle-kills {
+  color: #6fcf6f;
+}
 
 .battle-phase-result {
   font-size: 12px;
@@ -707,6 +710,14 @@ input[type="number"] {
 
 .history-won { color: #4cff4c; }
 .history-lost { color: #ff4c4c; }
+
+.battle-history-stats {
+  font-size: 11px;
+  color: #8694ab;
+  padding: 6px 0;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(100, 70, 140, 0.3);
+}
 
 .battle-history-back {
   margin-bottom: 10px;
@@ -849,6 +860,11 @@ input[type="number"] {
   font-size: 10px;
   color: #8694ab;
   margin-bottom: 2px;
+}
+
+.research-rp-preview {
+  font-size: 10px;
+  margin-left: 4px;
 }
 
 /* Toast notifications */

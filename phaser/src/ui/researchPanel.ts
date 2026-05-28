@@ -35,6 +35,7 @@ export function renderResearchContent(context: UiContext): HTMLElement {
   frag.append(rpInfo);
 
   const inputs = new Map<ScienceKey, HTMLInputElement>();
+  const rpPreviews = new Map<ScienceKey, HTMLSpanElement>();
   const total = document.createElement('div');
   total.className = 'form-note';
 
@@ -43,11 +44,32 @@ export function renderResearchContent(context: UiContext): HTMLElement {
     if (!parsed.ok) {
       total.textContent = 'Total allocation: invalid';
       total.classList.add('error-text');
+      total.classList.remove('tick-positive');
       return;
     }
     const sum = SCIENCE_KEYS.reduce((value, key) => value + parsed.allocation[key], 0);
     total.textContent = `Total allocation: ${sum}%`;
     total.classList.toggle('error-text', sum !== 100);
+    total.classList.toggle('tick-positive', sum === 100);
+
+    // Update live RP previews
+    for (const science of SCIENCE_KEYS) {
+      const preview = rpPreviews.get(science);
+      if (!preview) continue;
+      const inputVal = parsed.allocation[science];
+      const currentAlloc = context.player.researchAllocation[science] ?? 0;
+      const projected = Math.trunc(rpPerTick * inputVal / 100);
+      if (inputVal !== currentAlloc) {
+        const current = Math.trunc(rpPerTick * currentAlloc / 100);
+        const diff = projected - current;
+        const sign = diff >= 0 ? '+' : '';
+        preview.textContent = ` \u2192 ${formatNumber(projected)}/tick (${sign}${formatNumber(diff)})`;
+        preview.className = diff >= 0 ? 'research-rp-preview tick-positive' : 'research-rp-preview tick-negative';
+      } else {
+        preview.textContent = '';
+        preview.className = 'research-rp-preview';
+      }
+    }
   };
 
   for (const science of SCIENCE_KEYS) {
@@ -75,10 +97,14 @@ export function renderResearchContent(context: UiContext): HTMLElement {
     desc.textContent = sciDef.description;
     frag.append(desc);
 
-    // RP info
+    // RP info with live preview
     const rpLine = document.createElement('div');
     rpLine.className = 'research-rp';
-    rpLine.textContent = `Total RP: ${formatNumber(totalRp)} | +${formatNumber(rpForScience)}/tick`;
+    const rpText = document.createTextNode(`Total RP: ${formatNumber(totalRp)} | +${formatNumber(rpForScience)}/tick`);
+    const rpPreview = document.createElement('span');
+    rpPreview.className = 'research-rp-preview';
+    rpPreviews.set(science, rpPreview);
+    rpLine.append(rpText, rpPreview);
     frag.append(rpLine);
 
     // Allocation input

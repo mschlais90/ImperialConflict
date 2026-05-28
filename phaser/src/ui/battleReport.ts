@@ -106,6 +106,29 @@ export function renderBattleReportContent(
     frag.append(separator(), renderPhase(phase));
   }
 
+  // Casualty summary
+  const atkLosses = calcBattleLosses(report, true);
+  const defLosses = calcBattleLosses(report, false);
+  if (atkLosses > 0 || defLosses > 0) {
+    frag.append(separator(), sectionHeader('Casualties'));
+    const atkRow = detailRow('Attacker lost', `${formatNumber(atkLosses)} units`);
+    const defRow = detailRow('Defender lost', `${formatNumber(defLosses)} units`);
+    if (isPlayerAttacker) {
+      atkRow.querySelector('.battle-detail-value')!.classList.add('loss');
+      defRow.querySelector('.battle-detail-value')!.classList.add('battle-kills');
+    } else {
+      defRow.querySelector('.battle-detail-value')!.classList.add('loss');
+      atkRow.querySelector('.battle-detail-value')!.classList.add('battle-kills');
+    }
+    frag.append(atkRow, defRow);
+    if (atkLosses > 0 && defLosses > 0) {
+      const ratio = atkLosses >= defLosses
+        ? `1:${(atkLosses / defLosses).toFixed(1)}`
+        : `${(defLosses / atkLosses).toFixed(1)}:1`;
+      frag.append(detailRow('Kill ratio (def:atk)', ratio));
+    }
+  }
+
   // Outcome
   frag.append(separator());
   const outcome = document.createElement('p');
@@ -176,6 +199,37 @@ function renderPhase(phase: BattlePhaseReport): HTMLElement {
   }
 
   return frag;
+}
+
+export function calcBattleLosses(report: BattleReport, isAttacker: boolean): number {
+  let losses = 0;
+  for (const phase of report.phases) {
+    switch (phase.phase) {
+      case 'Air vs Ground':
+        if (isAttacker) {
+          losses += phase.bombersLost + phase.transportsLost
+            + phase.groundLostToTransports.soldiersKilled
+            + phase.groundLostToTransports.droidsKilled;
+        }
+        break;
+      case 'Air vs Air':
+        losses += isAttacker ? phase.atkFightersLost : phase.defFightersLost;
+        if (isAttacker) {
+          losses += phase.transportsLostToFighters
+            + phase.groundLostToTransports.soldiersKilled
+            + phase.groundLostToTransports.droidsKilled;
+        }
+        break;
+      case 'Ground vs Ground':
+        if (isAttacker) {
+          losses += phase.atkSoldiersLost + phase.atkDroidsLost;
+        } else {
+          losses += phase.defSoldiersLost + phase.defDroidsLost;
+        }
+        break;
+    }
+  }
+  return losses;
 }
 
 function detailRow(label: string, value: string, isLoss = false): HTMLElement {

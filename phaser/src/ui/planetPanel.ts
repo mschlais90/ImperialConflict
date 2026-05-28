@@ -431,12 +431,16 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[],
     const nearestTicks = getNearestPortalTicks(state, portalPlanets, target);
     sourceOptions.push({ label: `\u{1F310} Portal Network (${nearestTicks} ticks)`, value: PORTAL_NETWORK_VALUE });
   }
-  for (const planet of sources) {
-    const ticks = calcTravelTicks(state, planet.systemId, target.systemId);
+  const sourcesWithTicks = sources.map((planet) => ({
+    planet,
+    ticks: calcTravelTicks(state, planet.systemId, target.systemId),
+  }));
+  sourcesWithTicks.sort((a, b) => a.ticks - b.ticks);
+  for (const { planet, ticks } of sourcesWithTicks) {
     sourceOptions.push({ label: `${planet.planetName} (${ticks} ticks)`, value: planet.id });
   }
 
-  const defaultValue = hasPortalOption ? PORTAL_NETWORK_VALUE : sources[0].id;
+  const defaultValue = hasPortalOption ? PORTAL_NETWORK_VALUE : sourcesWithTicks[0].planet.id;
   const sourceSelect = select(sourceOptions, defaultValue);
   sourceSelect.className = 'fleet-source-select';
   const sourceRow = document.createElement('label');
@@ -562,7 +566,7 @@ function queueList(planet: Planet): HTMLElement {
     }
   }
 
-  const entries = Array.from(grouped.values()).sort((a, b) => a.ticksRemaining - b.ticksRemaining).slice(0, 6);
+  const entries = Array.from(grouped.values()).sort((a, b) => a.ticksRemaining - b.ticksRemaining);
   return keyValueList(entries.map((g) => {
     const displayName = (BUILDINGS as Record<string, { name: string }>)[g.itemType]?.name
       ?? (UNITS as Record<string, { name: string }>)[g.itemType]?.name
