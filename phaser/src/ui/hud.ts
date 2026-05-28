@@ -1,5 +1,6 @@
 import { calcEmpireNetworth, getPlanetsForEmpire } from '../core/selectors/selectors';
 import { calcEconomyBreakdown } from '../core/selectors/economySelectors';
+import type { GameSpeed } from '../core/events/eventLog';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { button, formatNumber } from './dom';
 import type { UiContext } from './types';
@@ -84,7 +85,11 @@ export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement
   speeds.className = 'speed-controls';
   for (const speed of SPEED_OPTIONS) {
     const speedButton = button(speed.label, () => {
-      setSpeed(state, speed.value);
+      if (controller.isMultiplayer && controller.multiplayerClient) {
+        controller.multiplayerClient.setSpeed(speed.value as GameSpeed);
+      } else {
+        setSpeed(state, speed.value);
+      }
       controller.overlay.refreshAfterTick();
     });
     const isActive = state.currentSpeed === speed.value;

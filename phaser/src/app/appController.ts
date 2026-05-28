@@ -1,4 +1,5 @@
 import type { GameState } from '../core/galaxy/galaxyData';
+import type { MultiplayerClient } from '../net/multiplayerClient';
 
 export interface ClientState {
   empireId: number;
@@ -24,6 +25,8 @@ export interface AppController {
   loadGame: ((state: GameState) => void) | null;
   activeScene: 'galaxy' | 'system';
   switchToGalaxy: (() => void) | null;
+  isMultiplayer: boolean;
+  multiplayerClient: MultiplayerClient | null;
 }
 
 export const APP_CONTROLLER_KEY = 'appController';

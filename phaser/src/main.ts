@@ -47,6 +47,8 @@ const controller: AppController = {
   loadGame: null,
   activeScene: 'galaxy',
   switchToGalaxy: null,
+  isMultiplayer: false,
+  multiplayerClient: null,
 };
 
 controller.overlay = createOverlay(uiRoot, controller);
@@ -112,7 +114,7 @@ function startAppTimer(appController: AppController): () => void {
     lastTimestamp = timestamp;
 
     const state = appController.state;
-    if (!state || state.currentState !== 'playing' || state.currentSpeed <= 0) {
+    if (!state || state.currentState !== 'playing' || state.currentSpeed <= 0 || appController.isMultiplayer) {
       accumulatedScaledSeconds = 0;
       scheduleNextFrame();
       return;

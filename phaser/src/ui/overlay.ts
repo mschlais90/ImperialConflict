@@ -22,6 +22,10 @@ import { renderStandingsPanel } from './standingsPanel';
 import { renderStartScreen } from './startScreen';
 import type { UiContext } from './types';
 import { createLocalCommandProxy } from '../net/commandProxy';
+import { MultiplayerClient } from '../net/multiplayerClient';
+import { createRemoteCommandProxy } from '../net/remoteCommandProxy';
+import { renderLobbyScreen, type LobbyController } from './lobbyScreen';
+import type { PlayerInfo, SerializedGameState } from '../core/protocol/messages';
 
 export interface OverlayApi {
   render(): void;
@@ -53,6 +57,14 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     showStartScreen,
     showGameOver,
   };
+
+  function changeSpeed(state: NonNullable<typeof controller.state>, speed: 0 | 1 | 2 | 4): void {
+    if (controller.isMultiplayer && controller.multiplayerClient) {
+      controller.multiplayerClient.setSpeed(speed);
+    } else {
+      setSpeed(state, speed);
+    }
+  }
 
   // Global keybindings
   document.addEventListener('keydown', (event) => {
@@ -131,20 +143,20 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         toggleShortcutHelp();
         break;
       case '0':
-        setSpeed(state, SPEEDS.PAUSED);
+        changeSpeed(state, SPEEDS.PAUSED);
         refreshAfterTick();
         break;
       case '1':
-        setSpeed(state, SPEEDS.NORMAL);
+        changeSpeed(state, SPEEDS.NORMAL);
         refreshAfterTick();
         break;
       case '2':
-        setSpeed(state, SPEEDS.FAST);
+        changeSpeed(state, SPEEDS.FAST);
         refreshAfterTick();
         break;
       case '3':
       case '4':
-        setSpeed(state, SPEEDS.FASTEST);
+        changeSpeed(state, SPEEDS.FASTEST);
         refreshAfterTick();
         break;
     }
@@ -246,7 +258,141 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           });
         }
       });
+    }, () => {
+      showMultiplayerLobby();
     });
+  }
+
+  function showMultiplayerLobby(): void {
+    clearElement(root);
+    root.append(toastContainer);
+
+    let lobbyCtrl: LobbyController | null = null;
+    let players: PlayerInfo[] = [];
+    let roomCode = '';
+    let isHost = false;
+
+    const mpClient = new MultiplayerClient({
+      onRoomCreated(code) {
+        roomCode = code;
+      },
+      onJoined(empireId, joinedPlayers) {
+        players = joinedPlayers;
+        isHost = joinedPlayers.find((p) => p.empireId === empireId)?.isHost ?? false;
+        controller.clientState = {
+          empireId,
+          selectedSystemId: null,
+          selectedPlanetId: null,
+          selectedFleetId: null,
+        };
+        lobbyCtrl?.showLobby(roomCode, players, isHost);
+      },
+      onPlayerJoined(player) {
+        players = [...players, player];
+        lobbyCtrl?.updatePlayers(players);
+      },
+      onPlayerLeft(empireId) {
+        players = players.filter((p) => p.empireId !== empireId);
+        lobbyCtrl?.updatePlayers(players);
+      },
+      onGameStarted(state) {
+        startMultiplayerGame(mpClient, state);
+      },
+      onTick(state) {
+        applyServerState(state);
+      },
+      onCommandResult(ok, message) {
+        showToast(message, !ok);
+      },
+      onError(message) {
+        showToast(message, true);
+      },
+      onDisconnect() {
+        showToast('Disconnected from server.', true);
+        controller.isMultiplayer = false;
+        controller.multiplayerClient = null;
+        showStartScreen();
+      },
+    });
+
+    const serverUrl = `ws://${window.location.hostname || 'localhost'}:3001`;
+
+    lobbyCtrl = renderLobbyScreen(root, {
+      onCreateRoom(playerName) {
+        mpClient.connect(serverUrl);
+        // Wait a moment for connection, then create
+        const waitForOpen = setInterval(() => {
+          if (mpClient.isConnected) {
+            clearInterval(waitForOpen);
+            mpClient.createRoom(playerName, { empireName: playerName });
+          }
+        }, 100);
+        setTimeout(() => clearInterval(waitForOpen), 5000);
+      },
+      onJoinRoom(code, playerName) {
+        roomCode = code;
+        mpClient.connect(serverUrl);
+        const waitForOpen = setInterval(() => {
+          if (mpClient.isConnected) {
+            clearInterval(waitForOpen);
+            mpClient.joinRoom(code, playerName);
+          }
+        }, 100);
+        setTimeout(() => clearInterval(waitForOpen), 5000);
+      },
+      onStartGame() {
+        mpClient.startGame();
+      },
+      onLeave() {
+        mpClient.disconnect();
+        showStartScreen();
+      },
+    });
+  }
+
+  function startMultiplayerGame(mpClient: MultiplayerClient, serverState: SerializedGameState): void {
+    controller.isMultiplayer = true;
+    controller.multiplayerClient = mpClient;
+    controller.state = { ...serverState, rng: undefined };
+    controller.playerName = controller.state.empires[controller.clientState?.empireId ?? 0]?.empireName ?? 'Player';
+
+    forcedGameOver = null;
+    viewMode = 'normal';
+    battleReportQueue = [];
+    speedBeforeBattle = null;
+    battleReportScreen?.remove();
+    battleReportScreen = null;
+
+    syncLastSeenEventIds();
+
+    if (controller.startNewGame) {
+      // BootScene handles state setup via loadGame
+      controller.loadGame?.(controller.state);
+    } else {
+      render();
+    }
+  }
+
+  function applyServerState(serverState: SerializedGameState): void {
+    if (!controller.state) return;
+
+    // Preserve local selection state
+    const cs = controller.clientState;
+
+    // Replace game state with server's authoritative copy
+    Object.assign(controller.state, serverState);
+    controller.state.rng = undefined;
+
+    // Restore selection
+    if (cs) {
+      controller.state.selectedEmpireId = cs.empireId;
+      controller.state.selectedSystemId = cs.selectedSystemId;
+      controller.state.selectedPlanetId = cs.selectedPlanetId;
+      controller.state.selectedFleetId = cs.selectedFleetId;
+    }
+
+    refreshAfterTick();
+    controller.refreshScene?.();
   }
 
   function showGameOver(playerWon: boolean): void {
@@ -438,7 +584,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       battleReportScreen?.remove();
       battleReportScreen = null;
       if (speedBeforeBattle !== null && state) {
-        setSpeed(state, speedBeforeBattle as 0 | 1 | 2 | 4);
+        changeSpeed(state, speedBeforeBattle as 0 | 1 | 2 | 4);
         speedBeforeBattle = null;
         render();
       }
@@ -447,7 +593,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     if (speedBeforeBattle === null) {
       speedBeforeBattle = state.currentSpeed;
-      setSpeed(state, SPEEDS.PAUSED);
+      changeSpeed(state, SPEEDS.PAUSED);
     }
 
     const report = battleReportQueue.shift()!;
@@ -581,7 +727,9 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     return {
       controller,
       player,
-      commands: createLocalCommandProxy(() => controller.state!),
+      commands: controller.isMultiplayer && controller.multiplayerClient
+        ? createRemoteCommandProxy(controller.multiplayerClient)
+        : createLocalCommandProxy(() => controller.state!),
       runCommand(command) {
         const result = command();
         showToast(result.message, !result.ok);

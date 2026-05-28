@@ -1,6 +1,6 @@
 import { button } from './dom';
 
-export function renderStartScreen(root: HTMLElement, onStart: (empireName: string) => void, onLoad?: () => void): void {
+export function renderStartScreen(root: HTMLElement, onStart: (empireName: string) => void, onLoad?: () => void, onMultiplayer?: () => void): void {
   const shell = document.createElement('div');
   shell.className = 'start-screen interactive';
 
@@ -29,6 +29,11 @@ export function renderStartScreen(root: HTMLElement, onStart: (empireName: strin
     const loadBtn = button('Load', () => onLoad(), 'ui-button');
     loadBtn.type = 'button';
     btnRow.append(loadBtn);
+  }
+  if (onMultiplayer) {
+    const mpBtn = button('Multiplayer', () => onMultiplayer(), 'ui-button');
+    mpBtn.type = 'button';
+    btnRow.append(mpBtn);
   }
 
   panel.append(title, label, btnRow);
