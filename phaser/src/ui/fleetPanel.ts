@@ -132,7 +132,8 @@ export function renderFleetContent(context: UiContext): HTMLElement {
   const ownedPlanets = getPlanetsForEmpire(state, context.player.id);
 
   // Send to selected target
-  const selectedTarget = state.selectedPlanetId === null ? undefined : getPlanet(state, state.selectedPlanetId);
+  const selectedPlanetId = context.controller.clientState?.selectedPlanetId ?? null;
+  const selectedTarget = selectedPlanetId === null ? undefined : getPlanet(state, selectedPlanetId);
   if (selectedTarget && selectedTarget.ownerId !== context.player.id) {
     const portalPlanets = ownedPlanets.filter((p) => p.hasPortal);
     const hasPortalUnits = portalPlanets.some((p) =>

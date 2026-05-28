@@ -35,7 +35,8 @@ export function renderPlanetPanel(context: UiContext): HTMLElement {
   const panel = document.createElement('section');
   panel.className = 'main-panel interactive';
 
-  const selectedPlanet = state.selectedPlanetId === null ? undefined : getPlanet(state, state.selectedPlanetId);
+  const selectedPlanetId = context.controller.clientState?.selectedPlanetId ?? null;
+  const selectedPlanet = selectedPlanetId === null ? undefined : getPlanet(state, selectedPlanetId);
   if (!selectedPlanet) {
     panel.append(sectionTitle('Planet'), emptyText('Select a planet in a system.'));
     return panel;

@@ -50,7 +50,8 @@ export class SystemScene extends Phaser.Scene {
 
     const controller = this.getController();
     const state = this.requireState(controller);
-    const selectedSystemId = state.selectedSystemId;
+    const clientState = controller.clientState;
+    const selectedSystemId = clientState?.selectedSystemId ?? null;
     const system = selectedSystemId === null ? undefined : getSystem(state, selectedSystemId);
 
     if (!system) {
@@ -126,7 +127,7 @@ export class SystemScene extends Phaser.Scene {
     const ownerName = owner?.empireName ?? 'Neutral';
     const ownerColor = owner ? this.toColorNumber(owner.color) : NEUTRAL_RING;
     const radius = Phaser.Math.Clamp(Math.sqrt(planet.size) * 2.1, 8, layout.maxPlanetRadius);
-    const selected = state.selectedPlanetId === planet.id;
+    const selected = controller.clientState?.selectedPlanetId === planet.id;
 
     // Procedural planet texture
     const texDiameter = Math.round(radius * 2);
@@ -171,7 +172,7 @@ export class SystemScene extends Phaser.Scene {
         return;
       }
 
-      state.selectedPlanetId = planet.id;
+      controller.clientState!.selectedPlanetId = planet.id;
       controller.overlay.render();
       this.renderSystem();
     });

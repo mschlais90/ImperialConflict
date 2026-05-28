@@ -1,5 +1,12 @@
 import type { GameState } from '../core/galaxy/galaxyData';
 
+export interface ClientState {
+  empireId: number;
+  selectedSystemId: number | null;
+  selectedPlanetId: number | null;
+  selectedFleetId: number | null;
+}
+
 export interface AppOverlay {
   render: () => void;
   refreshAfterTick: () => void;
@@ -10,6 +17,7 @@ export interface AppOverlay {
 export interface AppController {
   playerName: string;
   state: GameState | null;
+  clientState: ClientState | null;
   overlay: AppOverlay;
   refreshScene: (() => void) | null;
   startNewGame: ((empireName: string) => void) | null;

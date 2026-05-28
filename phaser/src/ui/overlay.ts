@@ -266,6 +266,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       },
       save: () => {
         menuOpen = false;
+        syncClientStateToGameState();
         getSavedDirHandle().then((dir) => {
           if (dir) {
             saveToDirectory(state).then((filename) => {
@@ -561,6 +562,16 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     title.textContent = 'Notifications';
     panel.append(title, renderNotificationsContent(state));
     return panel;
+  }
+
+  function syncClientStateToGameState(): void {
+    const state = controller.state;
+    const cs = controller.clientState;
+    if (!state || !cs) return;
+    state.selectedEmpireId = cs.empireId;
+    state.selectedSystemId = cs.selectedSystemId;
+    state.selectedPlanetId = cs.selectedPlanetId;
+    state.selectedFleetId = cs.selectedFleetId;
   }
 
   function createContext(player: NonNullable<ReturnType<typeof getPlayerEmpire>>): UiContext {

@@ -35,6 +35,7 @@ uiRoot.innerHTML = '';
 const controller: AppController = {
   playerName: 'Player Empire',
   state: null,
+  clientState: null,
   overlay: {
     render: () => undefined,
     refreshAfterTick: () => undefined,

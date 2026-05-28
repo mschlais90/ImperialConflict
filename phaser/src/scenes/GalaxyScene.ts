@@ -132,8 +132,8 @@ export class GalaxyScene extends Phaser.Scene {
       marker.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         if (this.isCanvasTopTarget(pointer) && pointer.leftButtonReleased() && pointer.getDistance() < 8) {
           this.hideTooltip();
-          state.selectedSystemId = system.id;
-          state.selectedPlanetId = null;
+          controller.clientState!.selectedSystemId = system.id;
+          controller.clientState!.selectedPlanetId = null;
           controller.overlay.render();
           this.scene.start('SystemScene');
         }

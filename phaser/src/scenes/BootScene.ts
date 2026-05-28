@@ -14,7 +14,15 @@ export class BootScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#030610');
     controller.startNewGame = (empireName: string) => {
       controller.playerName = empireName;
-      controller.state = createNewGame({ empireName });
+      const state = createNewGame({ empireName });
+      controller.state = state;
+      const player = getPlayerEmpire(state);
+      controller.clientState = {
+        empireId: player!.id,
+        selectedSystemId: state.selectedSystemId,
+        selectedPlanetId: state.selectedPlanetId,
+        selectedFleetId: state.selectedFleetId,
+      };
       controller.overlay.render();
       this.scene.start('GalaxyScene');
     };
@@ -23,6 +31,12 @@ export class BootScene extends Phaser.Scene {
       const player = getPlayerEmpire(state);
       controller.playerName = player?.empireName ?? 'Player Empire';
       controller.state = state;
+      controller.clientState = {
+        empireId: player?.id ?? 0,
+        selectedSystemId: state.selectedSystemId,
+        selectedPlanetId: state.selectedPlanetId,
+        selectedFleetId: state.selectedFleetId,
+      };
       controller.overlay.render();
       this.scene.start('GalaxyScene');
     };
