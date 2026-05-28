@@ -459,12 +459,12 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   }
 
   function renderNotificationsFullPanel(_context: UiContext): HTMLElement {
-    const state = controller.state;
+    const state = controller.state!;
     const panel = document.createElement('section');
     panel.className = 'main-panel interactive';
     const title = document.createElement('h2');
     title.textContent = 'Notifications';
-    panel.append(title, renderNotificationsContent(state!.events));
+    panel.append(title, renderNotificationsContent(state));
     return panel;
   }
 

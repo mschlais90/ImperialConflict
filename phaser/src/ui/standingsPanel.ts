@@ -5,6 +5,18 @@ import type { UiContext } from './types';
 
 const COMBAT_KEYS: CombatUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport'];
 
+type StandingsSortColumn = 'name' | 'networth' | 'planets' | 'military' | 'status';
+let sortColumn: StandingsSortColumn = 'networth';
+let sortAsc = false;
+
+const HEADERS: Array<{ label: string; column: StandingsSortColumn }> = [
+  { label: 'Empire', column: 'name' },
+  { label: 'Networth', column: 'networth' },
+  { label: 'Planets', column: 'planets' },
+  { label: 'Military', column: 'military' },
+  { label: 'Status', column: 'status' },
+];
+
 export function renderStandingsPanel(context: UiContext): HTMLElement {
   const state = context.controller.state;
   if (!state) {
@@ -37,16 +49,53 @@ export function renderStandingsPanel(context: UiContext): HTMLElement {
     return { empire, nw, planets, military, eliminated };
   });
 
-  empireData.sort((a, b) => b.nw - a.nw);
+  const dir = sortAsc ? 1 : -1;
+  empireData.sort((a, b) => {
+    let cmp = 0;
+    switch (sortColumn) {
+      case 'name':
+        cmp = a.empire.empireName.localeCompare(b.empire.empireName);
+        break;
+      case 'networth':
+        cmp = a.nw - b.nw;
+        break;
+      case 'planets':
+        cmp = a.planets - b.planets;
+        break;
+      case 'military':
+        cmp = a.military - b.military;
+        break;
+      case 'status':
+        cmp = (a.eliminated ? 1 : 0) - (b.eliminated ? 1 : 0);
+        break;
+    }
+    return cmp * dir;
+  });
 
   const table = document.createElement('div');
   table.className = 'standings-table';
 
   // Header
-  const header = document.createElement('div');
-  header.className = 'standings-row standings-header';
-  header.innerHTML = '<span>Empire</span><span>Networth</span><span>Planets</span><span>Military</span><span>Status</span>';
-  table.append(header);
+  const headerRow = document.createElement('div');
+  headerRow.className = 'standings-row standings-header';
+  for (const hdr of HEADERS) {
+    const cell = document.createElement('span');
+    cell.className = 'standings-header-sortable';
+    const arrow = sortColumn === hdr.column ? (sortAsc ? ' \u25B2' : ' \u25BC') : '';
+    cell.textContent = hdr.label + arrow;
+    const col = hdr.column;
+    cell.addEventListener('click', () => {
+      if (sortColumn === col) {
+        sortAsc = !sortAsc;
+      } else {
+        sortColumn = col;
+        sortAsc = col === 'name' || col === 'status';
+      }
+      context.controller.overlay.render();
+    });
+    headerRow.append(cell);
+  }
+  table.append(headerRow);
 
   for (const row of empireData) {
     const rowEl = document.createElement('div');

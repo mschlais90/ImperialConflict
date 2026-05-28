@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { APP_CONTROLLER_KEY, type AppController } from '../app/appController';
-import { getEmpire, getSystemOwner, isSystemContested } from '../core/selectors/selectors';
+import { getEmpire, getPlanetsInSystem, getSystemOwner, isSystemContested } from '../core/selectors/selectors';
 
 const GODOT_SCALE = 20;
 const MIN_ZOOM = 0.3;
@@ -12,6 +12,7 @@ const HOME_MARKER_COLOR = 0xffffff;
 export class GalaxyScene extends Phaser.Scene {
   private isPanning = false;
   private panStart = { x: 0, y: 0, scrollX: 0, scrollY: 0 };
+  private tooltip: HTMLDivElement | null = null;
 
   constructor() {
     super('GalaxyScene');
@@ -41,6 +42,7 @@ export class GalaxyScene extends Phaser.Scene {
       if (controller.refreshScene === refreshScene) {
         controller.refreshScene = null;
       }
+      this.hideTooltip();
     });
 
     this.addGalaxyBackdrop();
@@ -107,8 +109,29 @@ export class GalaxyScene extends Phaser.Scene {
       }
 
       marker.setInteractive(new Phaser.Geom.Circle(0, 0, 14), Phaser.Geom.Circle.Contains);
+      marker.input!.cursor = 'pointer';
+
+      const hoverRing = this.add.graphics({ x, y });
+      hoverRing.setAlpha(0);
+
+      marker.on('pointerover', (pointer: Phaser.Input.Pointer) => {
+        hoverRing.clear();
+        hoverRing.lineStyle(2, 0xffffff, 0.35);
+        hoverRing.strokeCircle(0, 0, 14);
+        hoverRing.setAlpha(1);
+        this.showSystemTooltip(state, system.id, system.systemName, pointer.x, pointer.y);
+      });
+      marker.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+        this.moveTooltip(pointer.x, pointer.y);
+      });
+      marker.on('pointerout', () => {
+        hoverRing.setAlpha(0);
+        this.hideTooltip();
+      });
+
       marker.on('pointerup', (pointer: Phaser.Input.Pointer) => {
         if (this.isCanvasTopTarget(pointer) && pointer.leftButtonReleased() && pointer.getDistance() < 8) {
+          this.hideTooltip();
           state.selectedSystemId = system.id;
           state.selectedPlanetId = null;
           controller.overlay.render();
@@ -166,6 +189,62 @@ export class GalaxyScene extends Phaser.Scene {
     const maxY = Math.max(...ys) + 260;
 
     return new Phaser.Geom.Rectangle(minX, minY, maxX - minX, maxY - minY);
+  }
+
+  private showSystemTooltip(
+    state: ReturnType<GalaxyScene['requireState']>,
+    systemId: number,
+    systemName: string,
+    px: number,
+    py: number,
+  ): void {
+    this.hideTooltip();
+    const planets = getPlanetsInSystem(state, systemId);
+    const contested = isSystemContested(state, systemId);
+    const owners = new Map<number, string>();
+    let neutralCount = 0;
+    for (const p of planets) {
+      if (p.ownerId >= 0) {
+        if (!owners.has(p.ownerId)) {
+          const empire = getEmpire(state, p.ownerId);
+          owners.set(p.ownerId, empire?.empireName ?? 'Unknown');
+        }
+      } else {
+        neutralCount++;
+      }
+    }
+
+    const lines = [`<strong>${systemName}</strong>`, `${planets.length} planet${planets.length !== 1 ? 's' : ''}`];
+    if (owners.size > 0) {
+      lines.push([...owners.values()].join(', '));
+    }
+    if (neutralCount > 0) {
+      lines.push(`${neutralCount} uncolonized`);
+    }
+    if (contested) {
+      lines.push('<span class="galaxy-tooltip-contested">Contested</span>');
+    }
+
+    const tip = document.createElement('div');
+    tip.className = 'galaxy-tooltip';
+    tip.innerHTML = lines.join('<br>');
+    document.getElementById('ui-root')?.append(tip);
+    this.tooltip = tip;
+    this.moveTooltip(px, py);
+  }
+
+  private moveTooltip(px: number, py: number): void {
+    if (!this.tooltip) return;
+    const pad = 12;
+    const maxX = window.innerWidth - 200;
+    const maxY = window.innerHeight - 100;
+    this.tooltip.style.left = `${Math.min(px + pad, maxX)}px`;
+    this.tooltip.style.top = `${Math.min(py + pad, maxY)}px`;
+  }
+
+  private hideTooltip(): void {
+    this.tooltip?.remove();
+    this.tooltip = null;
   }
 
   private getController(): AppController {

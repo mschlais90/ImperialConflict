@@ -20,7 +20,7 @@ const SPEED_OPTIONS = [
   { label: '4x', value: SPEEDS.FASTEST },
 ] as const;
 
-const MENU_ITEMS: Array<{ label: string; key: string; mode: string | null }> = [
+const MENU_ITEMS: Array<{ label: string; key: string; mode: string | null; separator?: boolean }> = [
   { label: 'Planet Builder', key: 'B', mode: 'massBuild' },
   { label: 'Fleet Management', key: 'F', mode: 'fleet' },
   { label: 'Battle History', key: 'H', mode: 'history' },
@@ -28,6 +28,7 @@ const MENU_ITEMS: Array<{ label: string; key: string; mode: string | null }> = [
   { label: 'Special Ops', key: 'O', mode: 'ops' },
   { label: 'Research', key: 'R', mode: 'research' },
   { label: 'Notifications', key: 'N', mode: 'notifications' },
+  { label: '', key: '', mode: null, separator: true },
   { label: 'Save', key: '', mode: null },
   { label: 'Load', key: '', mode: null },
 ];
@@ -62,7 +63,12 @@ export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement
     const colorClass = net >= 0 ? 'tick-positive' : 'tick-negative';
     const item = document.createElement('div');
     item.className = 'hud-stat';
-    item.innerHTML = `<span>${resource === 'gc' ? 'GC' : resource}</span><strong>${formatNumber(player.resources[resource])} <span class="${colorClass}">(${sign}${formatNumber(net)})</span></strong>`;
+    if (resource === 'food' && breakdown.isStarving) {
+      item.classList.add('hud-starvation');
+    }
+    const label = resource === 'gc' ? 'GC' : resource;
+    const starvingSuffix = resource === 'food' && breakdown.isStarving ? ' <span class="hud-starving-label">STARVING</span>' : '';
+    item.innerHTML = `<span>${label}${starvingSuffix}</span><strong>${formatNumber(player.resources[resource])} <span class="${colorClass}">(${sign}${formatNumber(net)})</span></strong>`;
     resources.append(item);
   }
 
@@ -105,6 +111,12 @@ export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement
     const dropdown = document.createElement('div');
     dropdown.className = 'menu-dropdown interactive';
     for (const item of MENU_ITEMS) {
+      if (item.separator) {
+        const divider = document.createElement('div');
+        divider.className = 'menu-divider';
+        dropdown.append(divider);
+        continue;
+      }
       const menuItem = document.createElement('button');
       menuItem.type = 'button';
       menuItem.className = 'menu-item';

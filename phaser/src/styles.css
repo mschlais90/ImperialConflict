@@ -123,6 +123,22 @@ select {
   font-size: 14px;
 }
 
+.hud-starvation {
+  animation: starvation-pulse 1.5s ease-in-out infinite;
+  border: 1px solid rgba(255, 80, 80, 0.5);
+}
+
+@keyframes starvation-pulse {
+  0%, 100% { background: rgba(255, 60, 60, 0.08); }
+  50% { background: rgba(255, 60, 60, 0.22); }
+}
+
+.hud-starving-label {
+  color: #ff5050;
+  font-weight: bold;
+  font-size: 10px;
+}
+
 .overlay-body {
   min-height: 0;
   flex: 1;
@@ -1000,6 +1016,15 @@ details.collapsible[open] > summary::before {
   color: #8694ab;
 }
 
+.standings-header-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.standings-header-sortable:hover {
+  color: #c7d5ee;
+}
+
 .standings-player {
   background: rgba(47, 111, 218, 0.15);
   border-radius: 4px;
@@ -1090,6 +1115,12 @@ details.collapsible[open] > summary::before {
   background: rgba(47, 111, 218, 0.12);
 }
 
+.menu-divider {
+  height: 1px;
+  background: rgba(130, 154, 196, 0.2);
+  margin: 4px 14px;
+}
+
 .menu-item kbd {
   display: inline-block;
   min-width: 22px;
@@ -1101,6 +1132,29 @@ details.collapsible[open] > summary::before {
   font-family: inherit;
   font-size: 11px;
   color: #8694ab;
+}
+
+/* Galaxy tooltip */
+.galaxy-tooltip {
+  position: fixed;
+  z-index: 150;
+  padding: 8px 12px;
+  background: rgba(8, 13, 27, 0.94);
+  border: 1px solid rgba(130, 154, 196, 0.3);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #c7d5ee;
+  line-height: 1.5;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.galaxy-tooltip strong {
+  color: #e8edf7;
+}
+
+.galaxy-tooltip-contested {
+  color: #ff8c00;
 }
 
 /* Full-page panel layout */
