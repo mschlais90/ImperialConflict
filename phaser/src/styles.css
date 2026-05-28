@@ -795,6 +795,7 @@ input[type="number"] {
 .mass-build-cost-preview {
   color: #8694ab;
   font-size: 11px;
+  white-space: pre-line;
 }
 
 .start-panel h1 {

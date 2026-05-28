@@ -3,7 +3,9 @@ import type { BattleReport } from '../core/engines/combatEngine';
 import { createNewGame } from '../core/engines/gameManager';
 import { downloadSave, uploadSave, getSavedDirHandle, saveToDirectory, listSavesInDirectory, loadFromDirectory } from '../core/persistence/saveLoad';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
-import { getEmpire, getPlayerEmpire } from '../core/selectors/selectors';
+import { BUILDINGS } from '../core/data/buildings';
+import { UNITS } from '../core/data/units';
+import { getEmpire, getPlanet, getPlayerEmpire } from '../core/selectors/selectors';
 import { renderBattleReport } from './battleReport';
 import { renderBattleHistoryPanel } from './battleHistory';
 import { clearElement } from './dom';
@@ -39,6 +41,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   let battleReportScreen: HTMLElement | null = null;
   let battleReportQueue: BattleReport[] = [];
   let lastSeenBattleEventId = -1;
+  let lastSeenEventId = -1;
   let speedBeforeBattle: number | null = null;
   let viewMode: 'normal' | 'economy' | 'standings' | 'history' | 'massBuild' | 'ops' | 'fleet' | 'settings' | 'research' | 'notifications' = 'normal';
   let menuOpen = false;
@@ -126,6 +129,23 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       case '?':
         toggleShortcutHelp();
         break;
+      case '0':
+        setSpeed(state, SPEEDS.PAUSED);
+        refreshAfterTick();
+        break;
+      case '1':
+        setSpeed(state, SPEEDS.NORMAL);
+        refreshAfterTick();
+        break;
+      case '2':
+        setSpeed(state, SPEEDS.FAST);
+        refreshAfterTick();
+        break;
+      case '3':
+      case '4':
+        setSpeed(state, SPEEDS.FASTEST);
+        refreshAfterTick();
+        break;
     }
   });
 
@@ -148,6 +168,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       ['N', 'Notifications'],
       ['O', 'Special Ops'],
       ['S', 'Settings'],
+      ['0', 'Pause'],
+      ['1–4', 'Set speed'],
       ['ESC', 'Close / Galaxy'],
       ['?', 'This help'],
     ];
@@ -172,12 +194,15 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     shortcutHelpEl = overlay;
   }
 
-  function syncLastSeenBattleId(): void {
+  function syncLastSeenEventIds(): void {
     const state = controller.state;
     if (state && state.events.length > 0) {
-      lastSeenBattleEventId = state.events[state.events.length - 1].id;
+      const lastId = state.events[state.events.length - 1].id;
+      lastSeenBattleEventId = lastId;
+      lastSeenEventId = lastId;
     } else {
       lastSeenBattleEventId = -1;
+      lastSeenEventId = -1;
     }
   }
 
@@ -193,12 +218,12 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       battleReportScreen = null;
       if (controller.startNewGame) {
         controller.startNewGame(empireName);
-        syncLastSeenBattleId();
+        syncLastSeenEventIds();
         return;
       }
       controller.playerName = empireName;
       controller.state = createNewGame({ empireName });
-      syncLastSeenBattleId();
+      syncLastSeenEventIds();
       render();
     }, () => {
       getSavedDirHandle().then((dir) => {
@@ -305,6 +330,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     syncGameOverPanel();
     checkForNewBattles();
+    checkForNewEvents();
   }
 
   function checkForNewBattles(): void {
@@ -330,6 +356,75 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           showNextBattleReport();
         }
       }
+    }
+  }
+
+  function checkForNewEvents(): void {
+    const state = controller.state;
+    if (!state) return;
+    const player = getPlayerEmpire(state);
+    if (!player) return;
+
+    const newEvents = state.events.filter((e) => e.id > lastSeenEventId);
+    if (newEvents.length === 0) return;
+    lastSeenEventId = newEvents[newEvents.length - 1].id;
+
+    // Group building/unit completions by type for concise toasts
+    const buildingCounts = new Map<string, number>();
+    const unitCounts = new Map<string, number>();
+    const toasts: Array<{ message: string; isError: boolean }> = [];
+
+    for (const event of newEvents) {
+      switch (event.type) {
+        case 'planet_colonized': {
+          if (event.empireId !== player.id) break;
+          const planet = getPlanet(state, event.planetId);
+          toasts.push({ message: `Colonized ${planet?.planetName ?? 'a planet'}!`, isError: false });
+          break;
+        }
+        case 'empire_eliminated': {
+          const empire = getEmpire(state, event.empireId);
+          const name = empire?.empireName ?? `Empire ${event.empireId}`;
+          const isPlayer = event.empireId === player.id;
+          toasts.push({ message: `${name} has been eliminated!`, isError: isPlayer });
+          break;
+        }
+        case 'fleet_arrived': {
+          // Fleet is removed before event is appended, so check if target planet is ours
+          const arrivalPlanet = getPlanet(state, event.targetPlanetId);
+          if (!arrivalPlanet || arrivalPlanet.ownerId !== player.id) break;
+          toasts.push({ message: `Fleet arrived at ${arrivalPlanet.planetName}`, isError: false });
+          break;
+        }
+        case 'building_completed': {
+          const planet = state.planets.find((p) => p.id === event.planetId);
+          if (!planet || planet.ownerId !== player.id) break;
+          const name = (BUILDINGS as Record<string, { name: string }>)[event.buildingType]?.name ?? event.buildingType;
+          buildingCounts.set(name, (buildingCounts.get(name) ?? 0) + 1);
+          break;
+        }
+        case 'unit_completed': {
+          const planet = state.planets.find((p) => p.id === event.planetId);
+          if (!planet || planet.ownerId !== player.id) break;
+          const name = (UNITS as Record<string, { name: string }>)[event.unitType]?.name ?? event.unitType;
+          unitCounts.set(name, (unitCounts.get(name) ?? 0) + 1);
+          break;
+        }
+        case 'notification':
+          toasts.push({ message: event.message, isError: false });
+          break;
+      }
+    }
+
+    for (const [name, count] of buildingCounts) {
+      toasts.push({ message: count > 1 ? `${count}x ${name} completed` : `${name} completed`, isError: false });
+    }
+    for (const [name, count] of unitCounts) {
+      toasts.push({ message: count > 1 ? `${count}x ${name} completed` : `${name} completed`, isError: false });
+    }
+
+    for (const toast of toasts) {
+      showToast(toast.message, toast.isError);
     }
   }
 
@@ -539,7 +634,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           controller.state = loaded;
           controller.overlay.render();
         }
-        syncLastSeenBattleId();
+        syncLastSeenEventIds();
         showToast(`Loaded: ${file.name}`, false);
       }).catch(() => {
         context.setNotice('Failed to load save file.', true);
@@ -582,7 +677,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
               controller.state = loaded;
               controller.overlay.render();
             }
-            syncLastSeenBattleId();
+            syncLastSeenEventIds();
             showToast(`Loaded: ${entry.name}`, false);
           }).catch(() => {
             context.setNotice('Failed to load save file.', true);

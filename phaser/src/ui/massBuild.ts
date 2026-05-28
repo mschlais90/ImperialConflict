@@ -131,10 +131,12 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   const selectAllBtn = button('Select All', () => {
     for (const p of planets) selected.add(p.id);
     refreshCheckboxes();
+    updateCostPreview();
   });
   const deselectAllBtn = button('Deselect All', () => {
     selected.clear();
     refreshCheckboxes();
+    updateCostPreview();
   });
   toggleRow.append(selectAllBtn, deselectAllBtn);
   container.append(toggleRow);
@@ -204,6 +206,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
         selected.delete(planet.id);
         row.classList.remove('mass-build-row-selected');
       }
+      updateCostPreview();
     });
     checkboxes.set(planet.id, cb);
     rowElements.set(planet.id, row);
@@ -292,12 +295,36 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     countInput.disabled = isPortal;
     if (isPortal) countInput.value = '1';
     const baseCost = getBuildCost(buildingType, constructionSci);
-    costPreview.textContent = isPortal
+    const perUnitLine = isPortal
       ? `Cost per portal: ${resourceCostText(baseCost)} (skips planets that already have one)`
       : `Cost per unit: ${resourceCostText(baseCost)}`;
+
+    let selectedPlanets = planets.filter((p) => selected.has(p.id));
+    if (isPortal) {
+      selectedPlanets = selectedPlanets.filter(
+        (p) => !p.hasPortal && !p.buildQueue.some((o) => o.category === 'building' && o.itemType === 'portal'),
+      );
+    }
+
+    if (selectedPlanets.length === 0) {
+      costPreview.textContent = `${perUnitLine}\nSelect planets to see total cost`;
+      return;
+    }
+
+    const count = isPortal ? 1 : Math.max(Number.parseInt(countInput.value, 10) || 1, 1);
+    const totalCost: Partial<Record<ResourceKey, number>> = {};
+    for (const planet of selectedPlanets) {
+      const planetCost = getBuildCost(buildingType, constructionSci, planet);
+      for (const [res, amount] of Object.entries(planetCost)) {
+        totalCost[res as ResourceKey] = (totalCost[res as ResourceKey] ?? 0) + (amount ?? 0) * count;
+      }
+    }
+
+    costPreview.textContent = `${perUnitLine}\nTotal for ${selectedPlanets.length} planet${selectedPlanets.length > 1 ? 's' : ''}: ${resourceCostText(totalCost)}`;
   }
 
   buildingSelect.addEventListener('change', updateCostPreview);
+  countInput.addEventListener('input', updateCostPreview);
   updateCostPreview();
 
   const buildBtn = button('Build on Selected Planets', () => {
