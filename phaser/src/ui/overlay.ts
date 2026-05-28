@@ -333,7 +333,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       },
     });
 
-    const serverUrl = `ws://${window.location.hostname || 'localhost'}:3001`;
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const serverUrl = import.meta.env.DEV
+      ? `ws://${window.location.hostname || 'localhost'}:3001`
+      : `${wsProtocol}//${window.location.host}`;
 
     lobbyCtrl = renderLobbyScreen(root, {
       onCreateRoom(playerName) {

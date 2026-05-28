@@ -1,10 +1,13 @@
 import { createServer } from 'http';
+import { readFileSync, existsSync } from 'fs';
+import { join, extname } from 'path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { ClientMessage } from '../core/protocol/messages';
 import { Room, generateRoomCode } from './room';
 import { serializeState } from './stateSerializer';
 
 const PORT = Number(process.env.PORT ?? 3001);
+const DIST_DIR = join(import.meta.dirname, '../../dist');
 
 const rooms = new Map<string, Room>();
 
@@ -17,9 +20,44 @@ function getRoom(ws: TaggedSocket): Room | undefined {
   return ws.roomCode ? rooms.get(ws.roomCode) : undefined;
 }
 
-const server = createServer((_req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Imperial Conflict Game Server');
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.css': 'text/css',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.json': 'application/json',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+const server = createServer((req, res) => {
+  const url = req.url ?? '/';
+  const pathname = url.split('?')[0];
+
+  // Serve static files from dist/
+  let filePath = join(DIST_DIR, pathname === '/' ? 'index.html' : pathname);
+
+  if (existsSync(filePath)) {
+    const ext = extname(filePath);
+    const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
+    const content = readFileSync(filePath);
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(content);
+  } else {
+    // SPA fallback: serve index.html for non-file routes
+    const indexPath = join(DIST_DIR, 'index.html');
+    if (existsSync(indexPath)) {
+      const content = readFileSync(indexPath);
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(content);
+    } else {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('Imperial Conflict Game Server (no client build found — run npm run build)');
+    }
+  }
 });
 
 const wss = new WebSocketServer({ server });
@@ -139,4 +177,5 @@ function handleReconnect(ws: TaggedSocket, message: Extract<ClientMessage, { typ
 
 server.listen(PORT, () => {
   console.log(`Imperial Conflict server listening on port ${PORT}`);
+  console.log(`Serving client from ${DIST_DIR}`);
 });
