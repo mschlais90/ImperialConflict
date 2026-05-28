@@ -1,5 +1,4 @@
 import { UNITS } from '../core/data/units';
-import { recallToPortal } from '../core/commands/playerCommands';
 import type { CombatUnitKey, Fleet, Planet } from '../core/models/types';
 import { calcTravelTicks, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
 import { button, formatNumber } from './dom';
@@ -87,7 +86,7 @@ function stationedByPlanet(context: UiContext, planets: Planet[]): HTMLElement {
         const nearestTicks = getNearestPortalTicks(state, planet, planets);
         const recallBtn = button(`Recall (${nearestTicks}t)`, () => {
           context.runCommand(() =>
-            recallToPortal(state, { empireId: context.player.id, sourcePlanetId: planet.id }),
+            context.commands.recallToPortal({ empireId: context.player.id, sourcePlanetId: planet.id }),
           );
         });
         recallBtn.className = 'ui-button recall-btn';

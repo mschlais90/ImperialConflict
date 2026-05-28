@@ -1,5 +1,4 @@
 import { BUILDINGS, getBuildCost, getOverbuildMultiplier } from '../core/data/buildings';
-import { queueBuilding } from '../core/commands/playerCommands';
 import type { BuildingKey, Planet, ResourceKey } from '../core/models/types';
 import { calcSciencePercent, getPlanetsForEmpire } from '../core/selectors/selectors';
 import { button, numberInput, parseIntegerInput, resourceCostText } from './dom';
@@ -350,7 +349,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     let successCount = 0;
     let lastError = '';
     for (const planet of selectedPlanets) {
-      const result = queueBuilding(state, {
+      const result = context.commands.queueBuilding({
         empireId: context.player.id,
         planetId: planet.id,
         buildingType,

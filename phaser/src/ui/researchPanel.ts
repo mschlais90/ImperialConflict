@@ -1,4 +1,3 @@
-import { setResearchAllocation } from '../core/commands/playerCommands';
 import { SCIENCES } from '../core/data/sciences';
 import type { ScienceKey } from '../core/models/types';
 import { calcSciencePercent, getPlanetsForEmpire } from '../core/selectors/selectors';
@@ -130,7 +129,7 @@ export function renderResearchContent(context: UiContext): HTMLElement {
       context.setNotice('Research allocation must total 100.', true);
       return;
     }
-    context.runCommand(() => setResearchAllocation(state, { empireId: context.player.id, allocation }));
+    context.runCommand(() => context.commands.setResearchAllocation({ empireId: context.player.id, allocation }));
   });
 
   frag.append(total, apply);

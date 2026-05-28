@@ -1,4 +1,3 @@
-import { performAgentOperation, performSpell } from '../core/commands/playerCommands';
 import {
   AGENT_OP_DIFFICULTY,
   getAgentOperationCost,
@@ -149,7 +148,7 @@ export function renderOpsPanel(context: UiContext): HTMLElement {
 
     const btn = button('Execute', () => {
       context.runCommand(() =>
-        performAgentOperation(state, {
+        context.commands.performAgentOperation({
           empireId: context.player.id,
           targetEmpireId: Number(empireSelect.value),
           operationType: op.type,
@@ -207,7 +206,7 @@ export function renderOpsPanel(context: UiContext): HTMLElement {
 
     const btn = button('Cast', () => {
       context.runCommand(() =>
-        performSpell(state, {
+        context.commands.performSpell({
           empireId: context.player.id,
           targetEmpireId: Number(empireSelect.value),
           spellType: spell.type,

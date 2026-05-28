@@ -21,6 +21,7 @@ import { renderSettingsPanel, shouldShowCombatPopups } from './settingsPanel';
 import { renderStandingsPanel } from './standingsPanel';
 import { renderStartScreen } from './startScreen';
 import type { UiContext } from './types';
+import { createLocalCommandProxy } from '../net/commandProxy';
 
 export interface OverlayApi {
   render(): void;
@@ -231,6 +232,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           showLoadPicker({
             controller,
             player: undefined as never,
+            commands: undefined as never,
             runCommand: () => {},
             setNotice: (msg, isError) => showToast(msg, isError ?? false),
           });
@@ -238,6 +240,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           openFilePicker({
             controller,
             player: undefined as never,
+            commands: undefined as never,
             runCommand: () => {},
             setNotice: (msg, isError) => showToast(msg, isError ?? false),
           });
@@ -578,6 +581,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     return {
       controller,
       player,
+      commands: createLocalCommandProxy(() => controller.state!),
       runCommand(command) {
         const result = command();
         showToast(result.message, !result.ok);

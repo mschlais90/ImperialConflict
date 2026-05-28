@@ -1,6 +1,5 @@
 import { BUILDINGS, getBuildCost, getOverbuildMultiplier } from '../core/data/buildings';
 import { UNITS } from '../core/data/units';
-import { queueBuilding, queueExplorer, sendExplorer, sendFleet, sendPortalFleet, trainUnits } from '../core/commands/playerCommands';
 import type { GameState } from '../core/galaxy/galaxyData';
 import type { BuildingKey, CombatUnitKey, Planet, PlanetUnitKey, UnitKey } from '../core/models/types';
 import { calcSciencePercent, calcTravelTicks, getEmpire, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
@@ -184,7 +183,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
         return;
       }
       if (parsed.value > 0) {
-        const result = queueBuilding(state, {
+        const result = context.commands.queueBuilding({
           empireId: context.player.id,
           planetId: planet.id,
           buildingType: key,
@@ -232,7 +231,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
         return;
       }
       context.runCommand(() =>
-        queueExplorer(state, { empireId: context.player.id, planetId: planet.id, count: parsed.value }),
+        context.commands.queueExplorer({ empireId: context.player.id, planetId: planet.id, count: parsed.value }),
       );
     }),
   );
@@ -245,7 +244,6 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
 }
 
 function unitsSection(context: UiContext, planet: Planet): HTMLElement {
-  const state = context.controller.state!;
   const frag = document.createElement('div');
   frag.className = 'panel-stack';
 
@@ -299,7 +297,7 @@ function unitsSection(context: UiContext, planet: Planet): HTMLElement {
         return;
       }
       if (parsed.value > 0) {
-        const result = trainUnits(state, {
+        const result = context.commands.trainUnits({
           empireId: context.player.id,
           planetId: planet.id,
           unitType: key,
@@ -376,7 +374,7 @@ function renderUncolonizedPlanet(context: UiContext, target: Planet): HTMLElemen
   form.append(
     button(label, () => {
       context.runCommand(() =>
-        sendExplorer(state, { empireId: context.player.id, sourcePlanetId: source.id, targetPlanetId: target.id }),
+        context.commands.sendExplorer({ empireId: context.player.id, sourcePlanetId: source.id, targetPlanetId: target.id }),
       );
     }),
   );
@@ -517,7 +515,7 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[],
     }
     if (isPortalMode()) {
       context.runCommand(() =>
-        sendPortalFleet(state, {
+        context.commands.sendPortalFleet({
           empireId: context.player.id,
           targetPlanetId: target.id,
           units,
@@ -525,7 +523,7 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[],
       );
     } else {
       context.runCommand(() =>
-        sendFleet(state, {
+        context.commands.sendFleet({
           empireId: context.player.id,
           sourcePlanetId: Number(sourceSelect.value),
           targetPlanetId: target.id,
