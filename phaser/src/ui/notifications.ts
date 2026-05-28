@@ -14,7 +14,7 @@ export function renderNotifications(state: GameState): HTMLElement {
 export function renderNotificationsContent(state: GameState): HTMLElement {
   const frag = document.createElement('div');
 
-  const filtered = state.events.filter((e) => e.type !== 'building_completed' && e.type !== 'speed_changed');
+  const filtered = state.events.filter((e) => e.type !== 'building_completed' && e.type !== 'speed_changed' && e.type !== 'tick_processed');
   for (const event of [...filtered].reverse().slice(0, 12)) {
     const item = document.createElement('div');
     item.className = 'notice';

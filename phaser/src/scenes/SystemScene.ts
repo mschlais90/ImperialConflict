@@ -241,8 +241,9 @@ export class SystemScene extends Phaser.Scene {
 
   private formatPlanetLabel(planet: Planet, ownerName: string): string {
     const portal = planet.hasPortal ? '\nPortal' : '';
+    const owner = planet.ownerId >= 0 ? `\n${ownerName}` : '';
 
-    return `${planet.planetName}\n${ownerName}\nSize ${planet.size}  Pop ${Math.floor(planet.population)}${portal}`;
+    return `${planet.planetName}${owner}\nSize ${planet.size}  Pop ${Math.floor(planet.population)}${portal}`;
   }
 
   private getController(): AppController {
