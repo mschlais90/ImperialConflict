@@ -29,10 +29,12 @@ export type BuildOrder =
   | { category: 'building'; itemType: BuildingKey; ticksRemaining: number }
   | { category: 'unit'; itemType: UnitKey; ticksRemaining: number };
 
+export type EmpireControllerType = 'human' | 'ai';
+
 export interface Empire {
   id: number;
   empireName: string;
-  isPlayer: boolean;
+  controllerType: EmpireControllerType;
   color: string;
   homeSystemId: number;
   homePlanetId: number;
@@ -87,7 +89,7 @@ export function createPlanet(input: Pick<Planet, 'id' | 'planetName' | 'systemId
   };
 }
 
-export function createEmpire(input: Pick<Empire, 'id' | 'empireName' | 'isPlayer' | 'color'>): Empire {
+export function createEmpire(input: Pick<Empire, 'id' | 'empireName' | 'controllerType' | 'color'>): Empire {
   return {
     ...input,
     homeSystemId: -1,

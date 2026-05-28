@@ -54,7 +54,7 @@ describe('economy and ticks', () => {
 
   it('resolves enemy fleet arrivals with combat', () => {
     const { state } = createControlledState();
-    const enemy = createEmpire({ id: 2, empireName: 'Enemy', isPlayer: false, color: '#f00' });
+    const enemy = createEmpire({ id: 2, empireName: 'Enemy', controllerType: 'ai', color: '#f00' });
     state.empires.push(enemy);
     const enemyPlanet = createPlanet({ id: 2, planetName: 'Enemy I', systemId: 2, size: 20 });
     enemyPlanet.ownerId = enemy.id;
@@ -222,8 +222,8 @@ describe('economy and ticks', () => {
     const state = createEmptyGameState();
     state.currentState = 'playing';
     state.currentSpeed = 1;
-    state.empires.push(createEmpire({ id: 1, empireName: 'Player', isPlayer: true, color: '#fff' }));
-    state.empires.push(createEmpire({ id: 2, empireName: 'Enemy', isPlayer: false, color: '#f00' }));
+    state.empires.push(createEmpire({ id: 1, empireName: 'Player', controllerType: 'human', color: '#fff' }));
+    state.empires.push(createEmpire({ id: 2, empireName: 'Enemy', controllerType: 'ai', color: '#f00' }));
     const enemyPlanet = createPlanet({ id: 1, planetName: 'Enemy I', systemId: 1, size: 20 });
     enemyPlanet.ownerId = 2;
     state.planets.push(enemyPlanet);
@@ -237,7 +237,7 @@ describe('economy and ticks', () => {
 
   it('ends in victory when all AI empires have no planets or fleets', () => {
     const { state } = createControlledState();
-    state.empires.push(createEmpire({ id: 2, empireName: 'Enemy', isPlayer: false, color: '#f00' }));
+    state.empires.push(createEmpire({ id: 2, empireName: 'Enemy', controllerType: 'ai', color: '#f00' }));
 
     advanceTick(state);
 
@@ -256,7 +256,7 @@ function createControlledState(): { state: GameState; empire: Empire; planet: Pl
   state.nextPlanetId = 2;
   state.nextFleetId = 1;
 
-  const empire = createEmpire({ id: 1, empireName: 'Exact Empire', isPlayer: true, color: '#fff' });
+  const empire = createEmpire({ id: 1, empireName: 'Exact Empire', controllerType: 'human', color: '#fff' });
   empire.homeSystemId = 1;
   empire.homePlanetId = 1;
   const planet = createPlanet({ id: 1, planetName: 'Exact I', systemId: 1, size: 20 });

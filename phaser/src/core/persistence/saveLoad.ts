@@ -2,7 +2,7 @@ import type { GameState } from '../galaxy/galaxyData';
 import { createRngFromState } from '../random/rng';
 
 const SAVE_KEY = 'ic_save';
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
 const IDB_NAME = 'ic_save_dir';
 const IDB_STORE = 'handles';
 const IDB_KEY = 'saveDir';
@@ -23,10 +23,24 @@ function serialize(state: GameState): string {
 
 function deserialize(json: string): GameState {
   const save: SaveData = JSON.parse(json);
+  if (save.version === 1) {
+    migrateV1toV2(save);
+    save.version = 2;
+  }
   if (save.version !== SAVE_VERSION) {
     throw new Error(`Unsupported save version: ${save.version}`);
   }
   return { ...save.gameState, rng: createRngFromState(save.rngState) };
+}
+
+function migrateV1toV2(save: SaveData): void {
+  for (const empire of save.gameState.empires) {
+    const legacy = empire as unknown as Record<string, unknown>;
+    if ('isPlayer' in legacy) {
+      legacy.controllerType = legacy.isPlayer ? 'human' : 'ai';
+      delete legacy.isPlayer;
+    }
+  }
 }
 
 export function saveToStorage(state: GameState): void {

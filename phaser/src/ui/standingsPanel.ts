@@ -100,7 +100,7 @@ export function renderStandingsPanel(context: UiContext): HTMLElement {
   for (const row of empireData) {
     const rowEl = document.createElement('div');
     rowEl.className = 'standings-row';
-    if (row.empire.isPlayer) {
+    if (row.empire.controllerType === 'human') {
       rowEl.classList.add('standings-player');
     }
     if (row.eliminated) {

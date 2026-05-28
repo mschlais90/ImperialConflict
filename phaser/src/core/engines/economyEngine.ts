@@ -39,7 +39,7 @@ export function processEconomyTick(state: GameState): void {
   }
 
   for (const empire of state.empires) {
-    if (!empire.isPlayer) {
+    if (empire.controllerType === 'ai') {
       processAiTurn(state, empire.id, state.currentTick);
     }
   }
@@ -300,7 +300,7 @@ function starvePopulation(state: GameState, empire: Empire, empirePlanets: Plane
     totalDeaths += deaths;
   }
 
-  if (empire.isPlayer && totalDeaths > 0) {
+  if (empire.controllerType === 'human' && totalDeaths > 0) {
     appendEvent(state, {
       type: 'notification',
       tick: state.currentTick,
@@ -388,14 +388,15 @@ function checkEliminations(state: GameState): void {
     }
   }
 
-  const player = state.empires.find((empire) => empire.isPlayer);
-  if (player && isEmpireEliminated(state, player.id)) {
+  const humanEmpires = state.empires.filter((empire) => empire.controllerType === 'human');
+  const nonHumanEmpires = state.empires.filter((empire) => empire.controllerType !== 'human');
+
+  if (humanEmpires.length > 0 && humanEmpires.every((empire) => isEmpireEliminated(state, empire.id))) {
     finishGame(state, false);
     return;
   }
 
-  const aiEmpires = state.empires.filter((empire) => !empire.isPlayer);
-  if (aiEmpires.length > 0 && aiEmpires.every((empire) => isEmpireEliminated(state, empire.id))) {
+  if (nonHumanEmpires.length > 0 && nonHumanEmpires.every((empire) => isEmpireEliminated(state, empire.id))) {
     finishGame(state, true);
   }
 }

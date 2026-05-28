@@ -20,7 +20,7 @@ export function getEmpire(state: GameState, empireId: number): Empire | undefine
 }
 
 export function getPlayerEmpire(state: GameState): Empire | undefined {
-  return state.empires.find((empire) => empire.isPlayer);
+  return state.empires.find((empire) => empire.controllerType === 'human');
 }
 
 export function getSystem(state: GameState, systemId: number): SolarSystem | undefined {

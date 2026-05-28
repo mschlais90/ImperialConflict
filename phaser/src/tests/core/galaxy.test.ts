@@ -36,7 +36,7 @@ describe('galaxy generation', () => {
 
   it('calculates exact networth contributions from canonical unit data', () => {
     const state = createEmptyGameState();
-    const empire = createEmpire({ id: 7, empireName: 'Exact Empire', isPlayer: true, color: '#fff' });
+    const empire = createEmpire({ id: 7, empireName: 'Exact Empire', controllerType: 'human', color: '#fff' });
     empire.researchPoints = {
       military: 1000,
       welfare: 500,
@@ -98,7 +98,7 @@ describe('galaxy generation', () => {
 
   it('reads unit networth from canonical unit definitions', () => {
     const state = createEmptyGameState();
-    const empire = createEmpire({ id: 1, empireName: 'Mutable Empire', isPlayer: true, color: '#fff' });
+    const empire = createEmpire({ id: 1, empireName: 'Mutable Empire', controllerType: 'human', color: '#fff' });
     const planet = createPlanet({ id: 2, planetName: 'Mutable I', systemId: 1, size: 30 });
     planet.ownerId = empire.id;
     planet.units = { fighter: 1 };

@@ -288,7 +288,7 @@ function destroyIron(state: GameState, target: Empire): OperationResult {
 }
 
 function notifyDefender(state: GameState, defender: Empire, message: string): void {
-  if (defender.isPlayer) {
+  if (defender.controllerType === 'human') {
     appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message });
   }
 }

@@ -198,18 +198,18 @@ function createEmpires(state: GameState, rng: Rng, playerEmpireName: string): vo
   for (let i = 0; i < totalEmpires; i += 1) {
     const empireId = state.nextEmpireId;
     state.nextEmpireId += 1;
-    const isPlayer = i === 0;
+    const isHuman = i === 0;
     const empire = createEmpire({
       id: empireId,
-      empireName: isPlayer ? playerEmpireName : EMPIRE_NAMES[i - 1] ?? `Empire ${empireId}`,
-      isPlayer,
+      empireName: isHuman ? playerEmpireName : EMPIRE_NAMES[i - 1] ?? `Empire ${empireId}`,
+      controllerType: isHuman ? 'human' : 'ai',
       color: EMPIRE_COLORS[i] ?? '#ffffff',
     });
 
     assignHomePlanet(state, empire, homeSystemIndices[i]);
     state.empires.push(empire);
 
-    if (!isPlayer) {
+    if (!isHuman) {
       state.aiControllers[empireId] = { empireId, recentAttacks: {} };
     }
   }

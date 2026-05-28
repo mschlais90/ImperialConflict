@@ -137,7 +137,7 @@ async function clickPlayerHomeSystem(page: Page): Promise<void> {
       throw new Error('Missing game debug state.');
     }
 
-    const player = state.empires.find((empire) => empire.isPlayer);
+    const player = state.empires.find((empire) => empire.controllerType === 'human');
     const system = state.systems.find((candidate) => candidate.id === player?.homeSystemId);
     const scene = game.scene.getScene('GalaxyScene') as Phaser.Scene;
     const camera = scene.cameras.main;
@@ -168,7 +168,7 @@ async function clickPlayerHomePlanet(page: Page): Promise<string> {
       throw new Error('Missing game debug state.');
     }
 
-    const player = state.empires.find((empire) => empire.isPlayer);
+    const player = state.empires.find((empire) => empire.controllerType === 'human');
     const system = state.systems.find((candidate) => candidate.id === player?.homeSystemId);
     const homePlanet = state.planets.find((planet) => planet.id === player?.homePlanetId);
     const scene = game.scene.getScene('SystemScene') as Phaser.Scene & {

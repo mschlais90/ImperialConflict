@@ -8,7 +8,7 @@ import { getPlanetsForEmpire } from '../../core/selectors/selectors';
 describe('AI controller', () => {
   it('queues economic buildings for AI empires', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
-    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     processAiTurn(state, ai.id, 1);
     const planets = getPlanetsForEmpire(state, ai.id);
     expect(planets.some((planet) => planet.buildQueue.length > 0)).toBe(true);
@@ -16,7 +16,7 @@ describe('AI controller', () => {
 
   it('does not throw when processing repeated turns', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
-    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     for (let tick = 1; tick <= 120; tick += 1) {
       processAiTurn(state, ai.id, tick);
     }
@@ -25,7 +25,7 @@ describe('AI controller', () => {
 
   it('stores controller memory by empire id instead of array position', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
-    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
 
     expect(state.aiControllers[ai.id]?.empireId).toBe(ai.id);
 
@@ -37,7 +37,7 @@ describe('AI controller', () => {
 
   it('launches explorers for unowned planets but respects the active exploration cap', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
-    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     const source = getPlanetsForEmpire(state, ai.id)[0];
     source.units.explorer = 1;
 
@@ -79,7 +79,7 @@ describe('AI controller', () => {
 
   it('starts military production at tick 40', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
-    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     const planet = getPlanetsForEmpire(state, ai.id)[0];
     ai.resources = { gc: 2000, food: 0, iron: 1000, endurium: 1000, octarine: 1000 };
     planet.units = {};
@@ -99,9 +99,9 @@ describe('AI controller', () => {
   it('launches pooled attack fleets with garrison, transport capacity, and launch events', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
     state.currentTick = 101;
-    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     const source = getPlanetsForEmpire(state, ai.id)[0];
-    const target = state.empires.find((empire) => empire.isPlayer)!;
+    const target = state.empires.find((empire) => empire.controllerType === 'human')!;
     const targetPlanet = makeOnlyViableAttackTarget(state, ai, target);
     ai.resources = { gc: 0, food: 0, iron: 0, endurium: 0, octarine: 0 };
     source.units = { soldier: 250, transport: 2 };
@@ -138,9 +138,9 @@ describe('AI controller', () => {
 
   it('records recent attack attempts and uses cooldown before retargeting the same planet', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
-    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     const source = getPlanetsForEmpire(state, ai.id)[0];
-    const target = state.empires.find((empire) => empire.isPlayer)!;
+    const target = state.empires.find((empire) => empire.controllerType === 'human')!;
     const targetPlanet = makeOnlyViableAttackTarget(state, ai, target);
     ai.resources = { gc: 0, food: 0, iron: 0, endurium: 0, octarine: 0 };
     source.units = { soldier: 250, transport: 2 };
@@ -166,9 +166,9 @@ describe('AI controller', () => {
 
   it('does not mutate planets or memory when pooled attack has no transports', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
-    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     const planets = prepareAiAttackPlanets(state, ai);
-    const target = state.empires.find((empire) => empire.isPlayer)!;
+    const target = state.empires.find((empire) => empire.controllerType === 'human')!;
     const targetPlanet = makeOnlyViableAttackTarget(state, ai, target);
     ai.resources = { gc: 0, food: 0, iron: 0, endurium: 0, octarine: 0 };
     planets[0].units = { soldier: 120 };
@@ -187,9 +187,9 @@ describe('AI controller', () => {
 
   it('keeps excess ground units on their original planets when transport capacity is partial', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
-    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     const planets = prepareAiAttackPlanets(state, ai);
-    const target = state.empires.find((empire) => empire.isPlayer)!;
+    const target = state.empires.find((empire) => empire.controllerType === 'human')!;
     makeOnlyViableAttackTarget(state, ai, target);
     ai.resources = { gc: 0, food: 0, iron: 0, endurium: 0, octarine: 0 };
     planets[0].units = { transport: 2 };
@@ -208,9 +208,9 @@ describe('AI controller', () => {
 
   it('aborts attack when transport-trimmed power is below the selected target requirement', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
-    const ai = state.empires.find((empire) => !empire.isPlayer)!;
+    const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     const planets = prepareAiAttackPlanets(state, ai);
-    const target = state.empires.find((empire) => empire.isPlayer)!;
+    const target = state.empires.find((empire) => empire.controllerType === 'human')!;
     const targetPlanet = makeOnlyViableAttackTarget(state, ai, target);
     targetPlanet.units = { soldier: 60 };
     ai.resources = { gc: 0, food: 0, iron: 0, endurium: 0, octarine: 0 };
@@ -230,8 +230,8 @@ describe('AI controller', () => {
 
   it('does not perform operations without enough operation resources', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
-    const ai = state.empires.find((empire) => !empire.isPlayer)!;
-    const target = state.empires.find((empire) => empire.isPlayer)!;
+    const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
+    const target = state.empires.find((empire) => empire.controllerType === 'human')!;
     const planet = getPlanetsForEmpire(state, ai.id)[0];
     ai.resources = { gc: 0, food: 0, iron: 0, endurium: 0, octarine: 0 };
     planet.units = { agent: 5, wizard: 5 };
@@ -260,7 +260,7 @@ describe('AI controller', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
     state.currentTick = 100;
 
-    const [attacker, target] = state.empires.filter((empire) => !empire.isPlayer);
+    const [attacker, target] = state.empires.filter((empire) => empire.controllerType === 'ai');
     const targetPlanet = getPlanetsForEmpire(state, target.id)[0];
     const attackerPlanet = getPlanetsForEmpire(state, attacker.id)[0];
 
