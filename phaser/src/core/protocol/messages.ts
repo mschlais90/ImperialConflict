@@ -47,9 +47,11 @@ export type SerializedGameState = Omit<GameState, 'rng'>;
 export type ClientMessage =
   | { type: 'create'; playerName: string; settings: GameSettings }
   | { type: 'join'; roomCode: string; playerName: string }
+  | { type: 'reconnect'; roomCode: string; empireId: number }
   | { type: 'startGame' }
   | { type: 'command'; command: SerializedCommand }
-  | { type: 'setSpeed'; speed: GameSpeed };
+  | { type: 'setSpeed'; speed: GameSpeed }
+  | { type: 'chat'; text: string };
 
 // ---------------------------------------------------------------------------
 // Server -> Client messages
@@ -60,7 +62,10 @@ export type ServerMessage =
   | { type: 'joined'; empireId: number; players: PlayerInfo[] }
   | { type: 'playerJoined'; player: PlayerInfo }
   | { type: 'playerLeft'; empireId: number }
+  | { type: 'playerReconnected'; empireId: number }
   | { type: 'gameStarted'; state: SerializedGameState }
   | { type: 'tick'; state: SerializedGameState }
   | { type: 'commandResult'; ok: boolean; message: string }
+  | { type: 'reconnected'; empireId: number; state: SerializedGameState }
+  | { type: 'chat'; empireId: number; playerName: string; text: string }
   | { type: 'error'; message: string };

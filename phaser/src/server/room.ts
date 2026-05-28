@@ -18,12 +18,22 @@ export interface ConnectedClient {
   isHost: boolean;
 }
 
+// Tracks empire assignment even after disconnect
+interface EmpireSlot {
+  empireId: number;
+  playerName: string;
+  isHost: boolean;
+  connected: boolean;
+}
+
 export class Room {
   readonly roomCode: string;
   private clients: ConnectedClient[] = [];
+  private empireSlots: EmpireSlot[] = [];
   private state: GameState | null = null;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private started = false;
+  private autoPauseOnDisconnect = true;
 
   constructor(roomCode: string) {
     this.roomCode = roomCode;
@@ -37,8 +47,12 @@ export class Room {
     return this.started;
   }
 
+  get gameState(): GameState | null {
+    return this.state;
+  }
+
   get isEmpty(): boolean {
-    return this.clients.length === 0;
+    return this.clients.length === 0 && (!this.started || this.empireSlots.every((s) => !s.connected));
   }
 
   addClient(ws: WebSocket, playerName: string, isHost: boolean): ConnectedClient | null {
@@ -47,6 +61,32 @@ export class Room {
 
     const empireId = this.clients.length;
     const client: ConnectedClient = { ws, empireId, playerName, isHost };
+    this.clients.push(client);
+    this.empireSlots.push({ empireId, playerName, isHost, connected: true });
+    return client;
+  }
+
+  reconnectClient(ws: WebSocket, empireId: number): ConnectedClient | null {
+    if (!this.started) return null;
+
+    const slot = this.empireSlots.find((s) => s.empireId === empireId);
+    if (!slot || slot.connected) return null;
+
+    // Restore empire to human control
+    if (this.state) {
+      const empire = this.state.empires[empireId];
+      if (empire) {
+        empire.controllerType = 'human';
+      }
+    }
+
+    slot.connected = true;
+    const client: ConnectedClient = {
+      ws,
+      empireId,
+      playerName: slot.playerName,
+      isHost: slot.isHost,
+    };
     this.clients.push(client);
     return client;
   }
@@ -58,25 +98,82 @@ export class Room {
     const removed = this.clients[index];
     this.clients.splice(index, 1);
 
-    if (this.clients.length === 0) {
-      this.stop();
-      return;
-    }
+    if (this.started) {
+      // Mark slot as disconnected, convert empire to AI
+      const slot = this.empireSlots.find((s) => s.empireId === removed.empireId);
+      if (slot) {
+        slot.connected = false;
+      }
 
-    this.broadcast({ type: 'playerLeft', empireId: removed.empireId });
+      if (this.state) {
+        const empire = this.state.empires[removed.empireId];
+        if (empire) {
+          empire.controllerType = 'ai';
+          // Ensure AI controller state exists
+          if (!this.state.aiControllers[removed.empireId]) {
+            this.state.aiControllers[removed.empireId] = {
+              empireId: removed.empireId,
+              recentAttacks: {},
+            };
+          }
+        }
+      }
 
-    // If host left, promote next client
-    if (removed.isHost && this.clients.length > 0) {
-      this.clients[0].isHost = true;
+      this.broadcast({ type: 'playerLeft', empireId: removed.empireId });
+
+      // Auto-pause when a player disconnects
+      if (this.autoPauseOnDisconnect && this.state && this.state.currentSpeed !== SPEEDS.PAUSED) {
+        setSpeed(this.state, SPEEDS.PAUSED);
+        this.broadcast({
+          type: 'chat',
+          empireId: -1,
+          playerName: 'Server',
+          text: `${removed.playerName} disconnected. Game paused.`,
+        });
+      }
+
+      // If host left, promote next connected client
+      if (removed.isHost) {
+        const nextClient = this.clients[0];
+        if (nextClient) {
+          nextClient.isHost = true;
+          const nextSlot = this.empireSlots.find((s) => s.empireId === nextClient.empireId);
+          if (nextSlot) nextSlot.isHost = true;
+        }
+      }
+
+      // If all human players disconnected, stop the room
+      if (this.clients.length === 0) {
+        this.stop();
+      }
+    } else {
+      // Pre-game: remove the slot entirely
+      const slotIdx = this.empireSlots.findIndex((s) => s.empireId === removed.empireId);
+      if (slotIdx >= 0) this.empireSlots.splice(slotIdx, 1);
+
+      if (this.clients.length === 0) {
+        this.stop();
+        return;
+      }
+
+      this.broadcast({ type: 'playerLeft', empireId: removed.empireId });
+
+      if (removed.isHost && this.clients.length > 0) {
+        this.clients[0].isHost = true;
+        const nextSlot = this.empireSlots.find((s) => s.empireId === this.clients[0].empireId);
+        if (nextSlot) nextSlot.isHost = true;
+      }
     }
   }
 
   getPlayerInfoList(): PlayerInfo[] {
-    return this.clients.map((c) => ({
-      empireId: c.empireId,
-      name: c.playerName,
-      isHost: c.isHost,
-    }));
+    return this.empireSlots
+      .filter((s) => s.connected)
+      .map((s) => ({
+        empireId: s.empireId,
+        name: s.playerName,
+        isHost: s.isHost,
+      }));
   }
 
   handleMessage(ws: WebSocket, message: ClientMessage): void {
@@ -93,6 +190,9 @@ export class Room {
       case 'setSpeed':
         this.handleSetSpeed(client, message.speed);
         break;
+      case 'chat':
+        this.handleChat(client, message.text);
+        break;
       default:
         this.send(ws, { type: 'error', message: `Unexpected message type in room: ${(message as ClientMessage).type}` });
     }
@@ -108,7 +208,7 @@ export class Room {
       return;
     }
 
-    this.state = createMultiplayerGame(this.clients);
+    this.state = createMultiplayerGame(this.empireSlots);
     this.started = true;
 
     const serialized = serializeState(this.state);
@@ -125,7 +225,6 @@ export class Room {
       return;
     }
 
-    // Verify the command's empireId matches the client's assigned empire
     if (command.empireId !== client.empireId) {
       this.send(client.ws, { type: 'commandResult', ok: false, message: 'Cannot issue commands for another empire.' });
       return;
@@ -145,6 +244,17 @@ export class Room {
     setSpeed(this.state, speed);
   }
 
+  private handleChat(client: ConnectedClient, text: string): void {
+    const trimmed = text.trim().slice(0, 200);
+    if (!trimmed) return;
+    this.broadcast({
+      type: 'chat',
+      empireId: client.empireId,
+      playerName: client.playerName,
+      text: trimmed,
+    });
+  }
+
   private startTickLoop(): void {
     this.tickTimer = setInterval(() => {
       if (!this.state) return;
@@ -152,7 +262,6 @@ export class Room {
       const speed = this.state.currentSpeed;
       if (speed === SPEEDS.PAUSED) return;
 
-      // At higher speeds, run multiple ticks per interval
       for (let i = 0; i < speed; i++) {
         advanceTick(this.state);
       }
@@ -195,22 +304,17 @@ export class Room {
   }
 }
 
-function createMultiplayerGame(clients: ConnectedClient[]): GameState {
-  // Use the host's name for the game seed (deterministic from room)
-  const hostName = clients.find((c) => c.isHost)?.playerName ?? 'Host';
+function createMultiplayerGame(slots: EmpireSlot[]): GameState {
+  const hostName = slots.find((s) => s.isHost)?.playerName ?? 'Host';
   const state = createNewGame({ empireName: hostName, seed: Date.now() });
 
-  // Reassign empires: first N empires become human-controlled players,
-  // remaining stay as AI. createNewGame creates 4 empires (1 human + 3 AI).
-  // For >4 players we'd need to generate more empires, but the current
-  // game is designed for 4 empires total.
   const totalEmpires = state.empires.length;
   for (let i = 0; i < totalEmpires; i++) {
     const empire = state.empires[i];
-    const client = clients.find((c) => c.empireId === i);
-    if (client) {
+    const slot = slots.find((s) => s.empireId === i);
+    if (slot) {
       empire.controllerType = 'human';
-      empire.empireName = client.playerName;
+      empire.empireName = slot.playerName;
     } else {
       empire.controllerType = 'ai';
     }
@@ -220,7 +324,7 @@ function createMultiplayerGame(clients: ConnectedClient[]): GameState {
 }
 
 export function generateRoomCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars (0/O, 1/I)
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
     code += chars[Math.floor(Math.random() * chars.length)];

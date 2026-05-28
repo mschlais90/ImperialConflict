@@ -1214,3 +1214,42 @@ details.collapsible[open] > summary::before {
     max-height: none;
   }
 }
+
+.lobby-join-view {
+  display: grid;
+  gap: 12px;
+}
+
+.lobby-view {
+  display: grid;
+  gap: 12px;
+}
+
+.room-code-display {
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+  color: #4de64d;
+  letter-spacing: 4px;
+  padding: 8px 0;
+}
+
+.room-code-input {
+  width: 120px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-align: center;
+}
+
+.player-list {
+  display: grid;
+  gap: 4px;
+}
+
+.player-row {
+  padding: 6px 10px;
+  background: rgba(30, 42, 68, 0.6);
+  border-radius: 4px;
+  color: #c7d5ee;
+  font-size: 13px;
+}

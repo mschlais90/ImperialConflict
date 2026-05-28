@@ -2,6 +2,7 @@ import { createServer } from 'http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { ClientMessage } from '../core/protocol/messages';
 import { Room, generateRoomCode } from './room';
+import { serializeState } from './stateSerializer';
 
 const PORT = Number(process.env.PORT ?? 3001);
 
@@ -39,6 +40,9 @@ wss.on('connection', (ws: TaggedSocket) => {
         break;
       case 'join':
         handleJoin(ws, message);
+        break;
+      case 'reconnect':
+        handleReconnect(ws, message);
         break;
       default: {
         const room = getRoom(ws);
@@ -104,6 +108,33 @@ function handleJoin(ws: TaggedSocket, message: Extract<ClientMessage, { type: 'j
   ws.roomCode = room.roomCode;
   ws.send(JSON.stringify({ type: 'joined', empireId: client.empireId, players: room.getPlayerInfoList() }));
   room.broadcastMessage({ type: 'playerJoined', player: { empireId: client.empireId, name: client.playerName, isHost: false } });
+}
+
+function handleReconnect(ws: TaggedSocket, message: Extract<ClientMessage, { type: 'reconnect' }>): void {
+  const room = rooms.get(message.roomCode.toUpperCase());
+  if (!room) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Room not found.' }));
+    return;
+  }
+
+  if (!room.isStarted) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Game not started.' }));
+    return;
+  }
+
+  const client = room.reconnectClient(ws, message.empireId);
+  if (!client) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Cannot reconnect to this empire.' }));
+    return;
+  }
+
+  ws.roomCode = room.roomCode;
+
+  const state = room.gameState;
+  if (state) {
+    ws.send(JSON.stringify({ type: 'reconnected', empireId: client.empireId, state: serializeState(state) }));
+    room.broadcastMessage({ type: 'playerReconnected', empireId: client.empireId });
+  }
 }
 
 server.listen(PORT, () => {

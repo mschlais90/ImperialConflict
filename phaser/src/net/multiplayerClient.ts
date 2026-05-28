@@ -6,9 +6,12 @@ export interface MultiplayerCallbacks {
   onJoined: (empireId: number, players: PlayerInfo[]) => void;
   onPlayerJoined: (player: PlayerInfo) => void;
   onPlayerLeft: (empireId: number) => void;
+  onPlayerReconnected: (empireId: number) => void;
   onGameStarted: (state: SerializedGameState) => void;
   onTick: (state: SerializedGameState) => void;
   onCommandResult: (ok: boolean, message: string) => void;
+  onReconnected: (empireId: number, state: SerializedGameState) => void;
+  onChat: (empireId: number, playerName: string, text: string) => void;
   onError: (message: string) => void;
   onDisconnect: () => void;
 }
@@ -16,17 +19,35 @@ export interface MultiplayerCallbacks {
 export class MultiplayerClient {
   private ws: WebSocket | null = null;
   private callbacks: MultiplayerCallbacks;
+  private serverUrl: string | null = null;
+  private reconnectInfo: { roomCode: string; empireId: number } | null = null;
+  private intentionalDisconnect = false;
+  private reconnectAttempts = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private static readonly MAX_RECONNECT_ATTEMPTS = 5;
+  private static readonly RECONNECT_DELAY_MS = 2000;
 
   constructor(callbacks: MultiplayerCallbacks) {
     this.callbacks = callbacks;
   }
 
   connect(serverUrl: string): void {
-    this.disconnect();
+    this.intentionalDisconnect = false;
+    this.serverUrl = serverUrl;
+    this.doConnect(serverUrl);
+  }
+
+  private doConnect(serverUrl: string): void {
+    this.ws?.close();
     this.ws = new WebSocket(serverUrl);
 
     this.ws.addEventListener('open', () => {
-      // Connection established
+      this.reconnectAttempts = 0;
+      // If we have reconnect info, send reconnect message automatically
+      if (this.reconnectInfo) {
+        this.reconnect(this.reconnectInfo.roomCode, this.reconnectInfo.empireId);
+      }
     });
 
     this.ws.addEventListener('message', (event) => {
@@ -41,7 +62,19 @@ export class MultiplayerClient {
 
     this.ws.addEventListener('close', () => {
       this.ws = null;
-      this.callbacks.onDisconnect();
+      if (this.intentionalDisconnect) {
+        this.callbacks.onDisconnect();
+        return;
+      }
+      // Attempt auto-reconnect if we have reconnect info
+      if (this.reconnectInfo && this.serverUrl && this.reconnectAttempts < MultiplayerClient.MAX_RECONNECT_ATTEMPTS) {
+        this.reconnectAttempts++;
+        this.reconnectTimer = setTimeout(() => {
+          if (this.serverUrl) this.doConnect(this.serverUrl);
+        }, MultiplayerClient.RECONNECT_DELAY_MS);
+      } else {
+        this.callbacks.onDisconnect();
+      }
     });
 
     this.ws.addEventListener('error', () => {
@@ -50,10 +83,23 @@ export class MultiplayerClient {
   }
 
   disconnect(): void {
+    this.intentionalDisconnect = true;
+    this.reconnectInfo = null;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
+  }
+
+  roomCode: string | null = null;
+
+  setReconnectInfo(roomCode: string, empireId: number): void {
+    this.reconnectInfo = { roomCode, empireId };
+    this.roomCode = roomCode;
   }
 
   get isConnected(): boolean {
@@ -80,6 +126,14 @@ export class MultiplayerClient {
     this.send({ type: 'setSpeed', speed });
   }
 
+  reconnect(roomCode: string, empireId: number): void {
+    this.send({ type: 'reconnect', roomCode, empireId });
+  }
+
+  sendChat(text: string): void {
+    this.send({ type: 'chat', text });
+  }
+
   private send(message: ClientMessage): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
@@ -100,6 +154,9 @@ export class MultiplayerClient {
       case 'playerLeft':
         this.callbacks.onPlayerLeft(message.empireId);
         break;
+      case 'playerReconnected':
+        this.callbacks.onPlayerReconnected(message.empireId);
+        break;
       case 'gameStarted':
         this.callbacks.onGameStarted(message.state);
         break;
@@ -108,6 +165,12 @@ export class MultiplayerClient {
         break;
       case 'commandResult':
         this.callbacks.onCommandResult(message.ok, message.message);
+        break;
+      case 'reconnected':
+        this.callbacks.onReconnected(message.empireId, message.state);
+        break;
+      case 'chat':
+        this.callbacks.onChat(message.empireId, message.playerName, message.text);
         break;
       case 'error':
         this.callbacks.onError(message.message);

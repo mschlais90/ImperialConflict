@@ -275,6 +275,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     const mpClient = new MultiplayerClient({
       onRoomCreated(code) {
         roomCode = code;
+        mpClient.roomCode = code;
       },
       onJoined(empireId, joinedPlayers) {
         players = joinedPlayers;
@@ -295,6 +296,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         players = players.filter((p) => p.empireId !== empireId);
         lobbyCtrl?.updatePlayers(players);
       },
+      onPlayerReconnected(empireId) {
+        const empire = controller.state?.empires[empireId];
+        showToast(`${empire?.empireName ?? `Player ${empireId}`} reconnected.`, false);
+      },
       onGameStarted(state) {
         startMultiplayerGame(mpClient, state);
       },
@@ -303,6 +308,19 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       },
       onCommandResult(ok, message) {
         showToast(message, !ok);
+      },
+      onReconnected(empireId, state) {
+        controller.clientState = {
+          empireId,
+          selectedSystemId: null,
+          selectedPlanetId: null,
+          selectedFleetId: null,
+        };
+        startMultiplayerGame(mpClient, state);
+        showToast('Reconnected to game.', false);
+      },
+      onChat(_empireId, playerName, text) {
+        showToast(`${playerName}: ${text}`, false);
       },
       onError(message) {
         showToast(message, true);
@@ -354,7 +372,13 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     controller.isMultiplayer = true;
     controller.multiplayerClient = mpClient;
     controller.state = { ...serverState, rng: undefined };
-    controller.playerName = controller.state.empires[controller.clientState?.empireId ?? 0]?.empireName ?? 'Player';
+    const empireId = controller.clientState?.empireId ?? 0;
+    controller.playerName = controller.state.empires[empireId]?.empireName ?? 'Player';
+
+    // Store reconnect info so the client can auto-rejoin on disconnect
+    if (mpClient.roomCode) {
+      mpClient.setReconnectInfo(mpClient.roomCode, empireId);
+    }
 
     forcedGameOver = null;
     viewMode = 'normal';
