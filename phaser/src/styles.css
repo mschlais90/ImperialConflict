@@ -547,6 +547,11 @@ input[type="number"] {
   background: #2f6fda;
 }
 
+.ui-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .start-screen,
 .game-over-screen,
 .battle-report-screen {
@@ -1291,6 +1296,36 @@ details.collapsible[open] > summary::before {
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.lobby-section {
+  display: grid;
+  gap: 8px;
+}
+
+.lobby-action-btn {
+  width: 100%;
+  padding: 10px 16px;
+}
+
+.lobby-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+}
+
+.lobby-divider-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(100, 120, 180, 0.3);
+}
+
+.lobby-divider-text {
+  color: #6a7fa8;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 2px;
 }
 
 .tutorial-panel {

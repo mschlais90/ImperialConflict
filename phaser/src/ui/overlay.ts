@@ -24,7 +24,7 @@ import { renderStartScreen } from './startScreen';
 import type { UiContext } from './types';
 import { createLocalCommandProxy } from '../net/commandProxy';
 import { MultiplayerClient } from '../net/multiplayerClient';
-import { createRemoteCommandProxy } from '../net/remoteCommandProxy';
+import { createDualCommandProxy } from '../net/remoteCommandProxy';
 import { renderLobbyScreen, type LobbyController } from './lobbyScreen';
 import type { PlayerInfo, SerializedGameState } from '../core/protocol/messages';
 import { renderTutorialScreen } from './tutorialScreen';
@@ -803,12 +803,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       controller,
       player,
       commands: controller.isMultiplayer && controller.multiplayerClient
-        ? createRemoteCommandProxy(controller.multiplayerClient)
+        ? createDualCommandProxy(createLocalCommandProxy(() => controller.state!), controller.multiplayerClient)
         : createLocalCommandProxy(() => controller.state!),
       runCommand(command) {
         const result = command();
-        // In multiplayer, suppress the optimistic "Command sent." toast —
-        // the real result arrives via onCommandResult from the server.
         if (!controller.isMultiplayer) {
           showToast(result.message, !result.ok);
         }

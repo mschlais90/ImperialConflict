@@ -28,28 +28,48 @@ export function renderLobbyScreen(root: HTMLElement, callbacks: LobbyCallbacks):
   nameInput.spellcheck = false;
   nameLabel.append(nameInput);
 
-  // Create / Join forms
-  const createBtn = button('Create Game', () => {
+  // Create section
+  const createSection = document.createElement('div');
+  createSection.className = 'lobby-section';
+  const createBtn = button('Create New Game', () => {
     const name = nameInput.value.trim() || 'Player Empire';
     callbacks.onCreateRoom(name);
-  }, 'ui-button primary');
+  }, 'ui-button primary lobby-action-btn');
+  createSection.append(createBtn);
 
-  const joinRow = document.createElement('div');
-  joinRow.className = 'inline-form';
+  // OR divider
+  const divider = document.createElement('div');
+  divider.className = 'lobby-divider';
+  const dividerLine1 = document.createElement('span');
+  dividerLine1.className = 'lobby-divider-line';
+  const dividerText = document.createElement('span');
+  dividerText.className = 'lobby-divider-text';
+  dividerText.textContent = 'OR';
+  const dividerLine2 = document.createElement('span');
+  dividerLine2.className = 'lobby-divider-line';
+  divider.append(dividerLine1, dividerText, dividerLine2);
+
+  // Join section
+  const joinSection = document.createElement('div');
+  joinSection.className = 'lobby-section';
+  const codeLabel = document.createElement('label');
+  codeLabel.textContent = 'Room code';
   const codeInput = document.createElement('input');
   codeInput.type = 'text';
-  codeInput.placeholder = 'Room code';
-  codeInput.maxLength = 6;
+  codeInput.placeholder = 'ABC';
+  codeInput.maxLength = 3;
   codeInput.autocomplete = 'off';
   codeInput.spellcheck = false;
   codeInput.className = 'room-code-input';
-  const joinBtn = button('Join', () => {
+  codeInput.style.textTransform = 'uppercase';
+  codeLabel.append(codeInput);
+  const joinBtn = button('Join Game', () => {
     const code = codeInput.value.trim().toUpperCase();
     if (!code) return;
     const name = nameInput.value.trim() || 'Player Empire';
     callbacks.onJoinRoom(code, name);
-  }, 'ui-button');
-  joinRow.append(codeInput, joinBtn);
+  }, 'ui-button lobby-action-btn');
+  joinSection.append(codeLabel, joinBtn);
 
   const backBtn = button('Back', () => callbacks.onLeave(), 'ui-button');
 
@@ -77,7 +97,7 @@ export function renderLobbyScreen(root: HTMLElement, callbacks: LobbyCallbacks):
   // Initial view
   const joinView = document.createElement('div');
   joinView.className = 'lobby-join-view';
-  joinView.append(nameLabel, createBtn, joinRow, backBtn);
+  joinView.append(nameLabel, createSection, divider, joinSection, backBtn);
 
   panel.append(title, joinView, lobbyView);
   shell.append(panel);
