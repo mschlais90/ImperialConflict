@@ -284,8 +284,8 @@ export class Room {
     this.started = false;
   }
 
-  broadcastMessage(message: ServerMessage): void {
-    this.broadcast(message);
+  broadcastMessage(message: ServerMessage, excludeWs?: WebSocket): void {
+    this.broadcast(message, excludeWs);
   }
 
   private send(ws: WebSocket, message: ServerMessage): void {
@@ -294,10 +294,10 @@ export class Room {
     }
   }
 
-  private broadcast(message: ServerMessage): void {
+  private broadcast(message: ServerMessage, excludeWs?: WebSocket): void {
     const data = JSON.stringify(message);
     for (const client of this.clients) {
-      if (client.ws.readyState === client.ws.OPEN) {
+      if (client.ws !== excludeWs && client.ws.readyState === client.ws.OPEN) {
         client.ws.send(data);
       }
     }

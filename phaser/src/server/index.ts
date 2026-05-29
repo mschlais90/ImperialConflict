@@ -145,7 +145,7 @@ function handleJoin(ws: TaggedSocket, message: Extract<ClientMessage, { type: 'j
 
   ws.roomCode = room.roomCode;
   ws.send(JSON.stringify({ type: 'joined', empireId: client.empireId, players: room.getPlayerInfoList() }));
-  room.broadcastMessage({ type: 'playerJoined', player: { empireId: client.empireId, name: client.playerName, isHost: false } });
+  room.broadcastMessage({ type: 'playerJoined', player: { empireId: client.empireId, name: client.playerName, isHost: false } }, ws);
 }
 
 function handleReconnect(ws: TaggedSocket, message: Extract<ClientMessage, { type: 'reconnect' }>): void {
