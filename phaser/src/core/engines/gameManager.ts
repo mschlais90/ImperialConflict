@@ -14,6 +14,8 @@ import { getPlanetsInSystem } from '../selectors/selectors';
 export interface NewGameOptions {
   empireName?: string;
   seed?: number;
+  /** Total number of empires (human + AI). Defaults to 1 + AI_EMPIRE_COUNT. */
+  empireCount?: number;
 }
 
 const GALAXY_RADIUS = 50;
@@ -25,7 +27,7 @@ const MIN_PLANET_SIZE = 90;
 const MAX_PLANET_SIZE = 350;
 const AI_EMPIRE_COUNT = 3;
 
-const EMPIRE_COLORS = ['#3380ff', '#ff4d4d', '#4de64d', '#ffcc33'] as const;
+const EMPIRE_COLORS = ['#3380ff', '#ff4d4d', '#4de64d', '#ffcc33', '#cc66ff', '#ff8833'] as const;
 
 const STAR_NAMES = [
   'Sol',
@@ -80,19 +82,20 @@ export function createNewGame(options: NewGameOptions = {}): GameState {
   const state = createEmptyGameState();
   const rng = createSeededRng(options.seed ?? Date.now());
   const playerEmpireName = options.empireName ?? 'Player Empire';
+  const empireCount = options.empireCount ?? 1 + AI_EMPIRE_COUNT;
   state.rng = rng;
 
   state.currentState = 'playing';
   state.currentTick = 0;
   state.currentSpeed = 0;
 
-  generateGalaxy(state, rng, playerEmpireName);
+  generateGalaxy(state, rng, playerEmpireName, empireCount);
   appendEvent(state, { type: 'game_started', tick: state.currentTick, empireName: playerEmpireName });
 
   return state;
 }
 
-function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string): void {
+function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string, empireCount: number): void {
   const positions = generateSystemPositions(rng);
   invariant(
     positions.length === SYSTEM_COUNT,
@@ -126,7 +129,7 @@ function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string): v
     }
   }
 
-  createEmpires(state, rng, playerEmpireName);
+  createEmpires(state, rng, playerEmpireName, empireCount);
 }
 
 function generateSystemPositions(rng: Rng): Array<{ x: number; y: number }> {
@@ -151,8 +154,7 @@ function generateSystemPositions(rng: Rng): Array<{ x: number; y: number }> {
   return positions;
 }
 
-function createEmpires(state: GameState, rng: Rng, playerEmpireName: string): void {
-  const totalEmpires = 1 + AI_EMPIRE_COUNT;
+function createEmpires(state: GameState, rng: Rng, playerEmpireName: string, totalEmpires: number): void {
   const homeSystemIndices: number[] = [];
   const sortedByCenter = state.systems
     .map((_, index) => index)
@@ -166,7 +168,7 @@ function createEmpires(state: GameState, rng: Rng, playerEmpireName: string): vo
   invariant(playerHomeIdx !== undefined, 'Unable to select a player home system.');
   homeSystemIndices.push(playerHomeIdx);
 
-  for (let i = 0; i < AI_EMPIRE_COUNT; i += 1) {
+  for (let i = 0; i < totalEmpires - 1; i += 1) {
     let bestIdx = -1;
     let bestMinDist = 0;
 

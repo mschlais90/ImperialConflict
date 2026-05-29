@@ -306,18 +306,12 @@ export class Room {
 
 function createMultiplayerGame(slots: EmpireSlot[]): GameState {
   const hostName = slots.find((s) => s.isHost)?.playerName ?? 'Host';
-  const state = createNewGame({ empireName: hostName, seed: Date.now() });
+  const state = createNewGame({ empireName: hostName, seed: Date.now(), empireCount: slots.length });
 
-  const totalEmpires = state.empires.length;
-  for (let i = 0; i < totalEmpires; i++) {
+  for (let i = 0; i < slots.length; i++) {
     const empire = state.empires[i];
-    const slot = slots.find((s) => s.empireId === i);
-    if (slot) {
-      empire.controllerType = 'human';
-      empire.empireName = slot.playerName;
-    } else {
-      empire.controllerType = 'ai';
-    }
+    empire.controllerType = 'human';
+    empire.empireName = slots[i].playerName;
   }
 
   return state;

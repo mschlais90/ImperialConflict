@@ -5,7 +5,7 @@ import { downloadSave, uploadSave, getSavedDirHandle, saveToDirectory, listSaves
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { BUILDINGS } from '../core/data/buildings';
 import { UNITS } from '../core/data/units';
-import { getEmpire, getPlanet, getPlayerEmpire } from '../core/selectors/selectors';
+import { getEmpire, getPlanet } from '../core/selectors/selectors';
 import { renderBattleReport } from './battleReport';
 import { renderBattleHistoryPanel } from './battleHistory';
 import { clearElement } from './dom';
@@ -51,6 +51,14 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   let speedBeforeBattle: number | null = null;
   let viewMode: 'normal' | 'economy' | 'standings' | 'history' | 'massBuild' | 'ops' | 'fleet' | 'settings' | 'research' | 'notifications' = 'normal';
   let menuOpen = false;
+
+  /** Find this client's empire using clientState.empireId (multiplayer-safe). */
+  function getLocalPlayer() {
+    const state = controller.state;
+    if (!state) return undefined;
+    const empireId = controller.clientState?.empireId ?? 0;
+    return state.empires[empireId];
+  }
 
   const overlay: AppOverlay = {
     render,
@@ -483,7 +491,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
   function refreshAfterTick(): void {
     const state = controller.state;
-    const player = state ? getPlayerEmpire(state) : undefined;
+    const player = state ? getLocalPlayer() : undefined;
     if (!state || state.currentState === 'main_menu' || !player || !hudPanel || !leftPanel) {
       render();
       return;
@@ -524,7 +532,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   function checkForNewBattles(): void {
     const state = controller.state;
     if (!state) return;
-    const player = getPlayerEmpire(state);
+    const player = getLocalPlayer();
     if (!player) return;
 
     const newBattles = state.events.filter(
@@ -550,7 +558,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   function checkForNewEvents(): void {
     const state = controller.state;
     if (!state) return;
-    const player = getPlayerEmpire(state);
+    const player = getLocalPlayer();
     if (!player) return;
 
     const newEvents = state.events.filter((e) => e.id > lastSeenEventId);
@@ -635,7 +643,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     }
 
     const report = battleReportQueue.shift()!;
-    const player = getPlayerEmpire(state);
+    const player = getLocalPlayer();
     const isPlayerAttacker = player !== undefined && report.attackerId === player.id;
     const attackerEmpire = getEmpire(state, report.attackerId);
     const defenderEmpire = getEmpire(state, report.defenderId);
@@ -671,7 +679,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       return;
     }
 
-    const player = getPlayerEmpire(state);
+    const player = getLocalPlayer();
     if (!player) {
       root.append(errorPanel('Player empire not found.'));
       return;
@@ -761,7 +769,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     state.selectedFleetId = cs.selectedFleetId;
   }
 
-  function createContext(player: NonNullable<ReturnType<typeof getPlayerEmpire>>): UiContext {
+  function createContext(player: NonNullable<ReturnType<typeof getLocalPlayer>>): UiContext {
     return {
       controller,
       player,
