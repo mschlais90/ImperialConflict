@@ -1,5 +1,6 @@
 import { BUILDINGS, getBuildCost, getOverbuildMultiplier } from '../core/data/buildings';
 import { UNITS } from '../core/data/units';
+import { getTotalAgents, getTotalWizards } from '../core/engines/opsEngine';
 import type { GameState } from '../core/galaxy/galaxyData';
 import type { BuildingKey, CombatUnitKey, Planet, PlanetUnitKey, UnitKey } from '../core/models/types';
 import { calcSciencePercent, calcTravelTicks, getEmpire, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
@@ -247,10 +248,20 @@ function unitsSection(context: UiContext, planet: Planet): HTMLElement {
   const frag = document.createElement('div');
   frag.className = 'panel-stack';
 
-  // Current unit counts
-  const unitList = PLANET_DISPLAY_UNITS.filter((key) => (planet.units[key] ?? 0) > 0);
+  // Current unit counts — agents/wizards show empire-wide pool since they always pool for ops
+  const state = context.controller.state!;
+  const pooledCounts: Partial<Record<PlanetUnitKey, number>> = {
+    agent: getTotalAgents(state, context.player),
+    wizard: getTotalWizards(state, context.player),
+  };
+  const isPooled = (key: PlanetUnitKey): boolean => key === 'agent' || key === 'wizard';
+  const getDisplayCount = (key: PlanetUnitKey): number => isPooled(key) ? (pooledCounts[key] ?? 0) : (planet.units[key] ?? 0);
+  const unitList = PLANET_DISPLAY_UNITS.filter((key) => getDisplayCount(key) > 0);
   if (unitList.length > 0) {
-    frag.append(keyValueList(unitList.map((key) => [UNITS[key].name, planet.units[key] ?? 0])));
+    frag.append(keyValueList(unitList.map((key) => [
+      isPooled(key) ? `${UNITS[key].name} (empire)` : UNITS[key].name,
+      getDisplayCount(key),
+    ])));
   }
 
   // Train inputs
@@ -267,7 +278,9 @@ function unitsSection(context: UiContext, planet: Planet): HTMLElement {
 
     const label = document.createElement('span');
     label.className = 'build-label';
-    label.textContent = `${UNITS[key].name} ${planet.units[key] ?? 0}`;
+    label.textContent = isPooled(key)
+      ? `${UNITS[key].name} ${pooledCounts[key] ?? 0} (empire)`
+      : `${UNITS[key].name} ${planet.units[key] ?? 0}`;
 
     const costLabel = document.createElement('span');
     costLabel.className = 'build-cost';
