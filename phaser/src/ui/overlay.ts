@@ -3,6 +3,7 @@ import type { BattleReport } from '../core/engines/combatEngine';
 import { createNewGame } from '../core/engines/gameManager';
 import type { GameState } from '../core/galaxy/galaxyData';
 import { downloadSave, uploadSave, getSavedDirHandle, saveToDirectory, listSavesInDirectory, loadFromDirectory } from '../core/persistence/saveLoad';
+import type { GameSpeed } from '../core/events/eventLog';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { BUILDINGS } from '../core/data/buildings';
 import { UNITS } from '../core/data/units';
@@ -100,7 +101,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     showGameOver,
   };
 
-  function changeSpeed(state: NonNullable<typeof controller.state>, speed: 0 | 1 | 2 | 4): void {
+  function changeSpeed(state: NonNullable<typeof controller.state>, speed: GameSpeed): void {
     if (controller.isMultiplayer && !controller.isHost) return;
     if (controller.isMultiplayer && controller.multiplayerClient) {
       controller.multiplayerClient.setSpeed(speed);
@@ -205,8 +206,11 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         refreshAfterTick();
         break;
       case '3':
-      case '4':
         changeSpeed(state, SPEEDS.FASTEST);
+        refreshAfterTick();
+        break;
+      case '4':
+        changeSpeed(state, SPEEDS.TURBO);
         refreshAfterTick();
         break;
     }
@@ -232,7 +236,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       ['O', 'Special Ops'],
       ['S', 'Settings'],
       ['0', 'Pause'],
-      ['1–4', 'Set speed'],
+      ['1\u20134', 'Set speed (1x\u20138x)'],
       ['ESC', 'Close / Galaxy'],
       ['?', 'This help'],
     ];
@@ -786,28 +790,54 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   }
 
   function renderLeftContent(context: UiContext): HTMLElement {
+    let panel: HTMLElement;
     switch (viewMode) {
       case 'economy':
-        return renderEconomyPanel(context);
+        panel = renderEconomyPanel(context);
+        break;
       case 'standings':
-        return renderStandingsPanel(context);
+        panel = renderStandingsPanel(context);
+        break;
       case 'history':
-        return renderBattleHistoryPanel(context);
+        panel = renderBattleHistoryPanel(context);
+        break;
       case 'massBuild':
-        return renderMassBuildPanel(context);
+        panel = renderMassBuildPanel(context);
+        break;
       case 'ops':
-        return renderOpsPanel(context);
+        panel = renderOpsPanel(context);
+        break;
       case 'fleet':
-        return renderFleetManagementPanel(context);
+        panel = renderFleetManagementPanel(context);
+        break;
       case 'settings':
-        return renderSettingsPanel(context);
+        panel = renderSettingsPanel(context);
+        break;
       case 'research':
-        return renderResearchFullPanel(context);
+        panel = renderResearchFullPanel(context);
+        break;
       case 'notifications':
-        return renderNotificationsFullPanel(context);
+        panel = renderNotificationsFullPanel(context);
+        break;
       default:
         return renderPlanetPanel(context);
     }
+
+    // Add close button to all overlay panels
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'panel-close-btn';
+    closeBtn.innerHTML = '&#x2715;';
+    closeBtn.title = 'Close (Esc)';
+    closeBtn.addEventListener('click', () => {
+      viewMode = 'normal';
+      menuOpen = false;
+      render();
+    });
+    panel.style.position = 'relative';
+    panel.prepend(closeBtn);
+
+    return panel;
   }
 
   function renderResearchFullPanel(context: UiContext): HTMLElement {

@@ -19,6 +19,7 @@ const SPEED_OPTIONS = [
   { label: '1x', value: SPEEDS.NORMAL },
   { label: '2x', value: SPEEDS.FAST },
   { label: '4x', value: SPEEDS.FASTEST },
+  { label: '8x', value: SPEEDS.TURBO },
 ] as const;
 
 const MENU_ITEMS: Array<{ label: string; key: string; mode: string | null; separator?: boolean }> = [

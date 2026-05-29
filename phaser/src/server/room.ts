@@ -7,7 +7,7 @@ import type { ClientMessage, PlayerInfo, SerializedCommand, ServerMessage } from
 import { executeCommand } from './commandHandler';
 import { serializeState } from './stateSerializer';
 
-const TICK_INTERVAL_MS = 2000;
+const TICK_INTERVAL_MS = 8000;
 const MAX_PLAYERS = 6;
 const ROOM_CODE_LENGTH = 3;
 const EMPIRE_COLORS = ['#3380ff', '#ff4d4d', '#4de64d', '#ffcc33', '#cc66ff', '#ff8833'];

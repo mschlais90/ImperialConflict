@@ -7,7 +7,7 @@ import { GalaxyScene } from './scenes/GalaxyScene';
 import { SystemScene } from './scenes/SystemScene';
 import { createOverlay } from './ui/overlay';
 
-const BASE_TICK_SECONDS = 2;
+const BASE_TICK_SECONDS = 8;
 const MAX_FRAME_SECONDS = 0.25;
 
 declare global {

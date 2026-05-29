@@ -31,7 +31,7 @@ export type GameEvent =
   | { type: 'notification'; tick: number; message: string; category?: string }
   | { type: 'game_over'; tick: number; playerWon: boolean };
 
-export type GameSpeed = 0 | 1 | 2 | 4;
+export type GameSpeed = 0 | 1 | 2 | 4 | 8;
 
 export type EventLogEntry = GameEvent & {
   id: number;

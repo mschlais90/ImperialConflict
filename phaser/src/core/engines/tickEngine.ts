@@ -7,6 +7,7 @@ export const SPEEDS = {
   NORMAL: 1,
   FAST: 2,
   FASTEST: 4,
+  TURBO: 8,
 } as const satisfies Record<string, GameSpeed>;
 
 export function setSpeed(state: GameState, speed: GameSpeed): void {
