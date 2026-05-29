@@ -29,6 +29,32 @@ import { renderLobbyScreen, type LobbyController } from './lobbyScreen';
 import type { PlayerInfo, SerializedGameState } from '../core/protocol/messages';
 import { renderTutorialScreen } from './tutorialScreen';
 
+const MP_SESSION_KEY = 'ic_mp_session';
+
+function saveMpSession(roomCode: string, empireId: number): void {
+  try {
+    localStorage.setItem(MP_SESSION_KEY, JSON.stringify({ roomCode, empireId }));
+  } catch { /* storage full or unavailable */ }
+}
+
+function loadMpSession(): { roomCode: string; empireId: number } | null {
+  try {
+    const raw = localStorage.getItem(MP_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.roomCode === 'string' && typeof parsed.empireId === 'number') {
+      return parsed;
+    }
+  } catch { /* corrupt data */ }
+  return null;
+}
+
+function clearMpSession(): void {
+  try {
+    localStorage.removeItem(MP_SESSION_KEY);
+  } catch { /* ignore */ }
+}
+
 export interface OverlayApi {
   render(): void;
   refreshAfterTick(): void;
@@ -365,6 +391,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       },
       onError(message) {
         showToast(message, true);
+        // If the room is gone, clear saved session so the rejoin button disappears
+        if (message === 'Room not found.' || message === 'Cannot reconnect to this empire.') {
+          clearMpSession();
+        }
       },
       onDisconnect() {
         showToast('Disconnected from server.', true);
@@ -380,9 +410,9 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       : `${wsProtocol}//${window.location.host}`;
 
     lobbyCtrl = renderLobbyScreen(root, {
+      savedSession: loadMpSession(),
       onCreateRoom(playerName) {
         mpClient.connect(serverUrl);
-        // Wait a moment for connection, then create
         const waitForOpen = setInterval(() => {
           if (mpClient.isConnected) {
             clearInterval(waitForOpen);
@@ -402,10 +432,18 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         }, 100);
         setTimeout(() => clearInterval(waitForOpen), 5000);
       },
+      onRejoinGame(code, empireId) {
+        roomCode = code;
+        mpClient.roomCode = code;
+        mpClient.setReconnectInfo(code, empireId);
+        mpClient.connect(serverUrl);
+        // reconnectInfo is set, so doConnect will auto-send the reconnect message on open
+      },
       onStartGame() {
         mpClient.startGame();
       },
       onLeave() {
+        clearMpSession();
         mpClient.disconnect();
         showStartScreen();
       },
@@ -422,6 +460,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     // Store reconnect info so the client can auto-rejoin on disconnect
     if (mpClient.roomCode) {
       mpClient.setReconnectInfo(mpClient.roomCode, empireId);
+      saveMpSession(mpClient.roomCode, empireId);
     }
 
     forcedGameOver = null;

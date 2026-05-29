@@ -4,8 +4,24 @@ import { button } from './dom';
 export interface LobbyCallbacks {
   onCreateRoom: (playerName: string) => void;
   onJoinRoom: (roomCode: string, playerName: string) => void;
+  onRejoinGame: (roomCode: string, empireId: number) => void;
   onStartGame: () => void;
   onLeave: () => void;
+  savedSession: { roomCode: string; empireId: number } | null;
+}
+
+function orDivider(): HTMLElement {
+  const div = document.createElement('div');
+  div.className = 'lobby-divider';
+  const line1 = document.createElement('span');
+  line1.className = 'lobby-divider-line';
+  const text = document.createElement('span');
+  text.className = 'lobby-divider-text';
+  text.textContent = 'OR';
+  const line2 = document.createElement('span');
+  line2.className = 'lobby-divider-line';
+  div.append(line1, text, line2);
+  return div;
 }
 
 export function renderLobbyScreen(root: HTMLElement, callbacks: LobbyCallbacks): LobbyController {
@@ -36,18 +52,6 @@ export function renderLobbyScreen(root: HTMLElement, callbacks: LobbyCallbacks):
     callbacks.onCreateRoom(name);
   }, 'ui-button primary lobby-action-btn');
   createSection.append(createBtn);
-
-  // OR divider
-  const divider = document.createElement('div');
-  divider.className = 'lobby-divider';
-  const dividerLine1 = document.createElement('span');
-  dividerLine1.className = 'lobby-divider-line';
-  const dividerText = document.createElement('span');
-  dividerText.className = 'lobby-divider-text';
-  dividerText.textContent = 'OR';
-  const dividerLine2 = document.createElement('span');
-  dividerLine2.className = 'lobby-divider-line';
-  divider.append(dividerLine1, dividerText, dividerLine2);
 
   // Join section
   const joinSection = document.createElement('div');
@@ -97,7 +101,27 @@ export function renderLobbyScreen(root: HTMLElement, callbacks: LobbyCallbacks):
   // Initial view
   const joinView = document.createElement('div');
   joinView.className = 'lobby-join-view';
-  joinView.append(nameLabel, createSection, divider, joinSection, backBtn);
+
+  if (callbacks.savedSession) {
+    const session = callbacks.savedSession;
+
+    const rejoinSection = document.createElement('div');
+    rejoinSection.className = 'lobby-section lobby-rejoin';
+
+    const rejoinLabel = document.createElement('p');
+    rejoinLabel.className = 'lobby-rejoin-label';
+    rejoinLabel.textContent = `You were in room ${session.roomCode}`;
+
+    const rejoinBtn = button('Rejoin Game', () => {
+      callbacks.onRejoinGame(session.roomCode, session.empireId);
+    }, 'ui-button primary lobby-action-btn');
+
+    rejoinSection.append(rejoinLabel, rejoinBtn);
+
+    joinView.append(rejoinSection, orDivider(), nameLabel, createSection, orDivider(), joinSection, backBtn);
+  } else {
+    joinView.append(nameLabel, createSection, orDivider(), joinSection, backBtn);
+  }
 
   panel.append(title, joinView, lobbyView);
   shell.append(panel);

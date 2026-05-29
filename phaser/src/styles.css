@@ -1328,6 +1328,13 @@ details.collapsible[open] > summary::before {
   letter-spacing: 2px;
 }
 
+.lobby-rejoin-label {
+  text-align: center;
+  color: #8fa8d4;
+  font-size: 13px;
+  margin: 0;
+}
+
 .tutorial-panel {
   width: min(640px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);
