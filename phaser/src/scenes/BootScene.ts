@@ -28,15 +28,19 @@ export class BootScene extends Phaser.Scene {
     };
 
     controller.loadGame = (state) => {
-      const player = getPlayerEmpire(state);
-      controller.playerName = player?.empireName ?? 'Player Empire';
       controller.state = state;
-      controller.clientState = {
-        empireId: player?.id ?? 0,
-        selectedSystemId: state.selectedSystemId,
-        selectedPlanetId: state.selectedPlanetId,
-        selectedFleetId: state.selectedFleetId,
-      };
+      if (!controller.isMultiplayer) {
+        // Single-player: derive clientState from the player empire
+        const player = getPlayerEmpire(state);
+        controller.playerName = player?.empireName ?? 'Player Empire';
+        controller.clientState = {
+          empireId: player?.id ?? 0,
+          selectedSystemId: state.selectedSystemId,
+          selectedPlanetId: state.selectedPlanetId,
+          selectedFleetId: state.selectedFleetId,
+        };
+      }
+      // Multiplayer: clientState is already set by onJoined with the correct empireId
       controller.overlay.render();
       this.scene.start('GalaxyScene');
     };

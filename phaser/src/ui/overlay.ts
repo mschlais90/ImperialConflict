@@ -77,6 +77,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     if (controller.isMultiplayer && !controller.isHost) return;
     if (controller.isMultiplayer && controller.multiplayerClient) {
       controller.multiplayerClient.setSpeed(speed);
+      state.currentSpeed = speed;
     } else {
       setSpeed(state, speed);
     }
@@ -434,7 +435,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     chatMessages.length = 0;
 
     if (controller.startNewGame) {
-      // BootScene handles state setup via loadGame
+      // BootScene handles state setup via loadGame (skips clientState reset in MP)
       controller.loadGame?.(controller.state);
     } else {
       render();

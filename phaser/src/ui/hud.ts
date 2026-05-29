@@ -89,6 +89,8 @@ export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement
       if (isNonHostMp) return;
       if (controller.isMultiplayer && controller.multiplayerClient) {
         controller.multiplayerClient.setSpeed(speed.value as GameSpeed);
+        // Optimistically update local speed so the button highlights immediately
+        state.currentSpeed = speed.value;
       } else {
         setSpeed(state, speed.value);
       }
