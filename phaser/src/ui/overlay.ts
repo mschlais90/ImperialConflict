@@ -26,6 +26,7 @@ import { MultiplayerClient } from '../net/multiplayerClient';
 import { createRemoteCommandProxy } from '../net/remoteCommandProxy';
 import { renderLobbyScreen, type LobbyController } from './lobbyScreen';
 import type { PlayerInfo, SerializedGameState } from '../core/protocol/messages';
+import { renderTutorialScreen } from './tutorialScreen';
 
 export interface OverlayApi {
   render(): void;
@@ -260,6 +261,16 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       });
     }, () => {
       showMultiplayerLobby();
+    }, () => {
+      showTutorial();
+    });
+  }
+
+  function showTutorial(): void {
+    clearElement(root);
+    root.append(toastContainer);
+    renderTutorialScreen(root, () => {
+      showStartScreen();
     });
   }
 
