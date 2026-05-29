@@ -564,6 +564,30 @@ input[type="number"] {
   padding: 24px;
 }
 
+.game-over-results {
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+.game-over-results-header {
+  display: grid;
+  grid-template-columns: 1fr 60px 80px;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(100, 120, 180, 0.3);
+  color: #8899bb;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.game-over-results-row {
+  display: grid;
+  grid-template-columns: 1fr 60px 80px;
+  gap: 8px;
+  padding: 4px 0;
+  color: #c7d5ee;
+}
+
 .battle-report-panel {
   width: min(460px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);
@@ -1052,6 +1076,10 @@ details.collapsible[open] > summary::before {
   opacity: 0.5;
 }
 
+.standings-offline {
+  color: #ff8844;
+}
+
 .standings-row > span {
   text-align: left;
   overflow: hidden;
@@ -1252,6 +1280,17 @@ details.collapsible[open] > summary::before {
   border-radius: 4px;
   color: #c7d5ee;
   font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .tutorial-panel {
@@ -1328,4 +1367,99 @@ details.collapsible[open] > summary::before {
   border: 1px solid rgba(100, 120, 180, 0.4);
   border-radius: 3px;
   color: #c7d5ee;
+}
+
+/* Chat panel */
+.chat-panel {
+  position: fixed;
+  bottom: 8px;
+  right: 8px;
+  width: 300px;
+  max-height: 200px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 14, 28, 0.85);
+  border: 1px solid rgba(100, 120, 180, 0.25);
+  border-radius: 6px;
+  z-index: 200;
+  font-size: 12px;
+}
+
+.chat-history {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px;
+  max-height: 150px;
+}
+
+.chat-msg {
+  padding: 2px 0;
+  color: #c7d5ee;
+  word-wrap: break-word;
+}
+
+.chat-system {
+  color: #8899bb;
+  font-style: italic;
+}
+
+.chat-input-row {
+  border-top: 1px solid rgba(100, 120, 180, 0.2);
+  padding: 4px;
+}
+
+.chat-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(20, 28, 50, 0.9);
+  border: 1px solid rgba(100, 120, 180, 0.3);
+  border-radius: 3px;
+  color: #e0e8f8;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+
+.chat-input:focus {
+  border-color: rgba(100, 140, 255, 0.6);
+}
+
+.chat-input::placeholder {
+  color: #556688;
+}
+
+/* Eliminated overlay */
+.eliminated-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+}
+
+.eliminated-banner {
+  background: rgba(10, 14, 28, 0.95);
+  border: 1px solid rgba(255, 80, 80, 0.4);
+  border-radius: 8px;
+  padding: 32px 40px;
+  text-align: center;
+  max-width: 400px;
+}
+
+.eliminated-banner h2 {
+  color: #ff6666;
+  margin: 0 0 8px;
+}
+
+.eliminated-banner p {
+  color: #aabbcc;
+  margin: 0 0 20px;
+  font-size: 14px;
+}
+
+.eliminated-banner .ui-button {
+  margin: 0 6px;
 }

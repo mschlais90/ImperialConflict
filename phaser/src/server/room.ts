@@ -10,6 +10,7 @@ import { serializeState } from './stateSerializer';
 const TICK_INTERVAL_MS = 2000;
 const MAX_PLAYERS = 6;
 const ROOM_CODE_LENGTH = 6;
+const EMPIRE_COLORS = ['#3380ff', '#ff4d4d', '#4de64d', '#ffcc33', '#cc66ff', '#ff8833'];
 
 export interface ConnectedClient {
   ws: WebSocket;
@@ -166,6 +167,10 @@ export class Room {
     }
   }
 
+  getPlayerColor(empireId: number): string {
+    return EMPIRE_COLORS[empireId] ?? '#ffffff';
+  }
+
   getPlayerInfoList(): PlayerInfo[] {
     return this.empireSlots
       .filter((s) => s.connected)
@@ -173,6 +178,7 @@ export class Room {
         empireId: s.empireId,
         name: s.playerName,
         isHost: s.isHost,
+        color: EMPIRE_COLORS[s.empireId] ?? '#ffffff',
       }));
   }
 

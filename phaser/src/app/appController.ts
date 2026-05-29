@@ -26,6 +26,7 @@ export interface AppController {
   activeScene: 'galaxy' | 'system';
   switchToGalaxy: (() => void) | null;
   isMultiplayer: boolean;
+  isHost: boolean;
   multiplayerClient: MultiplayerClient | null;
 }
 

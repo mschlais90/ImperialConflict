@@ -11,6 +11,7 @@ export interface PlayerInfo {
   empireId: number;
   name: string;
   isHost: boolean;
+  color?: string;
 }
 
 export interface GameSettings {

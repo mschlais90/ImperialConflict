@@ -121,7 +121,15 @@ export function renderStandingsPanel(context: UiContext): HTMLElement {
     military.textContent = formatNumber(row.military);
 
     const status = document.createElement('span');
-    status.textContent = row.eliminated ? 'Eliminated' : 'Active';
+    const isDisconnected = context.disconnectedPlayers.has(row.empire.id);
+    if (row.eliminated) {
+      status.textContent = 'Eliminated';
+    } else if (isDisconnected) {
+      status.textContent = 'Offline';
+      status.classList.add('standings-offline');
+    } else {
+      status.textContent = context.controller.isMultiplayer && row.empire.controllerType === 'human' ? 'Online' : 'Active';
+    }
 
     rowEl.append(name, nw, planets, military, status);
     table.append(rowEl);

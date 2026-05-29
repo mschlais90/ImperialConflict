@@ -48,6 +48,7 @@ const controller: AppController = {
   activeScene: 'galaxy',
   switchToGalaxy: null,
   isMultiplayer: false,
+  isHost: false,
   multiplayerClient: null,
 };
 

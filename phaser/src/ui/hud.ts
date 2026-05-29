@@ -83,8 +83,10 @@ export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement
 
   const speeds = document.createElement('div');
   speeds.className = 'speed-controls';
+  const isNonHostMp = controller.isMultiplayer && !controller.isHost;
   for (const speed of SPEED_OPTIONS) {
     const speedButton = button(speed.label, () => {
+      if (isNonHostMp) return;
       if (controller.isMultiplayer && controller.multiplayerClient) {
         controller.multiplayerClient.setSpeed(speed.value as GameSpeed);
       } else {
@@ -95,6 +97,10 @@ export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement
     const isActive = state.currentSpeed === speed.value;
     speedButton.classList.toggle('active', isActive);
     speedButton.setAttribute('aria-pressed', String(isActive));
+    if (isNonHostMp) {
+      speedButton.disabled = true;
+      speedButton.title = 'Only the host can change speed';
+    }
     speeds.append(speedButton);
   }
 

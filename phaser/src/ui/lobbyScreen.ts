@@ -114,7 +114,15 @@ function updatePlayerList(container: HTMLElement, players: PlayerInfo[]): void {
   for (const player of players) {
     const row = document.createElement('div');
     row.className = 'player-row';
-    row.textContent = `${player.name}${player.isHost ? ' (Host)' : ''}`;
+    if (player.color) {
+      const dot = document.createElement('span');
+      dot.className = 'player-color-dot';
+      dot.style.background = player.color;
+      row.append(dot);
+    }
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = `${player.name}${player.isHost ? ' (Host)' : ''}`;
+    row.append(nameSpan);
     container.append(row);
   }
 }

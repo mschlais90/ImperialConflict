@@ -1,6 +1,7 @@
 import type { AppController, AppOverlay } from '../app/appController';
 import type { BattleReport } from '../core/engines/combatEngine';
 import { createNewGame } from '../core/engines/gameManager';
+import type { GameState } from '../core/galaxy/galaxyData';
 import { downloadSave, uploadSave, getSavedDirHandle, saveToDirectory, listSavesInDirectory, loadFromDirectory } from '../core/persistence/saveLoad';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { BUILDINGS } from '../core/data/buildings';
@@ -60,6 +61,11 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     return state.empires[empireId];
   }
 
+  // Multiplayer state
+  const disconnectedPlayers = new Set<number>();
+  const chatMessages: Array<{ sender: string; text: string; isSystem: boolean }> = [];
+  let chatPanel: HTMLElement | null = null;
+
   const overlay: AppOverlay = {
     render,
     refreshAfterTick,
@@ -68,6 +74,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   };
 
   function changeSpeed(state: NonNullable<typeof controller.state>, speed: 0 | 1 | 2 | 4): void {
+    if (controller.isMultiplayer && !controller.isHost) return;
     if (controller.isMultiplayer && controller.multiplayerClient) {
       controller.multiplayerClient.setSpeed(speed);
     } else {
@@ -151,6 +158,12 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       case '?':
         toggleShortcutHelp();
         break;
+      case 'enter':
+        if (controller.isMultiplayer) {
+          focusChatInput();
+          event.preventDefault();
+        }
+        break;
       case '0':
         changeSpeed(state, SPEEDS.PAUSED);
         refreshAfterTick();
@@ -230,6 +243,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
   function showStartScreen(): void {
     clearElement(root);
+    chatPanel = null;
     root.append(toastContainer);
     renderStartScreen(root, (empireName) => {
       forcedGameOver = null;
@@ -256,6 +270,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
             commands: undefined as never,
             runCommand: () => {},
             setNotice: (msg, isError) => showToast(msg, isError ?? false),
+            disconnectedPlayers,
           });
         } else {
           openFilePicker({
@@ -264,6 +279,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
             commands: undefined as never,
             runCommand: () => {},
             setNotice: (msg, isError) => showToast(msg, isError ?? false),
+            disconnectedPlayers,
           });
         }
       });
@@ -299,6 +315,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       onJoined(empireId, joinedPlayers) {
         players = joinedPlayers;
         isHost = joinedPlayers.find((p) => p.empireId === empireId)?.isHost ?? false;
+        controller.isHost = isHost;
         controller.clientState = {
           empireId,
           selectedSystemId: null,
@@ -314,8 +331,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       onPlayerLeft(empireId) {
         players = players.filter((p) => p.empireId !== empireId);
         lobbyCtrl?.updatePlayers(players);
+        disconnectedPlayers.add(empireId);
       },
       onPlayerReconnected(empireId) {
+        disconnectedPlayers.delete(empireId);
         const empire = controller.state?.empires[empireId];
         showToast(`${empire?.empireName ?? `Player ${empireId}`} reconnected.`, false);
       },
@@ -338,8 +357,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         startMultiplayerGame(mpClient, state);
         showToast('Reconnected to game.', false);
       },
-      onChat(_empireId, playerName, text) {
-        showToast(`${playerName}: ${text}`, false);
+      onChat(empireId, playerName, text) {
+        chatMessages.push({ sender: playerName, text, isSystem: empireId < 0 });
+        if (chatMessages.length > 100) chatMessages.shift();
+        refreshChatPanel();
       },
       onError(message) {
         showToast(message, true);
@@ -410,6 +431,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     battleReportScreen = null;
 
     syncLastSeenEventIds();
+    chatMessages.length = 0;
 
     if (controller.startNewGame) {
       // BootScene handles state setup via loadGame
@@ -417,6 +439,9 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     } else {
       render();
     }
+
+    // Show chat panel for multiplayer games
+    ensureChatPanel();
   }
 
   function applyServerState(serverState: SerializedGameState): void {
@@ -581,8 +606,11 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         case 'empire_eliminated': {
           const empire = getEmpire(state, event.empireId);
           const name = empire?.empireName ?? `Empire ${event.empireId}`;
-          const isPlayer = event.empireId === player.id;
-          toasts.push({ message: `${name} has been eliminated!`, isError: isPlayer });
+          const isLocalPlayer = event.empireId === player.id;
+          toasts.push({ message: `${name} has been eliminated!`, isError: isLocalPlayer });
+          if (isLocalPlayer && controller.isMultiplayer) {
+            showEliminatedOverlay();
+          }
           break;
         }
         case 'fleet_arrived': {
@@ -778,7 +806,11 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         : createLocalCommandProxy(() => controller.state!),
       runCommand(command) {
         const result = command();
-        showToast(result.message, !result.ok);
+        // In multiplayer, suppress the optimistic "Command sent." toast —
+        // the real result arrives via onCommandResult from the server.
+        if (!controller.isMultiplayer) {
+          showToast(result.message, !result.ok);
+        }
         if (result.ok) {
           controller.refreshScene?.();
         }
@@ -788,6 +820,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         showToast(message, isError);
         if (rerender) render();
       },
+      disconnectedPlayers,
     };
   }
 
@@ -802,7 +835,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       return;
     }
 
-    const nextGameOverScreen = gameOverScreenPanel(playerWon ?? false);
+    const nextGameOverScreen = gameOverScreenPanel(playerWon ?? false, state);
     if (gameOverScreen) {
       gameOverScreen.replaceWith(nextGameOverScreen);
     } else {
@@ -827,6 +860,99 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       toast.classList.remove('toast-visible');
       setTimeout(() => toast.remove(), 350);
     }, 3000);
+  }
+
+  let eliminatedOverlay: HTMLElement | null = null;
+
+  function showEliminatedOverlay(): void {
+    if (eliminatedOverlay) return;
+    eliminatedOverlay = document.createElement('div');
+    eliminatedOverlay.className = 'eliminated-overlay interactive';
+    const banner = document.createElement('div');
+    banner.className = 'eliminated-banner';
+    const title = document.createElement('h2');
+    title.textContent = 'Defeated';
+    const msg = document.createElement('p');
+    msg.textContent = 'Your empire has been eliminated. You can continue watching or leave.';
+    const leaveBtn = document.createElement('button');
+    leaveBtn.type = 'button';
+    leaveBtn.className = 'ui-button';
+    leaveBtn.textContent = 'Leave Game';
+    leaveBtn.addEventListener('click', () => {
+      controller.multiplayerClient?.disconnect();
+      controller.isMultiplayer = false;
+      controller.multiplayerClient = null;
+      eliminatedOverlay?.remove();
+      eliminatedOverlay = null;
+      showStartScreen();
+    });
+    const watchBtn = document.createElement('button');
+    watchBtn.type = 'button';
+    watchBtn.className = 'ui-button primary';
+    watchBtn.textContent = 'Keep Watching';
+    watchBtn.addEventListener('click', () => {
+      eliminatedOverlay?.remove();
+      eliminatedOverlay = null;
+    });
+    banner.append(title, msg, watchBtn, leaveBtn);
+    eliminatedOverlay.append(banner);
+    root.append(eliminatedOverlay);
+  }
+
+  function ensureChatPanel(): HTMLElement {
+    if (chatPanel && chatPanel.parentElement) return chatPanel;
+    chatPanel = document.createElement('div');
+    chatPanel.className = 'chat-panel interactive';
+
+    const history = document.createElement('div');
+    history.className = 'chat-history';
+    chatPanel.append(history);
+
+    const inputRow = document.createElement('div');
+    inputRow.className = 'chat-input-row';
+    const chatInput = document.createElement('input');
+    chatInput.type = 'text';
+    chatInput.className = 'chat-input';
+    chatInput.placeholder = 'Type a message...';
+    chatInput.maxLength = 200;
+    chatInput.autocomplete = 'off';
+    chatInput.spellcheck = false;
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && chatInput.value.trim()) {
+        controller.multiplayerClient?.sendChat(chatInput.value.trim());
+        chatInput.value = '';
+      }
+      if (e.key === 'Escape') {
+        chatInput.blur();
+      }
+      e.stopPropagation();
+    });
+    inputRow.append(chatInput);
+    chatPanel.append(inputRow);
+
+    root.append(chatPanel);
+    refreshChatPanel();
+    return chatPanel;
+  }
+
+  function refreshChatPanel(): void {
+    if (!chatPanel) return;
+    const history = chatPanel.querySelector('.chat-history');
+    if (!history) return;
+    history.innerHTML = '';
+    for (const msg of chatMessages) {
+      const line = document.createElement('div');
+      line.className = msg.isSystem ? 'chat-msg chat-system' : 'chat-msg';
+      line.textContent = msg.isSystem ? msg.text : `${msg.sender}: ${msg.text}`;
+      history.append(line);
+    }
+    history.scrollTop = history.scrollHeight;
+  }
+
+  function focusChatInput(): void {
+    const panel = ensureChatPanel();
+    const input = panel.querySelector<HTMLInputElement>('.chat-input');
+    input?.focus();
   }
 
   function openFilePicker(context: UiContext): void {
@@ -927,7 +1053,7 @@ function errorPanel(message: string): HTMLElement {
   return panel;
 }
 
-function gameOverScreenPanel(playerWon: boolean): HTMLElement {
+function gameOverScreenPanel(playerWon: boolean, state?: GameState | null): HTMLElement {
   const shell = document.createElement('div');
   shell.className = 'game-over-screen interactive';
   const panel = document.createElement('div');
@@ -937,6 +1063,44 @@ function gameOverScreenPanel(playerWon: boolean): HTMLElement {
   const message = document.createElement('p');
   message.textContent = playerWon ? 'Your empire controls the galaxy.' : 'Your empire has fallen.';
   panel.append(title, message);
+
+  if (state && state.empires.length > 0) {
+    const results = document.createElement('div');
+    results.className = 'game-over-results';
+    const header = document.createElement('div');
+    header.className = 'game-over-results-header';
+    header.innerHTML = '<span>Empire</span><span>Planets</span><span>Networth</span>';
+    results.append(header);
+
+    const ranked = state.empires
+      .map((empire) => {
+        const planets = state.planets.filter((p) => p.ownerId === empire.id).length;
+        let nw = planets * 100;
+        for (const p of state.planets.filter((p) => p.ownerId === empire.id)) {
+          for (const key of Object.keys(p.buildings) as Array<keyof typeof p.buildings>) {
+            nw += (p.buildings[key] ?? 0) * 50;
+          }
+        }
+        return { empire, planets, nw };
+      })
+      .sort((a, b) => b.nw - a.nw);
+
+    for (const row of ranked) {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'game-over-results-row';
+      const name = document.createElement('span');
+      name.textContent = row.empire.empireName;
+      name.style.color = row.empire.color;
+      const planets = document.createElement('span');
+      planets.textContent = String(row.planets);
+      const nw = document.createElement('span');
+      nw.textContent = String(row.nw);
+      rowEl.append(name, planets, nw);
+      results.append(rowEl);
+    }
+    panel.append(results);
+  }
+
   shell.append(panel);
   return shell;
 }

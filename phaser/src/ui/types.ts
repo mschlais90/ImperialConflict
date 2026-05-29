@@ -9,4 +9,6 @@ export interface UiContext {
   commands: CommandProxy;
   runCommand: (command: () => CommandResult) => void;
   setNotice: (message: string, isError?: boolean, rerender?: boolean) => void;
+  /** Empire IDs of players currently disconnected (multiplayer only). */
+  disconnectedPlayers: ReadonlySet<number>;
 }
