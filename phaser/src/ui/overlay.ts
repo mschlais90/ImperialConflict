@@ -28,6 +28,7 @@ import { createDualCommandProxy } from '../net/remoteCommandProxy';
 import { renderLobbyScreen, type LobbyController } from './lobbyScreen';
 import type { PlayerInfo, SerializedGameState } from '../core/protocol/messages';
 import { renderTutorialScreen } from './tutorialScreen';
+import { createSeededRng } from '../core/random/rng';
 
 const MP_SESSION_KEY = 'ic_mp_session';
 
@@ -453,7 +454,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   function startMultiplayerGame(mpClient: MultiplayerClient, serverState: SerializedGameState): void {
     controller.isMultiplayer = true;
     controller.multiplayerClient = mpClient;
-    controller.state = { ...serverState, rng: undefined };
+    controller.state = { ...serverState, rng: createSeededRng(Date.now()) };
     const empireId = controller.clientState?.empireId ?? 0;
     controller.playerName = controller.state.empires[empireId]?.empireName ?? 'Player';
 
@@ -490,9 +491,10 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     // Preserve local selection state
     const cs = controller.clientState;
 
-    // Replace game state with server's authoritative copy
+    // Replace game state with server's authoritative copy (keep local RNG for optimistic commands)
+    const localRng = controller.state.rng;
     Object.assign(controller.state, serverState);
-    controller.state.rng = undefined;
+    controller.state.rng = localRng;
 
     // Restore selection
     if (cs) {
