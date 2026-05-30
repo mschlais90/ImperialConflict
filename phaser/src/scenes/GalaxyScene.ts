@@ -55,8 +55,16 @@ export class GalaxyScene extends Phaser.Scene {
     this.addInstructions();
 
     this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _objects: unknown[], _dx: number, dy: number) => {
-      const nextZoom = Phaser.Math.Clamp(camera.zoom - dy * 0.001, MIN_ZOOM, MAX_ZOOM);
-      camera.setZoom(nextZoom);
+      const oldZoom = camera.zoom;
+      const newZoom = Phaser.Math.Clamp(oldZoom - dy * 0.001, MIN_ZOOM, MAX_ZOOM);
+      if (newZoom === oldZoom) return;
+
+      // Keep the world point at screen center fixed while zooming
+      const centerWorldX = camera.scrollX + camera.width / (2 * oldZoom);
+      const centerWorldY = camera.scrollY + camera.height / (2 * oldZoom);
+      camera.setZoom(newZoom);
+      camera.scrollX = centerWorldX - camera.width / (2 * newZoom);
+      camera.scrollY = centerWorldY - camera.height / (2 * newZoom);
     });
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {

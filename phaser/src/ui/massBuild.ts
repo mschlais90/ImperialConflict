@@ -270,9 +270,6 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   const formSection = document.createElement('div');
   formSection.className = 'mass-build-form';
 
-  const buildingLabel = document.createElement('label');
-  buildingLabel.className = 'form-row';
-  buildingLabel.textContent = 'Building: ';
   const buildingSelect = document.createElement('select');
   for (const key of BUILDING_KEYS) {
     const opt = document.createElement('option');
@@ -280,11 +277,14 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     opt.textContent = key === 'portal' ? '\u{1F310} ' + BUILDINGS[key].name : BUILDINGS[key].name;
     buildingSelect.append(opt);
   }
-  buildingLabel.append(buildingSelect);
 
-  const countLabel = document.createElement('label');
-  countLabel.className = 'form-row';
-  countLabel.textContent = 'Count per planet: ';
+  const buildingRow = document.createElement('div');
+  buildingRow.className = 'mass-build-field-row';
+  const buildingLabelEl = document.createElement('span');
+  buildingLabelEl.className = 'mass-build-field-label';
+  buildingLabelEl.textContent = 'Building:';
+  buildingRow.append(buildingLabelEl, buildingSelect);
+
   const countInput = numberInput(1, { min: 1 });
   countInput.className = 'build-input';
   const maxBtn = button('Max', () => {
@@ -297,10 +297,15 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     updateCostPreview();
   });
   maxBtn.className = 'build-max-btn ui-button';
-  const countWrapper = document.createElement('div');
-  countWrapper.className = 'build-input-wrapper';
-  countWrapper.append(countInput, maxBtn);
-  countLabel.append(countWrapper);
+
+  const countRow = document.createElement('div');
+  countRow.className = 'mass-build-field-row';
+  const countLabelEl = document.createElement('span');
+  countLabelEl.className = 'mass-build-field-label';
+  countLabelEl.textContent = 'Count per planet:';
+  countRow.append(countLabelEl, countInput, maxBtn);
+
+  formSection.append(buildingRow, countRow);
 
   // Cost preview
   const costPreview = document.createElement('div');
@@ -394,7 +399,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   });
   buildBtn.classList.add('primary');
 
-  formSection.append(buildingLabel, countLabel, costPreview, buildBtn);
+  formSection.append(costPreview, buildBtn);
   container.append(formSection);
 
   panel.append(container);

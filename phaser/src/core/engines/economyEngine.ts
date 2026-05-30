@@ -314,8 +314,7 @@ function growPopulation(state: GameState, empire: Empire, empirePlanets: Planet[
   const welfareMultiplier = 1 + getSciencePercent(state, empire, 'welfare') / 100;
   for (const planet of empirePlanets) {
     if (planet.population <= 0) {
-      // Kickstart recovery: give a small starting population so growth can resume
-      planet.population = Math.max(1, Math.ceil(planet.size * 0.01));
+      planet.population = 100;
     }
 
     const maxPopulation = Math.trunc(getMaxPopulation(planet) * welfareMultiplier);

@@ -217,7 +217,19 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
     });
 
     const maxBtn = button('Max', () => {
-      input.value = String(affordable);
+      // Subtract costs of already-entered amounts for other building types
+      const remaining = { ...context.player.resources } as Record<ResourceKey, number>;
+      for (const [otherKey, otherInput] of inputs) {
+        if (otherKey === key) continue;
+        const otherCount = Math.max(0, parseInt(otherInput.value, 10) || 0);
+        if (otherCount > 0) {
+          const otherCost = getBuildCost(otherKey, constructionSci, planet);
+          for (const [res, amount] of Object.entries(otherCost) as Array<[ResourceKey, number]>) {
+            remaining[res] = Math.max(0, (remaining[res] ?? 0) - amount * otherCount);
+          }
+        }
+      }
+      input.value = String(calcMaxBuildable(remaining, key, constructionSci, planet));
       updateCostPreview();
     });
     maxBtn.className = 'build-max-btn ui-button';
@@ -406,8 +418,24 @@ function unitsSection(context: UiContext, planet: Planet): HTMLElement {
     const input = numberInput(0, { min: 0 });
     input.className = 'build-input';
     inputs.set(key, input);
+
+    input.addEventListener('blur', () => {
+      if (input.value.trim() === '') input.value = '0';
+    });
+
     const unitMaxBtn = button('Max', () => {
-      input.value = String(affordable);
+      // Subtract costs of already-entered amounts for other unit types
+      const remaining = { ...context.player.resources } as Record<ResourceKey, number>;
+      for (const [otherKey, otherInput] of inputs) {
+        if (otherKey === key) continue;
+        const otherCount = Math.max(0, parseInt(otherInput.value, 10) || 0);
+        if (otherCount > 0) {
+          for (const [res, amount] of Object.entries(UNITS[otherKey].cost) as Array<[ResourceKey, number]>) {
+            remaining[res] = Math.max(0, (remaining[res] ?? 0) - amount * otherCount);
+          }
+        }
+      }
+      input.value = String(Math.max(0, maxAffordable(remaining, UNITS[key].cost)));
     });
     unitMaxBtn.className = 'build-max-btn ui-button';
     unitMaxBtn.disabled = affordable === 0;

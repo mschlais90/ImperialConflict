@@ -1,9 +1,12 @@
 import { UNITS } from '../core/data/units';
-import type { CombatUnitKey, Fleet, Planet } from '../core/models/types';
+import type { CombatUnitKey, Fleet, Planet, ResourceKey, UnitKey } from '../core/models/types';
 import { calcTravelTicks, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
-import { button, formatNumber } from './dom';
+import { button, formatNumber, maxAffordable, numberInput, parseIntegerInput, resourceCostText } from './dom';
 import { fleetForm } from './planetPanel';
 import type { UiContext } from './types';
+
+const TRAINABLE_COMBAT: CombatUnitKey[] = ['fighter', 'bomber', 'transport', 'soldier', 'droid'];
+const TRAINABLE_SPECIAL: Array<Exclude<UnitKey, 'explorer' | CombatUnitKey>> = ['agent', 'wizard'];
 
 export function renderFleetManagementPanel(context: UiContext): HTMLElement {
   const state = context.controller.state;
@@ -21,6 +24,9 @@ export function renderFleetManagementPanel(context: UiContext): HTMLElement {
 
   const ownedPlanets = getPlanetsForEmpire(state, context.player.id);
   const active = state.fleets.filter((f) => f.ownerId === context.player.id);
+
+  // Mass Train section
+  panel.append(subtitle('Mass Train Units'), renderMassTrainPanel(context, ownedPlanets));
 
   // Fleet summary totals
   panel.append(subtitle('Fleet Summary'), fleetSummary(ownedPlanets, active));
@@ -265,6 +271,237 @@ function recallControls(context: UiContext, fleets: Fleet[], portalPlanets: Plan
     list.append(row);
   }
   return list;
+}
+
+let massTrainPersistedSelection: Set<number> | null = null;
+
+function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLElement {
+  const player = context.player;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'panel-stack';
+
+  if (ownedPlanets.length === 0) {
+    return emptyText('No planets owned.');
+  }
+
+  // Restore / init planet selection
+  const ownedIds = new Set(ownedPlanets.map((p) => p.id));
+  if (massTrainPersistedSelection) {
+    for (const id of massTrainPersistedSelection) {
+      if (!ownedIds.has(id)) massTrainPersistedSelection.delete(id);
+    }
+  } else {
+    massTrainPersistedSelection = new Set<number>();
+  }
+  const selected = massTrainPersistedSelection;
+
+  // Select/deselect all buttons
+  const toggleRow = document.createElement('div');
+  toggleRow.className = 'mass-build-toggle-row';
+  const selAllBtn = button('Select All', () => {
+    for (const p of ownedPlanets) selected.add(p.id);
+    refreshCheckboxes();
+    updatePreview();
+  });
+  const deselAllBtn = button('Deselect All', () => {
+    selected.clear();
+    refreshCheckboxes();
+    updatePreview();
+  });
+  toggleRow.append(selAllBtn, deselAllBtn);
+  wrapper.append(toggleRow);
+
+  // Planet table
+  const table = document.createElement('div');
+  table.className = 'mass-train-table';
+
+  const headerRow = document.createElement('div');
+  headerRow.className = 'mass-train-row mass-train-row-header';
+  for (const text of ['', 'Planet', 'Has', 'Can Train']) {
+    const cell = document.createElement('span');
+    cell.textContent = text;
+    headerRow.append(cell);
+  }
+  table.append(headerRow);
+
+  const checkboxes = new Map<number, HTMLInputElement>();
+  const rowElements = new Map<number, HTMLElement>();
+  let selectedUnitType: CombatUnitKey | 'agent' | 'wizard' = 'fighter';
+
+  function buildRow(planet: Planet): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'mass-train-row';
+    if (selected.has(planet.id)) row.classList.add('mass-train-row-selected');
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = selected.has(planet.id);
+    cb.addEventListener('change', () => {
+      if (cb.checked) {
+        selected.add(planet.id);
+        row.classList.add('mass-train-row-selected');
+      } else {
+        selected.delete(planet.id);
+        row.classList.remove('mass-train-row-selected');
+      }
+      updatePreview();
+    });
+    checkboxes.set(planet.id, cb);
+    rowElements.set(planet.id, row);
+
+    const cbCell = document.createElement('span');
+    cbCell.append(cb);
+
+    const nameCell = document.createElement('span');
+    nameCell.textContent = planet.planetName;
+
+    const hasCell = document.createElement('span');
+    hasCell.className = 'mass-train-cell-num';
+    hasCell.textContent = String(planet.units[selectedUnitType as keyof typeof planet.units] ?? 0);
+
+    const affordCell = document.createElement('span');
+    affordCell.className = 'mass-train-cell-num';
+    affordCell.textContent = String(maxAffordable(player.resources, UNITS[selectedUnitType].cost));
+
+    row.append(cbCell, nameCell, hasCell, affordCell);
+    return row;
+  }
+
+  function rebuildRows(): void {
+    while (table.children.length > 1) table.removeChild(table.lastChild!);
+    checkboxes.clear();
+    rowElements.clear();
+    for (const planet of ownedPlanets) {
+      table.append(buildRow(planet));
+    }
+  }
+
+  rebuildRows();
+  wrapper.append(table);
+
+  // Unit type selector
+  const allTrainable = [...TRAINABLE_COMBAT, ...TRAINABLE_SPECIAL] as Array<CombatUnitKey | 'agent' | 'wizard'>;
+  const unitSelect = document.createElement('select');
+  for (const key of allTrainable) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = UNITS[key].name;
+    unitSelect.append(opt);
+  }
+
+  const unitRow = document.createElement('div');
+  unitRow.className = 'mass-build-field-row';
+  const unitLabelEl = document.createElement('span');
+  unitLabelEl.className = 'mass-build-field-label';
+  unitLabelEl.textContent = 'Unit type:';
+  unitRow.append(unitLabelEl, unitSelect);
+
+  // Count + Max
+  const countInput = numberInput(1, { min: 1 });
+  countInput.className = 'build-input';
+
+  const massMaxBtn = button('Max', () => {
+    const selectedPlanets = ownedPlanets.filter((p) => selected.has(p.id));
+    if (selectedPlanets.length === 0) return;
+    const cost = UNITS[selectedUnitType].cost;
+    const n = selectedPlanets.length;
+    const scaledCost: Partial<Record<ResourceKey, number>> = {};
+    for (const [res, amt] of Object.entries(cost) as Array<[ResourceKey, number]>) {
+      scaledCost[res] = amt * n;
+    }
+    const max = maxAffordable(player.resources, scaledCost);
+    countInput.value = String(Math.max(1, max));
+    updatePreview();
+  });
+  massMaxBtn.className = 'build-max-btn ui-button';
+
+  const countRow = document.createElement('div');
+  countRow.className = 'mass-build-field-row';
+  const countLabelEl = document.createElement('span');
+  countLabelEl.className = 'mass-build-field-label';
+  countLabelEl.textContent = 'Count per planet:';
+  countRow.append(countLabelEl, countInput, massMaxBtn);
+
+  // Cost preview
+  const costPreview = document.createElement('div');
+  costPreview.className = 'mass-build-cost-preview';
+
+  function updatePreview(): void {
+    const selectedPlanets = ownedPlanets.filter((p) => selected.has(p.id));
+    const count = Math.max(1, parseInt(countInput.value, 10) || 1);
+    const cost = UNITS[selectedUnitType].cost;
+    const perUnit = resourceCostText(cost);
+
+    if (selectedPlanets.length === 0) {
+      costPreview.textContent = `Cost per unit: ${perUnit}\nSelect planets to see total cost`;
+      return;
+    }
+
+    const totalCost: Partial<Record<ResourceKey, number>> = {};
+    for (const [res, amt] of Object.entries(cost) as Array<[ResourceKey, number]>) {
+      totalCost[res as ResourceKey] = amt * count * selectedPlanets.length;
+    }
+    costPreview.textContent = `Cost per unit: ${perUnit}\nTotal for ${selectedPlanets.length} planet${selectedPlanets.length !== 1 ? 's' : ''}: ${resourceCostText(totalCost)}`;
+  }
+
+  unitSelect.addEventListener('change', () => {
+    selectedUnitType = unitSelect.value as typeof selectedUnitType;
+    rebuildRows();
+    updatePreview();
+  });
+  countInput.addEventListener('input', updatePreview);
+  updatePreview();
+
+  // Train button
+  const trainBtn = button('Train on Selected Planets', () => {
+    const buildingType = unitSelect.value as typeof selectedUnitType;
+    const parsed = parseIntegerInput(countInput.value, { label: 'Count', min: 1, max: 999_999 });
+    if (!parsed.ok) {
+      context.setNotice(parsed.message, true);
+      return;
+    }
+    const selectedPlanets = ownedPlanets.filter((p) => selected.has(p.id));
+    if (selectedPlanets.length === 0) {
+      context.setNotice('No planets selected.', true);
+      return;
+    }
+
+    let successCount = 0;
+    let lastError = '';
+    for (const planet of selectedPlanets) {
+      const result = context.commands.trainUnits({
+        empireId: player.id,
+        planetId: planet.id,
+        unitType: buildingType,
+        count: parsed.value,
+      });
+      if (result.ok) {
+        successCount++;
+      } else {
+        lastError = result.message;
+      }
+    }
+
+    if (successCount > 0) {
+      const msg = `Trained ${parsed.value} ${UNITS[buildingType].name} on ${successCount} planet${successCount !== 1 ? 's' : ''}`;
+      context.setNotice(lastError ? `${msg} (${selectedPlanets.length - successCount} failed: ${lastError})` : msg, false, true);
+      context.controller.refreshScene?.();
+    } else {
+      context.setNotice(lastError || 'Training failed.', true);
+    }
+  });
+  trainBtn.classList.add('primary');
+
+  wrapper.append(unitRow, countRow, costPreview, trainBtn);
+
+  function refreshCheckboxes(): void {
+    for (const [id, cb] of checkboxes) {
+      cb.checked = selected.has(id);
+      rowElements.get(id)?.classList.toggle('mass-train-row-selected', selected.has(id));
+    }
+  }
+
+  return wrapper;
 }
 
 function subtitle(text: string): HTMLHeadingElement {
