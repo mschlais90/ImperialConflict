@@ -70,7 +70,8 @@ export function resolveBattle(state: GameState, attackerFleet: Fleet, defenderPl
   const attackerUnits: UnitCounts = { ...attackerFleet.units };
   const defenderUnits: UnitCounts = combatUnitsFromPlanet(defenderPlanet);
 
-  const airGround = phaseAirVsGround(state, attackerUnits, defenderPlanet.buildings.laser ?? 0);
+  const defenseBonus = defenderPlanet.resourceBonuses['defense'] ?? 1;
+  const airGround = phaseAirVsGround(state, attackerUnits, defenderPlanet.buildings.laser ?? 0, defenseBonus);
   airGround.groundLostToTransports = killStrandedGround(attackerUnits);
   report.phases.push(airGround);
   defenderPlanet.buildings.laser = airGround.remainingLasers;
@@ -156,6 +157,7 @@ function phaseAirVsGround(
   state: GameState,
   attackerUnits: UnitCounts,
   laserCount: number,
+  defenseBonus = 1,
 ): Extract<BattlePhaseReport, { phase: 'Air vs Ground' }> {
   let bombers = getCount(attackerUnits, 'bomber');
   let transports = getCount(attackerUnits, 'transport');
@@ -171,7 +173,7 @@ function phaseAirVsGround(
     }
   }
 
-  let unitsKilledByLasers = laserCount * 10;
+  let unitsKilledByLasers = Math.trunc(laserCount * 10 * defenseBonus);
   const transportsLost = Math.min(transports, unitsKilledByLasers);
   unitsKilledByLasers -= transportsLost;
   transports -= transportsLost;

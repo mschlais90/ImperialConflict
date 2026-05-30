@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { APP_CONTROLLER_KEY, type AppController } from '../app/appController';
+import { UNITS } from '../core/data/units';
 import { getEmpire, getPlanetsInSystem, getSystemOwner, isSystemContested } from '../core/selectors/selectors';
+import type { CombatUnitKey } from '../core/models/types';
 
 const GODOT_SCALE = 20;
 const MIN_ZOOM = 0.3;
@@ -33,8 +35,10 @@ export class GalaxyScene extends Phaser.Scene {
 
     const refreshScene = () => {
       this.children.removeAll(true);
+      this.hideTooltip();
       this.addGalaxyBackdrop();
       this.drawSystems(controller);
+      this.drawFleets(controller);
       this.addInstructions();
     };
     controller.refreshScene = refreshScene;
@@ -47,6 +51,7 @@ export class GalaxyScene extends Phaser.Scene {
 
     this.addGalaxyBackdrop();
     this.drawSystems(controller);
+    this.drawFleets(controller);
     this.addInstructions();
 
     this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _objects: unknown[], _dx: number, dy: number) => {
@@ -147,6 +152,83 @@ export class GalaxyScene extends Phaser.Scene {
         })
         .setResolution(2);
     }
+  }
+
+  private drawFleets(controller: AppController): void {
+    const state = this.requireState(controller);
+    const playerEmpireId = controller.clientState?.empireId ?? 0;
+    const empire = getEmpire(state, playerEmpireId);
+    if (!empire) return;
+    const color = this.toColorNumber(empire.color);
+    const fleetKeys: CombatUnitKey[] = ['fighter', 'bomber', 'transport', 'soldier', 'droid'];
+
+    for (const fleet of state.fleets) {
+      if (fleet.ownerId !== playerEmpireId || fleet.isExploration) continue;
+      if (fleet.originSystemId === fleet.targetSystemId) continue; // intra-system, 1-tick
+
+      const fromSystem = state.systems.find((s) => s.id === fleet.originSystemId);
+      const toSystem = state.systems.find((s) => s.id === fleet.targetSystemId);
+      if (!fromSystem || !toSystem) continue;
+
+      const dx = toSystem.position.x - fromSystem.position.x;
+      const dy = toSystem.position.y - fromSystem.position.y;
+      const totalTicks = Math.max(Math.ceil(Math.hypot(dx, dy)), 1);
+      const progress = Math.max(0.1, Math.min(0.9, 1 - fleet.ticksRemaining / totalTicks));
+
+      const fromX = fromSystem.position.x * GODOT_SCALE;
+      const fromY = fromSystem.position.y * GODOT_SCALE;
+      const toX = toSystem.position.x * GODOT_SCALE;
+      const toY = toSystem.position.y * GODOT_SCALE;
+
+      const fx = fromX + (toX - fromX) * progress;
+      const fy = fromY + (toY - fromY) * progress;
+
+      // Rotate triangle toward destination
+      const angle = Math.atan2(toY - fromY, toX - fromX) + Math.PI / 2;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+
+      const icon = this.add.graphics({ x: fx, y: fy });
+      icon.fillStyle(color, 0.9);
+      icon.fillTriangle(
+        0 * cos - (-6) * sin, 0 * sin + (-6) * cos,
+        (-4) * cos - 4 * sin, (-4) * sin + 4 * cos,
+        4 * cos - 4 * sin, 4 * sin + 4 * cos,
+      );
+
+      icon.setInteractive(new Phaser.Geom.Rectangle(-8, -8, 16, 16), Phaser.Geom.Rectangle.Contains);
+      icon.input!.cursor = 'pointer';
+
+      const unitLines = fleetKeys
+        .filter((k) => (fleet.units[k] ?? 0) > 0)
+        .map((k) => `${fleet.units[k]} ${UNITS[k].name}`)
+        .join('<br>');
+      const targetSys = state.systems.find((s) => s.id === fleet.targetSystemId);
+
+      icon.on('pointerover', (pointer: Phaser.Input.Pointer) => {
+        this.showFleetTooltip(
+          `<strong>Fleet → ${targetSys?.systemName ?? '?'}</strong><br>${unitLines}<br>${fleet.ticksRemaining} tick${fleet.ticksRemaining !== 1 ? 's' : ''} remaining`,
+          pointer.x,
+          pointer.y,
+        );
+      });
+      icon.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+        this.moveTooltip(pointer.x, pointer.y);
+      });
+      icon.on('pointerout', () => {
+        this.hideTooltip();
+      });
+    }
+  }
+
+  private showFleetTooltip(html: string, px: number, py: number): void {
+    this.hideTooltip();
+    const tip = document.createElement('div');
+    tip.className = 'galaxy-tooltip';
+    tip.innerHTML = html;
+    document.getElementById('ui-root')?.append(tip);
+    this.tooltip = tip;
+    this.moveTooltip(px, py);
   }
 
   private addGalaxyBackdrop(): void {

@@ -3,9 +3,9 @@ import { appendEvent } from '../events/eventLog';
 import {
   createEmpire,
   createPlanet,
+  type BonusKey,
   type Empire,
   type Planet,
-  type ResourceKey,
   type SolarSystem,
 } from '../models/types';
 import { createSeededRng, type Rng } from '../random/rng';
@@ -74,7 +74,7 @@ const STAR_NAMES = [
   'Diphda',
 ] as const;
 
-const BONUS_TYPES: ResourceKey[] = ['food', 'iron', 'endurium', 'octarine'];
+const ALL_BONUS_KEYS: BonusKey[] = ['food', 'iron', 'endurium', 'octarine', 'gc', 'research', 'population_growth', 'defense'];
 
 const EMPIRE_NAMES = ['Crimson Dominion', 'Verdant Collective', 'Golden Accord'] as const;
 
@@ -110,6 +110,7 @@ function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string, em
     state.systems.push(system);
 
     const planetCount = rng.intRange(MIN_PLANETS_PER_SYSTEM, MAX_PLANETS_PER_SYSTEM);
+    const systemPlanetsStart = state.planets.length;
     for (let planetIndex = 0; planetIndex < planetCount; planetIndex += 1) {
       const planetId = state.nextPlanetId;
       state.nextPlanetId += 1;
@@ -120,12 +121,23 @@ function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string, em
         size: rng.intRange(MIN_PLANET_SIZE, MAX_PLANET_SIZE),
       });
 
-      if (rng.float() < 0.3) {
-        planet.resourceBonuses[rng.pick(BONUS_TYPES)] = rng.floatRange(1.1, 1.5);
-      }
+      // Every planet gets one random bonus (1–5%)
+      const bonusKey = rng.pick(ALL_BONUS_KEYS);
+      planet.resourceBonuses[bonusKey] = rng.floatRange(1.01, 1.05);
 
       state.planets.push(planet);
       system.planetIds.push(planetId);
+    }
+
+    // One randomly chosen planet per system gets a second distinct bonus
+    const systemPlanets = state.planets.slice(systemPlanetsStart);
+    if (systemPlanets.length > 0) {
+      const doublePlanet = rng.pick(systemPlanets);
+      const existingKey = Object.keys(doublePlanet.resourceBonuses)[0] as BonusKey | undefined;
+      const remaining = ALL_BONUS_KEYS.filter((k) => k !== existingKey);
+      if (remaining.length > 0) {
+        doublePlanet.resourceBonuses[rng.pick(remaining)] = rng.floatRange(1.01, 1.05);
+      }
     }
   }
 

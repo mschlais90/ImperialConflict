@@ -1,4 +1,5 @@
 export type ResourceKey = 'gc' | 'food' | 'iron' | 'endurium' | 'octarine';
+export type BonusKey = ResourceKey | 'research' | 'population_growth' | 'defense';
 export type ScienceKey = 'military' | 'welfare' | 'economy' | 'construction' | 'resources';
 export type UnitKey =
   | 'fighter'
@@ -65,7 +66,7 @@ export interface Planet {
   buildings: Partial<Record<BuildingKey, number>>;
   buildQueue: BuildOrder[];
   hasPortal: boolean;
-  resourceBonuses: Partial<Record<ResourceKey, number>>;
+  resourceBonuses: Partial<Record<BonusKey, number>>;
   units: Partial<Record<PlanetUnitKey, number>>;
 }
 

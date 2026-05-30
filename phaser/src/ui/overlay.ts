@@ -67,6 +67,7 @@ export interface OverlayApi {
 
 export function createOverlay(root: HTMLElement, controller: AppController): OverlayApi {
   let forcedGameOver: boolean | null = null;
+  let lastNonZeroSpeed: GameSpeed = SPEEDS.NORMAL;
 
   // Persistent toast container — lives outside the render cycle
   const toastContainer = document.createElement('div');
@@ -194,6 +195,18 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           event.preventDefault();
         }
         break;
+      case ' ':
+        if (!controller.isMultiplayer) {
+          if (state.currentSpeed === 0) {
+            changeSpeed(state, lastNonZeroSpeed);
+          } else {
+            lastNonZeroSpeed = state.currentSpeed;
+            changeSpeed(state, SPEEDS.PAUSED);
+          }
+          refreshAfterTick();
+          event.preventDefault();
+        }
+        break;
       case '0':
         changeSpeed(state, SPEEDS.PAUSED);
         refreshAfterTick();
@@ -236,6 +249,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       ['N', 'Notifications'],
       ['O', 'Special Ops'],
       ['S', 'Settings'],
+      ['Space', 'Pause / Resume (single-player)'],
       ['0', 'Pause'],
       ['1\u20134', 'Set speed (1x\u20138x)'],
       ['ESC', 'Close / Galaxy'],

@@ -108,6 +108,49 @@ export function getBuildTicks(type: BuildingKey, constructionSciencePct = 0): nu
   return Math.max(Math.trunc(baseTicks * discount), 1);
 }
 
+export function calcMaxBuildable(
+  resources: Record<ResourceKey, number>,
+  type: BuildingKey,
+  constructionSciencePct = 0,
+  planet: Planet | null = null,
+): number {
+  const baseCosts = BUILDINGS[type].cost as Partial<Record<ResourceKey, number>>;
+  const discount = 1 / (1 + constructionSciencePct / 100);
+  const currentTotal = planet
+    ? Object.values(planet.buildings).reduce((sum, n) => sum + (n ?? 0), 0)
+      + planet.buildQueue.filter((o) => o.category === 'building').length
+    : 0;
+
+  const available: Record<ResourceKey, number> = { ...resources };
+  let count = 0;
+
+  for (let i = 0; i < 9999; i++) {
+    const simTotal = currentTotal + i;
+    const overbuild = planet && simTotal > planet.size ? simTotal / planet.size : 1;
+
+    let canAfford = true;
+    const roundCost: Partial<Record<ResourceKey, number>> = {};
+    for (const res of Object.keys(baseCosts) as ResourceKey[]) {
+      const baseAmount = baseCosts[res] ?? 0;
+      if (!baseAmount) continue;
+      const cost = Math.max(Math.trunc(baseAmount * discount * overbuild), Math.trunc(baseAmount * 0.5));
+      roundCost[res] = cost;
+      if (cost > (available[res] ?? 0)) {
+        canAfford = false;
+        break;
+      }
+    }
+
+    if (!canAfford) break;
+    for (const res of Object.keys(roundCost) as ResourceKey[]) {
+      available[res] = (available[res] ?? 0) - (roundCost[res] ?? 0);
+    }
+    count++;
+  }
+
+  return count;
+}
+
 export function getOverbuildMultiplier(planet: Planet | null): number {
   if (planet === null) {
     return 1;

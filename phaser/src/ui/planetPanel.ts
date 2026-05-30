@@ -1,13 +1,18 @@
-import { BUILDINGS, getBuildCost, getOverbuildMultiplier } from '../core/data/buildings';
+import { BUILDINGS, calcMaxBuildable, getBuildCost, getOverbuildMultiplier } from '../core/data/buildings';
 import { UNITS } from '../core/data/units';
 import { getTotalAgents, getTotalWizards } from '../core/engines/opsEngine';
 import type { GameState } from '../core/galaxy/galaxyData';
-import type { BuildingKey, CombatUnitKey, Planet, PlanetUnitKey, ResourceKey, UnitKey } from '../core/models/types';
+import type { BonusKey, BuildingKey, CombatUnitKey, Planet, PlanetUnitKey, ResourceKey, UnitKey } from '../core/models/types';
 import { calcSciencePercent, calcTravelTicks, getEmpire, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
 import { button, collapsible, formatNumber, labeledControl, maxAffordable, numberInput, parseIntegerInput, resourceCostText, select } from './dom';
 import type { UiContext } from './types';
 
 const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
+
+const BONUS_DISPLAY_LABELS: Record<BonusKey, string> = {
+  gc: 'Cash', food: 'Food', iron: 'Iron', endurium: 'Endurium', octarine: 'Octarine',
+  research: 'Research', population_growth: 'Population Growth', defense: 'Defense',
+};
 
 function calcMaxPop(planet: Planet, welfareMultiplier = 1): number {
   return Math.trunc((40 * planet.size + 650 * (planet.buildings.living_quarter ?? 0)) * welfareMultiplier);
@@ -125,10 +130,10 @@ export function renderPlanetPanel(context: UiContext): HTMLElement {
   if (selectedPlanet.hasPortal) {
     details.push(['Portal', 'Active']);
   }
-  const bonuses = Object.entries(selectedPlanet.resourceBonuses);
-  if (bonuses.length > 0) {
-    for (const [res, mult] of bonuses) {
-      details.push(['Bonus', `${res.charAt(0).toUpperCase() + res.slice(1)} x${(mult as number).toFixed(1)}`]);
+  const bonuses = Object.entries(selectedPlanet.resourceBonuses) as Array<[BonusKey, number]>;
+  for (const [res, mult] of bonuses) {
+    if (mult > 1) {
+      details.push([`+${Math.round((mult - 1) * 100)}% Bonus`, BONUS_DISPLAY_LABELS[res] ?? res]);
     }
   }
   panel.append(sectionTitle(selectedPlanet.planetName), detailGrid(details));
@@ -186,7 +191,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
     if (key === 'portal') continue; // Portal has its own button below
     const built = planet.buildings[key] ?? 0;
     const cost = getBuildCost(key, constructionSci, planet);
-    const affordable = maxAffordable(context.player.resources, cost);
+    const affordable = calcMaxBuildable(context.player.resources, key, constructionSci, planet);
 
     const row = document.createElement('div');
     row.className = 'build-row';
@@ -401,10 +406,12 @@ function unitsSection(context: UiContext, planet: Planet): HTMLElement {
     const input = numberInput(0, { min: 0 });
     input.className = 'build-input';
     inputs.set(key, input);
-    const maxLabel = document.createElement('span');
-    maxLabel.className = 'build-max';
-    maxLabel.textContent = `(${affordable})`;
-    inputWrapper.append(input, maxLabel);
+    const unitMaxBtn = button('Max', () => {
+      input.value = String(affordable);
+    });
+    unitMaxBtn.className = 'build-max-btn ui-button';
+    unitMaxBtn.disabled = affordable === 0;
+    inputWrapper.append(input, unitMaxBtn);
 
     row.append(label, costLabel, inputWrapper);
     trainForm.append(row);

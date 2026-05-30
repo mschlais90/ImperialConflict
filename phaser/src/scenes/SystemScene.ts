@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { APP_CONTROLLER_KEY, type AppController } from '../app/appController';
+import { UNITS } from '../core/data/units';
 import { getEmpire, getPlanetsInSystem, getSystem } from '../core/selectors/selectors';
 import type { GameState } from '../core/galaxy/galaxyData';
-import type { Planet } from '../core/models/types';
+import type { CombatUnitKey, Planet } from '../core/models/types';
 import { ensurePlanetTexture } from './planetRenderer';
 
 const NEUTRAL_RING = 0x7d8796;
@@ -18,7 +19,11 @@ interface SystemGridLayout {
   startY: number;
 }
 
+const COMBAT_KEYS: CombatUnitKey[] = ['fighter', 'bomber', 'transport', 'soldier', 'droid'];
+
 export class SystemScene extends Phaser.Scene {
+  private fleetTooltip: HTMLDivElement | null = null;
+
   constructor() {
     super('SystemScene');
   }
@@ -42,6 +47,7 @@ export class SystemScene extends Phaser.Scene {
       if (controller.refreshScene === refreshScene) {
         controller.refreshScene = null;
       }
+      this.hideFleetTooltip();
     });
   }
 
@@ -80,6 +86,9 @@ export class SystemScene extends Phaser.Scene {
         layout,
       );
     });
+
+    // Draw in-transit fleets within this system
+    this.drawSystemFleets(state, controller);
   }
 
   private calculateGridLayout(planetCount: number, width: number, height: number): SystemGridLayout {
@@ -188,6 +197,39 @@ export class SystemScene extends Phaser.Scene {
         wordWrap: { width: layout.labelWidth },
       })
       .setResolution(2);
+
+    // Fleet indicator: show ship icon if player has stationed units here
+    const playerEmpireId = controller.clientState?.empireId ?? 0;
+    if (planet.ownerId === playerEmpireId) {
+      const hasUnits = COMBAT_KEYS.some((k) => (planet.units[k] ?? 0) > 0);
+      if (hasUnits) {
+        const iconX = x + radius + 18;
+        const iconY = y - radius + 2;
+        const empire = getEmpire(state, playerEmpireId);
+        const color = empire ? this.toColorNumber(empire.color) : 0x4488ff;
+
+        const icon = this.add.graphics({ x: iconX, y: iconY });
+        icon.fillStyle(color, 0.9);
+        icon.fillTriangle(-4, 6, 4, 6, 0, -6);
+
+        const hitZone = this.add.zone(iconX, iconY, 20, 20).setInteractive({ useHandCursor: true });
+
+        const unitLines = COMBAT_KEYS
+          .filter((k) => (planet.units[k] ?? 0) > 0)
+          .map((k) => `${planet.units[k]} ${UNITS[k].name}`)
+          .join('<br>');
+
+        hitZone.on('pointerover', (pointer: Phaser.Input.Pointer) => {
+          this.showFleetTooltip(`<strong>Stationed</strong><br>${unitLines}`, pointer.x, pointer.y);
+        });
+        hitZone.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+          this.moveFleetTooltip(pointer.x, pointer.y);
+        });
+        hitZone.on('pointerout', () => {
+          this.hideFleetTooltip();
+        });
+      }
+    }
   }
 
   private addHeader(systemName: string): void {
@@ -243,8 +285,55 @@ export class SystemScene extends Phaser.Scene {
   private formatPlanetLabel(planet: Planet, ownerName: string): string {
     const portal = planet.hasPortal ? '\nPortal' : '';
     const owner = planet.ownerId >= 0 ? `\n${ownerName}` : '';
+    const lasers = (planet.buildings.laser ?? 0) > 0 ? `\nTurrets: ${planet.buildings.laser}` : '';
 
-    return `${planet.planetName}${owner}\nSize ${planet.size}  Pop ${Math.floor(planet.population)}${portal}`;
+    return `${planet.planetName}${owner}\nSize ${planet.size}  Pop ${Math.floor(planet.population)}${portal}${lasers}`;
+  }
+
+  private drawSystemFleets(state: GameState, controller: AppController): void {
+    const systemId = controller.clientState?.selectedSystemId ?? null;
+    if (systemId === null) return;
+    const playerEmpireId = controller.clientState?.empireId ?? 0;
+    const empire = getEmpire(state, playerEmpireId);
+    if (!empire) return;
+    const color = this.toColorNumber(empire.color);
+
+    const width = this.scale.width;
+    const height = this.scale.height;
+
+    for (const fleet of state.fleets) {
+      if (fleet.ownerId !== playerEmpireId || fleet.isExploration) continue;
+      if (fleet.originSystemId !== systemId && fleet.targetSystemId !== systemId) continue;
+      // Same-system transit (1 tick) — show briefly near center
+      if (fleet.originSystemId === fleet.targetSystemId && fleet.originSystemId === systemId) {
+        const icon = this.add.graphics({ x: width / 2 + 30, y: height / 2 });
+        icon.fillStyle(color, 0.9);
+        icon.fillTriangle(-4, 6, 4, 6, 0, -6);
+      }
+    }
+  }
+
+  private showFleetTooltip(html: string, px: number, py: number): void {
+    this.hideFleetTooltip();
+    const tip = document.createElement('div');
+    tip.className = 'galaxy-tooltip';
+    tip.innerHTML = html;
+    document.getElementById('ui-root')?.append(tip);
+    this.fleetTooltip = tip;
+    this.moveFleetTooltip(px, py);
+  }
+
+  private moveFleetTooltip(px: number, py: number): void {
+    if (!this.fleetTooltip) return;
+    const maxX = window.innerWidth - 200;
+    const maxY = window.innerHeight - 100;
+    this.fleetTooltip.style.left = `${Math.min(px + 12, maxX)}px`;
+    this.fleetTooltip.style.top = `${Math.min(py + 4, maxY)}px`;
+  }
+
+  private hideFleetTooltip(): void {
+    this.fleetTooltip?.remove();
+    this.fleetTooltip = null;
   }
 
   private getController(): AppController {

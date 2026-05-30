@@ -314,11 +314,13 @@ function growPopulation(state: GameState, empire: Empire, empirePlanets: Planet[
   const welfareMultiplier = 1 + getSciencePercent(state, empire, 'welfare') / 100;
   for (const planet of empirePlanets) {
     if (planet.population <= 0) {
-      continue;
+      // Kickstart recovery: give a small starting population so growth can resume
+      planet.population = Math.max(1, Math.ceil(planet.size * 0.01));
     }
 
     const maxPopulation = Math.trunc(getMaxPopulation(planet) * welfareMultiplier);
-    const growth = Math.trunc(planet.population * 0.05);
+    const popGrowthBonus = planet.resourceBonuses['population_growth'] ?? 1;
+    const growth = Math.trunc(planet.population * 0.05 * popGrowthBonus);
     planet.population = Math.min(planet.population + growth, maxPopulation);
   }
 }
@@ -333,18 +335,22 @@ function calculateUpkeep(empirePlanets: Planet[]): number {
 }
 
 function generateResearch(empire: Empire, empirePlanets: Planet[]): void {
-  const researchCenters = empirePlanets.reduce(
-    (total, planet) => total + (planet.buildings.research_center ?? 0),
-    0,
-  );
-  if (researchCenters <= 0) {
+  let totalRp = 0;
+  for (const planet of empirePlanets) {
+    const researchCenters = planet.buildings.research_center ?? 0;
+    if (researchCenters > 0) {
+      const researchBonus = planet.resourceBonuses['research'] ?? 1;
+      totalRp += Math.trunc(researchCenters * 20 * researchBonus);
+    }
+  }
+
+  if (totalRp <= 0) {
     return;
   }
 
-  const rpPerTick = researchCenters * 20;
   for (const science of SCIENCE_KEYS) {
     const allocation = empire.researchAllocation[science];
-    const rp = Math.trunc((rpPerTick * allocation) / 100);
+    const rp = Math.trunc((totalRp * allocation) / 100);
     empire.researchPoints[science] += rp;
   }
 }

@@ -1,5 +1,5 @@
 import { BUILDINGS, getBuildCost, getOverbuildMultiplier } from '../core/data/buildings';
-import type { BuildingKey, Planet, ResourceKey } from '../core/models/types';
+import type { BonusKey, BuildingKey, Planet, ResourceKey } from '../core/models/types';
 import { calcSciencePercent, getPlanetsForEmpire } from '../core/selectors/selectors';
 import { button, numberInput, parseIntegerInput, resourceCostText } from './dom';
 import type { UiContext } from './types';
@@ -15,12 +15,15 @@ let sortAsc = true;
 
 type SortColumn = 'name' | 'portal' | 'built' | 'lasers' | 'ob' | 'bonuses';
 
-const BONUS_LABELS: Record<ResourceKey, string> = {
+const BONUS_LABELS: Record<BonusKey, string> = {
   gc: 'GC',
   food: 'Food',
   iron: 'Iron',
   endurium: 'End',
   octarine: 'Oct',
+  research: 'Research',
+  population_growth: 'Pop',
+  defense: 'Defense',
 };
 
 function countBuildings(planet: Planet): number {
@@ -39,22 +42,24 @@ function overbuildPercent(planet: Planet): number {
 }
 
 function bonusText(planet: Planet): string {
-  const entries = Object.entries(planet.resourceBonuses) as Array<[ResourceKey, number]>;
+  const entries = Object.entries(planet.resourceBonuses) as Array<[BonusKey, number]>;
   if (entries.length === 0) return '';
   return entries
-    .filter(([, mult]) => mult !== 1)
-    .map(([res, mult]) => `${BONUS_LABELS[res]} x${mult.toFixed(1)}`)
+    .filter(([, mult]) => mult > 1)
+    .map(([res, mult]) => `${BONUS_LABELS[res]} +${Math.round((mult - 1) * 100)}%`)
     .join(', ');
 }
 
-const RESOURCE_SORT_ORDER: Record<ResourceKey, number> = { gc: 0, food: 1, iron: 2, endurium: 3, octarine: 4 };
+const BONUS_SORT_ORDER: Partial<Record<BonusKey, number>> = {
+  gc: 0, food: 1, iron: 2, endurium: 3, octarine: 4, research: 5, population_growth: 6, defense: 7,
+};
 
 function bonusSortKey(planet: Planet): [number, number] {
-  const entries = Object.entries(planet.resourceBonuses) as Array<[ResourceKey, number]>;
+  const entries = Object.entries(planet.resourceBonuses) as Array<[BonusKey, number]>;
   const bonused = entries.filter(([, mult]) => mult !== 1);
   if (bonused.length === 0) return [99, 0];
-  bonused.sort((a, b) => RESOURCE_SORT_ORDER[a[0]] - RESOURCE_SORT_ORDER[b[0]]);
-  return [RESOURCE_SORT_ORDER[bonused[0][0]], bonused[0][1]];
+  bonused.sort((a, b) => (BONUS_SORT_ORDER[a[0]] ?? 99) - (BONUS_SORT_ORDER[b[0]] ?? 99));
+  return [BONUS_SORT_ORDER[bonused[0][0]] ?? 99, bonused[0][1]];
 }
 
 function sortPlanets(planets: Planet[]): Planet[] {
@@ -282,7 +287,20 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   countLabel.textContent = 'Count per planet: ';
   const countInput = numberInput(1, { min: 1 });
   countInput.className = 'build-input';
-  countLabel.append(countInput);
+  const maxBtn = button('Max', () => {
+    const buildingType = buildingSelect.value as BuildingKey;
+    if (buildingType === 'portal') return;
+    let selectedPlanets = planets.filter((p) => selected.has(p.id));
+    if (selectedPlanets.length === 0) return;
+    const max = calcMaxMassAffordable(buildingType, constructionSci, selectedPlanets, context.player.resources);
+    countInput.value = String(Math.max(max, 1));
+    updateCostPreview();
+  });
+  maxBtn.className = 'build-max-btn ui-button';
+  const countWrapper = document.createElement('div');
+  countWrapper.className = 'build-input-wrapper';
+  countWrapper.append(countInput, maxBtn);
+  countLabel.append(countWrapper);
 
   // Cost preview
   const costPreview = document.createElement('div');
@@ -389,6 +407,49 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   }
 
   return panel;
+}
+
+function calcMaxMassAffordable(
+  buildingType: BuildingKey,
+  constructionSci: number,
+  selectedPlanets: Planet[],
+  resources: Record<ResourceKey, number>,
+): number {
+  const baseCosts = BUILDINGS[buildingType].cost as Partial<Record<ResourceKey, number>>;
+  const discount = 1 / (1 + constructionSci / 100);
+  const available: Record<ResourceKey, number> = { ...resources };
+  let count = 0;
+
+  for (let i = 0; i < 999; i++) {
+    const roundCost: Partial<Record<ResourceKey, number>> = {};
+    let canAfford = true;
+
+    for (const planet of selectedPlanets) {
+      const simTotal = countBuildingsAndQueue(planet) + i;
+      const overbuild = simTotal > planet.size ? simTotal / planet.size : 1;
+      for (const res of Object.keys(baseCosts) as ResourceKey[]) {
+        const baseAmount = baseCosts[res] ?? 0;
+        if (!baseAmount) continue;
+        const cost = Math.max(Math.trunc(baseAmount * discount * overbuild), Math.trunc(baseAmount * 0.5));
+        roundCost[res] = (roundCost[res] ?? 0) + cost;
+      }
+    }
+
+    for (const res of Object.keys(roundCost) as ResourceKey[]) {
+      if ((roundCost[res] ?? 0) > (available[res] ?? 0)) {
+        canAfford = false;
+        break;
+      }
+    }
+    if (!canAfford) break;
+
+    for (const res of Object.keys(roundCost) as ResourceKey[]) {
+      available[res] = (available[res] ?? 0) - (roundCost[res] ?? 0);
+    }
+    count++;
+  }
+
+  return count;
 }
 
 function textCell(text: string): HTMLElement {
