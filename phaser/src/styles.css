@@ -318,8 +318,7 @@ h3 {
 }
 
 .ops-target-row .form-row {
-  grid-template-columns: auto minmax(130px, 180px);
-  justify-content: start;
+  grid-template-columns: 25% auto;
   gap: 8px;
 }
 
@@ -335,7 +334,7 @@ h3 {
 
 .ops-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 25% auto;
   align-items: center;
   gap: 8px;
   padding: 4px 0;
@@ -345,6 +344,7 @@ h3 {
 .ops-row .ui-button {
   min-width: 72px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .ops-info {

@@ -31,7 +31,9 @@ export class GalaxyScene extends Phaser.Scene {
 
     camera.setBackgroundColor('#030610');
     camera.setZoom(1);
-    camera.centerOn(0, 0);
+    // Center camera on galaxy origin (0,0) — same formula as the zoom handler
+    camera.scrollX = -camera.width / 2;
+    camera.scrollY = -camera.height / 2;
 
     const refreshScene = () => {
       this.children.removeAll(true);
@@ -57,10 +59,14 @@ export class GalaxyScene extends Phaser.Scene {
     this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _objects: unknown[], _dx: number, dy: number) => {
       const newZoom = Phaser.Math.Clamp(camera.zoom - dy * 0.001, MIN_ZOOM, MAX_ZOOM);
       if (newZoom === camera.zoom) return;
+      // Read viewport dimensions before zoom so there is no dependency on setZoom side-effects
+      const vw = camera.width;
+      const vh = camera.height;
       camera.setZoom(newZoom);
-      // Always keep the galaxy origin (0,0) at the exact screen center
-      camera.scrollX = -camera.width / (2 * newZoom);
-      camera.scrollY = -camera.height / (2 * newZoom);
+      // scrollX = world-X of the left edge; to place world(0,0) at screen center:
+      //   center_world_x = scrollX + vw / (2 * zoom) = 0  =>  scrollX = -vw / (2 * zoom)
+      camera.scrollX = -vw / (2 * newZoom);
+      camera.scrollY = -vh / (2 * newZoom);
     });
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
