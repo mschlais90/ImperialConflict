@@ -86,19 +86,18 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
     return panel;
   }
 
-  // Find best explorer source for travel tick calculation
-  const portalExplorerCount = portalPlanets.reduce((sum, p) => sum + (p.units.explorer ?? 0), 0);
-
+  // Find best source planet for travel tick calculation.
+  // Always show ticks based on nearest owned planet (portal planets first, then any).
+  // The source is picked by who has an idle explorer; if nobody does, still show
+  // distance from the closest owned planet so the player can plan ahead.
   function bestTravelTicks(target: Planet): { ticks: number; source: Planet | null } {
     let bestPortal: Planet | null = null;
     let bestPortalTicks = Infinity;
-    if (portalExplorerCount > 0) {
-      for (const p of portalPlanets) {
-        const t = calcTravelTicks(state!, p.systemId, target.systemId);
-        if (t < bestPortalTicks) {
-          bestPortalTicks = t;
-          bestPortal = p;
-        }
+    for (const p of portalPlanets) {
+      const t = calcTravelTicks(state!, p.systemId, target.systemId);
+      if (t < bestPortalTicks) {
+        bestPortalTicks = t;
+        bestPortal = p;
       }
     }
 
@@ -106,7 +105,6 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
     let bestDirectTicks = Infinity;
     for (const p of playerPlanets) {
       if (p.hasPortal) continue;
-      if ((p.units.explorer ?? 0) <= 0) continue;
       const t = calcTravelTicks(state!, p.systemId, target.systemId);
       if (t < bestDirectTicks) {
         bestDirectTicks = t;
@@ -114,11 +112,26 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
       }
     }
 
+    // Prefer portal route if it's equal or shorter
     const usePortal = bestPortal && (!bestDirect || bestPortalTicks <= bestDirectTicks);
-    return {
-      ticks: usePortal ? bestPortalTicks : bestDirect ? bestDirectTicks : Infinity,
-      source: usePortal ? bestPortal : bestDirect,
-    };
+    const ticks = usePortal ? bestPortalTicks : bestDirect ? bestDirectTicks : Infinity;
+
+    // For the actual source (who donates the explorer), prefer planets with idle explorers
+    let source: Planet | null = null;
+    if (usePortal && portalPlanets.some((p) => (p.units.explorer ?? 0) > 0)) {
+      source = bestPortal;
+    } else {
+      const directWithExplorer = playerPlanets
+        .filter((p) => !p.hasPortal && (p.units.explorer ?? 0) > 0)
+        .sort((a, b) => calcTravelTicks(state!, a.systemId, target.systemId) - calcTravelTicks(state!, b.systemId, target.systemId));
+      if (directWithExplorer.length > 0) {
+        source = directWithExplorer[0];
+      } else if (portalPlanets.some((p) => (p.units.explorer ?? 0) > 0)) {
+        source = portalPlanets.find((p) => (p.units.explorer ?? 0) > 0)!;
+      }
+    }
+
+    return { ticks, source };
   }
 
   // Build list with travel info and bonus
