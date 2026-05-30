@@ -183,9 +183,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   const inputs = new Map<BuildingKey, HTMLInputElement>();
 
   for (const key of BUILDING_KEYS) {
-    if (key === 'portal' && (planet.hasPortal || planet.buildQueue.some((o) => o.category === 'building' && o.itemType === 'portal'))) {
-      continue;
-    }
+    if (key === 'portal') continue; // Portal has its own button below
     const built = planet.buildings[key] ?? 0;
     const cost = getBuildCost(key, constructionSci, planet);
     const affordable = maxAffordable(context.player.resources, cost);
@@ -293,6 +291,30 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   queueAllBtn.classList.add('primary');
 
   frag.append(buildForm, costPreview, queueAllBtn);
+
+  // Portal button (separate from build grid since only one can exist)
+  const portalBuilding = planet.buildQueue.some((o) => o.category === 'building' && o.itemType === 'portal');
+  if (!planet.hasPortal && !portalBuilding) {
+    const portalCost = getBuildCost('portal', constructionSci, planet);
+    const canAffordPortal = maxAffordable(context.player.resources, portalCost) >= 1;
+    const portalBtn = button(`Build Portal (${resourceCostText(portalCost)})`, () => {
+      const result = context.commands.queueBuilding({
+        empireId: context.player.id,
+        planetId: planet.id,
+        buildingType: 'portal',
+        count: 1,
+      });
+      if (result.ok) {
+        context.setNotice('Portal queued.', false, true);
+        context.controller.refreshScene?.();
+      } else {
+        context.setNotice(result.message, true);
+      }
+    }, canAffordPortal ? 'ui-button primary portal-build-btn' : 'ui-button portal-build-btn');
+    portalBtn.disabled = !canAffordPortal;
+    if (!canAffordPortal) portalBtn.title = 'Insufficient resources';
+    frag.append(portalBtn);
+  }
 
   // Explorer queue
   const allPlanets = getPlanetsForEmpire(state, context.player.id);

@@ -1384,6 +1384,11 @@ details.collapsible[open] > summary::before {
   margin: 0;
 }
 
+.portal-build-btn {
+  margin-top: 8px;
+  width: 100%;
+}
+
 .exploration-header {
   display: flex;
   gap: 16px;
