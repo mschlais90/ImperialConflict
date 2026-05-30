@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
-export default defineConfig(({ command }) => ({
-  base: command === 'build' ? '/ImperialConflict/' : '/',
+export default defineConfig(() => ({
+  base: process.env.GITHUB_PAGES ? '/ImperialConflict/' : '/',
   server: {
     host: '127.0.0.1',
     port: 5173,
