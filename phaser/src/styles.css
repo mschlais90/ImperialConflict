@@ -334,7 +334,7 @@ h3 {
 
 .ops-row {
   display: grid;
-  grid-template-columns: 25% auto;
+  grid-template-columns: 25% max-content;
   align-items: center;
   gap: 8px;
   padding: 4px 0;
@@ -342,9 +342,7 @@ h3 {
 }
 
 .ops-row .ui-button {
-  min-width: 72px;
   text-align: center;
-  flex-shrink: 0;
 }
 
 .ops-info {
