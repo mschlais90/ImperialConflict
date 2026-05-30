@@ -274,6 +274,7 @@ function recallControls(context: UiContext, fleets: Fleet[], portalPlanets: Plan
 }
 
 let massTrainPersistedSelection: Set<number> | null = null;
+let persistedMassTrainUnitKey: CombatUnitKey | 'agent' | 'wizard' = 'fighter';
 
 function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLElement {
   const player = context.player;
@@ -317,7 +318,7 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
 
   const headerRow = document.createElement('div');
   headerRow.className = 'mass-train-row mass-train-row-header';
-  for (const text of ['', 'Planet', 'Has', 'Can Train']) {
+  for (const text of ['', 'Planet', '', 'Has', 'Can Train']) {
     const cell = document.createElement('span');
     cell.textContent = text;
     headerRow.append(cell);
@@ -326,7 +327,7 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
 
   const checkboxes = new Map<number, HTMLInputElement>();
   const rowElements = new Map<number, HTMLElement>();
-  let selectedUnitType: CombatUnitKey | 'agent' | 'wizard' = 'fighter';
+  let selectedUnitType: CombatUnitKey | 'agent' | 'wizard' = persistedMassTrainUnitKey;
 
   function buildRow(planet: Planet): HTMLElement {
     const row = document.createElement('div');
@@ -355,6 +356,10 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     const nameCell = document.createElement('span');
     nameCell.textContent = planet.planetName;
 
+    const portalCell = document.createElement('span');
+    portalCell.className = 'mass-train-cell-portal';
+    portalCell.textContent = planet.hasPortal ? '\u{1F310}' : '';
+
     const hasCell = document.createElement('span');
     hasCell.className = 'mass-train-cell-num';
     hasCell.textContent = String(planet.units[selectedUnitType as keyof typeof planet.units] ?? 0);
@@ -363,7 +368,7 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     affordCell.className = 'mass-train-cell-num';
     affordCell.textContent = String(maxAffordable(player.resources, UNITS[selectedUnitType].cost));
 
-    row.append(cbCell, nameCell, hasCell, affordCell);
+    row.append(cbCell, nameCell, portalCell, hasCell, affordCell);
     return row;
   }
 
@@ -388,6 +393,7 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     opt.textContent = UNITS[key].name;
     unitSelect.append(opt);
   }
+  unitSelect.value = persistedMassTrainUnitKey;
 
   const unitRow = document.createElement('div');
   unitRow.className = 'mass-build-field-row';
@@ -446,6 +452,7 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
 
   unitSelect.addEventListener('change', () => {
     selectedUnitType = unitSelect.value as typeof selectedUnitType;
+    persistedMassTrainUnitKey = selectedUnitType;
     rebuildRows();
     updatePreview();
   });

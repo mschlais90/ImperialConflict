@@ -108,7 +108,7 @@ export function renderResearchContent(context: UiContext): HTMLElement {
 
     // Allocation input
     const row = document.createElement('label');
-    row.className = 'form-row';
+    row.className = 'form-row research-form-row';
     row.append(document.createTextNode('Allocation'));
     const input = numberInput(context.player.researchAllocation[science], { min: 0, max: 100 });
     input.addEventListener('input', updateTotal);

@@ -22,14 +22,22 @@ import {
   getSystem,
 } from '../selectors/selectors';
 
-const MIN_ATTACK_TICK = 100;
 const MIN_MILITARY_TICK = 40;
 const BUILD_QUEUE_MAX = 3;
-const ATTACK_STRENGTH_RATIO = 2;
 const RECENT_ATTACK_COOLDOWN = 60;
 const RECENT_ATTACK_MULTIPLIER = 1.5;
 const GARRISON_FRACTION = 0.15;
 const MIN_GARRISON_PER_PLANET = 10;
+
+type DifficultyParams = { attackStartTick: number; strengthRatio: number; buildMultiplier: number; opsFrequency: number };
+
+function getDifficultyParams(state: GameState): DifficultyParams {
+  switch (state.difficulty ?? 'hard') {
+    case 'easy': return { attackStartTick: 150, strengthRatio: 3.5, buildMultiplier: 0.4, opsFrequency: 10 };
+    case 'normal': return { attackStartTick: 110, strengthRatio: 2.4, buildMultiplier: 0.8, opsFrequency: 7 };
+    case 'hard': return { attackStartTick: 100, strengthRatio: 2.0, buildMultiplier: 1.0, opsFrequency: 5 };
+  }
+}
 const COMBAT_UNIT_KEYS: CombatUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport'];
 const TRAINABLE_UNIT_KEYS: Array<Exclude<UnitKey, 'explorer'>> = [
   'transport',
@@ -60,19 +68,20 @@ export function processAiTurn(state: GameState, empireId: number, tickNumber: nu
     return;
   }
 
+  const diff = getDifficultyParams(state);
   getAiControllerState(state, empire.id);
   doBuilding(state, empire, planets);
   doColonization(state, empire, planets);
 
   if (tickNumber >= MIN_MILITARY_TICK) {
-    doMilitaryProduction(state, empire, planets);
+    doMilitaryProduction(state, empire, planets, diff.buildMultiplier);
   }
 
-  if (tickNumber >= MIN_ATTACK_TICK) {
-    doAttack(state, empire, planets, tickNumber);
+  if (tickNumber >= diff.attackStartTick) {
+    doAttack(state, empire, planets, tickNumber, diff.strengthRatio);
   }
 
-  if (tickNumber >= MIN_ATTACK_TICK && tickNumber % 5 === 0) {
+  if (tickNumber >= diff.attackStartTick && tickNumber % diff.opsFrequency === 0) {
     doOperations(state, empire);
   }
 }
@@ -187,7 +196,7 @@ function doColonization(state: GameState, empire: Empire, planets: Planet[]): vo
   }
 }
 
-function doMilitaryProduction(state: GameState, empire: Empire, planets: Planet[]): void {
+function doMilitaryProduction(state: GameState, empire: Empire, planets: Planet[], buildMultiplier: number): void {
   const totals = countUnits(planets);
   const planetCount = planets.length;
   const targetSoldiers = 50 + planetCount * 40;
@@ -210,7 +219,7 @@ function doMilitaryProduction(state: GameState, empire: Empire, planets: Planet[
   addPriority(priorities, 'wizard', totals.wizard, targetWizards, 0.5);
   priorities.sort((a, b) => b.urgency - a.urgency);
 
-  const maxPerTick = Math.min(2 + planetCount, 8);
+  const maxPerTick = Math.max(1, Math.min(Math.trunc((2 + planetCount) * buildMultiplier), 8));
   let built = 0;
   let passCount = 0;
 
@@ -231,7 +240,7 @@ function doMilitaryProduction(state: GameState, empire: Empire, planets: Planet[
   }
 }
 
-function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumber: number): void {
+function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumber: number, attackStrengthRatio: number): void {
   const activeAttackFleets = getFleetsForEmpire(state, empire.id).filter((fleet) => !fleet.isExploration).length;
   if (activeAttackFleets >= 2) {
     return;
@@ -255,7 +264,7 @@ function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumbe
     }
 
     const defensePower = estimateDefensePower(planet);
-    let requiredPower = Math.trunc(defensePower * ATTACK_STRENGTH_RATIO);
+    let requiredPower = Math.trunc(defensePower * attackStrengthRatio);
     const memory = controller.recentAttacks[planet.id];
     if (memory !== undefined) {
       const ticksSince = tickNumber - memory.tick;

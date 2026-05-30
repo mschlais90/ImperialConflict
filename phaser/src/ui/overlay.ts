@@ -292,7 +292,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     clearElement(root);
     chatPanel = null;
     root.append(toastContainer);
-    renderStartScreen(root, (empireName) => {
+    renderStartScreen(root, (empireName, difficulty) => {
       forcedGameOver = null;
       viewMode = 'normal';
       battleReportQueue = [];
@@ -300,12 +300,12 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       battleReportScreen?.remove();
       battleReportScreen = null;
       if (controller.startNewGame) {
-        controller.startNewGame(empireName);
+        controller.startNewGame(empireName, difficulty);
         syncLastSeenEventIds();
         return;
       }
       controller.playerName = empireName;
-      controller.state = createNewGame({ empireName });
+      controller.state = createNewGame({ empireName, difficulty });
       syncLastSeenEventIds();
       render();
     }, () => {

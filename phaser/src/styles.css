@@ -329,8 +329,7 @@ h3 {
 .ops-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   padding: 4px 0;
   border-bottom: 1px solid rgba(130, 154, 196, 0.1);
 }
@@ -867,10 +866,11 @@ input[type="number"] {
 /* Mass Train table */
 .mass-train-table {
   display: grid;
-  grid-template-columns: 24px 1fr 44px 60px;
+  grid-template-columns: 24px auto 20px 44px 60px;
   gap: 0 6px;
   font-size: 12px;
   margin-bottom: 10px;
+  justify-content: start;
 }
 
 .mass-train-row {
@@ -901,6 +901,20 @@ input[type="number"] {
   justify-content: center;
   color: #8694ab;
   font-size: 11px;
+}
+
+.mass-train-cell-portal {
+  justify-content: center;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+}
+
+/* Research allocation row — input close to label */
+.research-form-row {
+  grid-template-columns: auto auto;
+  justify-content: start;
+  gap: 12px;
 }
 
 .start-panel h1 {
@@ -939,7 +953,7 @@ input[type="number"] {
 
 .research-header {
   display: flex;
-  justify-content: space-between;
+  gap: 12px;
   align-items: center;
   margin-top: 10px;
   padding-top: 8px;
@@ -1052,9 +1066,8 @@ details.collapsible > summary:has(.econ-summary-row) {
 
 .econ-summary-row {
   display: flex;
-  justify-content: space-between;
-  flex: 1;
-  gap: 10px;
+  gap: 12px;
+  align-items: center;
 }
 
 details.collapsible > summary::before {

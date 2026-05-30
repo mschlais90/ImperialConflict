@@ -16,6 +16,8 @@ export interface NewGameOptions {
   seed?: number;
   /** Total number of empires (human + AI). Defaults to 1 + AI_EMPIRE_COUNT. */
   empireCount?: number;
+  /** AI difficulty level. Defaults to 'normal'. */
+  difficulty?: 'easy' | 'normal' | 'hard';
 }
 
 const GALAXY_RADIUS = 50;
@@ -88,6 +90,7 @@ export function createNewGame(options: NewGameOptions = {}): GameState {
   state.currentState = 'playing';
   state.currentTick = 0;
   state.currentSpeed = 0;
+  state.difficulty = options.difficulty;
 
   generateGalaxy(state, rng, playerEmpireName, empireCount);
   appendEvent(state, { type: 'game_started', tick: state.currentTick, empireName: playerEmpireName });

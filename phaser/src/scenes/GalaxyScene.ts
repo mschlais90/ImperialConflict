@@ -22,7 +22,7 @@ export class GalaxyScene extends Phaser.Scene {
 
   create(): void {
     const controller = this.getController();
-    const state = this.requireState(controller);
+    this.requireState(controller);
     const camera = this.cameras.main;
 
     controller.activeScene = 'galaxy';
@@ -94,8 +94,8 @@ export class GalaxyScene extends Phaser.Scene {
       this.isPanning = false;
     });
 
-    const bounds = this.calculateGalaxyBounds(state.systems);
-    camera.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+    // No camera bounds — allows zoom to stay perfectly centered on the screen
+    // without bounds clamping interfering with the scroll calculation after zoom
   }
 
   private drawSystems(controller: AppController): void {
@@ -260,25 +260,6 @@ export class GalaxyScene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setResolution(2);
-  }
-
-  private calculateGalaxyBounds(systems: Array<{ position: { x: number; y: number } }>): Phaser.Geom.Rectangle {
-    if (systems.length === 0) {
-      return new Phaser.Geom.Rectangle(-640, -360, 1280, 720);
-    }
-
-    const points = systems.map((system) => ({
-      x: system.position.x * GODOT_SCALE,
-      y: system.position.y * GODOT_SCALE,
-    }));
-    const xs = points.map((point) => point.x);
-    const ys = points.map((point) => point.y);
-    const minX = Math.min(...xs) - 360;
-    const maxX = Math.max(...xs) + 360;
-    const minY = Math.min(...ys) - 260;
-    const maxY = Math.max(...ys) + 260;
-
-    return new Phaser.Geom.Rectangle(minX, minY, maxX - minX, maxY - minY);
   }
 
   private showSystemTooltip(

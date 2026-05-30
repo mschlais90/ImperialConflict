@@ -9,6 +9,9 @@ const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
 // Persists selection across re-renders within the same session
 let persistedSelection: Set<number> | null = null;
 
+// Persists building dropdown selection across re-renders
+let persistedBuildingKey: BuildingKey = 'mine';
+
 // Persists sort state across re-renders
 let sortColumn: SortColumn = 'name';
 let sortAsc = true;
@@ -277,6 +280,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     opt.textContent = key === 'portal' ? '\u{1F310} ' + BUILDINGS[key].name : BUILDINGS[key].name;
     buildingSelect.append(opt);
   }
+  buildingSelect.value = persistedBuildingKey;
 
   const buildingRow = document.createElement('div');
   buildingRow.className = 'mass-build-field-row';
@@ -345,7 +349,10 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     costPreview.textContent = `${perUnitLine}\nTotal for ${selectedPlanets.length} planet${selectedPlanets.length > 1 ? 's' : ''}: ${resourceCostText(totalCost)}`;
   }
 
-  buildingSelect.addEventListener('change', updateCostPreview);
+  buildingSelect.addEventListener('change', () => {
+    persistedBuildingKey = buildingSelect.value as BuildingKey;
+    updateCostPreview();
+  });
   countInput.addEventListener('input', updateCostPreview);
   updateCostPreview();
 

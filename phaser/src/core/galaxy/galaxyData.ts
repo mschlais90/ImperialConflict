@@ -19,6 +19,7 @@ export interface GameState {
   currentTick: number;
   currentSpeed: GameSpeed;
   currentState: GameLifecycleState;
+  difficulty?: 'easy' | 'normal' | 'hard';
   selectedEmpireId: number | null;
   selectedSystemId: number | null;
   selectedPlanetId: number | null;

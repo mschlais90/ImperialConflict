@@ -21,7 +21,7 @@ export interface AppController {
   clientState: ClientState | null;
   overlay: AppOverlay;
   refreshScene: (() => void) | null;
-  startNewGame: ((empireName: string) => void) | null;
+  startNewGame: ((empireName: string, difficulty: 'easy' | 'normal' | 'hard') => void) | null;
   loadGame: ((state: GameState) => void) | null;
   activeScene: 'galaxy' | 'system';
   switchToGalaxy: (() => void) | null;

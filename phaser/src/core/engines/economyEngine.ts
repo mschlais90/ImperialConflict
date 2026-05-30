@@ -145,7 +145,6 @@ function processEmpireTick(state: GameState, empire: Empire): void {
   const foodConsumed = calculateFoodConsumption(empirePlanets);
   empire.resources.food -= foodConsumed;
   const isStarving = empire.resources.food < 0;
-  const foodDeficit = isStarving ? -empire.resources.food : 0;
   if (isStarving) {
     empire.resources.food = 0;
   }
@@ -157,7 +156,7 @@ function processEmpireTick(state: GameState, empire: Empire): void {
   empire.resources.gc += income;
 
   if (isStarving) {
-    starvePopulation(state, empire, empirePlanets, foodDeficit);
+    starvePopulation(state, empire, empirePlanets);
   } else {
     growPopulation(state, empire, empirePlanets);
   }
@@ -282,20 +281,14 @@ function calculateFoodConsumption(empirePlanets: Planet[]): number {
   return total;
 }
 
-function starvePopulation(state: GameState, empire: Empire, empirePlanets: Planet[], foodDeficit: number): void {
-  const totalConsumption = calculateFoodConsumption(empirePlanets);
-  if (totalConsumption <= 0) {
-    return;
-  }
-
-  const deathRate = Math.min(Math.max(foodDeficit / totalConsumption, 0), 1);
+function starvePopulation(state: GameState, empire: Empire, empirePlanets: Planet[]): void {
   let totalDeaths = 0;
   for (const planet of empirePlanets) {
     if (planet.population <= 0) {
       continue;
     }
 
-    const deaths = Math.max(Math.trunc(planet.population * deathRate), 1);
+    const deaths = Math.max(Math.trunc(planet.population * 0.1), 1);
     planet.population = Math.max(planet.population - deaths, 0);
     totalDeaths += deaths;
   }
@@ -314,7 +307,11 @@ function growPopulation(state: GameState, empire: Empire, empirePlanets: Planet[
   const welfareMultiplier = 1 + getSciencePercent(state, empire, 'welfare') / 100;
   for (const planet of empirePlanets) {
     if (planet.population <= 0) {
-      planet.population = 100;
+      if (empire.resources.food > 0) {
+        planet.population = 100;
+      } else {
+        continue;
+      }
     }
 
     const maxPopulation = Math.trunc(getMaxPopulation(planet) * welfareMultiplier);

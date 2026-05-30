@@ -1,6 +1,6 @@
 import { button } from './dom';
 
-export function renderStartScreen(root: HTMLElement, onStart: (empireName: string) => void, onLoad?: () => void, onMultiplayer?: () => void, onTutorial?: () => void): void {
+export function renderStartScreen(root: HTMLElement, onStart: (empireName: string, difficulty: 'easy' | 'normal' | 'hard') => void, onLoad?: () => void, onMultiplayer?: () => void, onTutorial?: () => void): void {
   const shell = document.createElement('div');
   shell.className = 'start-screen interactive';
 
@@ -22,6 +22,18 @@ export function renderStartScreen(root: HTMLElement, onStart: (empireName: strin
 
   label.append(input);
 
+  const diffLabel = document.createElement('label');
+  diffLabel.textContent = 'Difficulty';
+  const diffSelect = document.createElement('select');
+  for (const [value, text] of [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']] as const) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = text;
+    if (value === 'normal') opt.selected = true;
+    diffSelect.append(opt);
+  }
+  diffLabel.append(diffSelect);
+
   const btnRow = document.createElement('div');
   btnRow.className = 'start-btn-row';
   btnRow.append(button('Start', () => panel.requestSubmit(), 'ui-button primary'));
@@ -41,10 +53,10 @@ export function renderStartScreen(root: HTMLElement, onStart: (empireName: strin
     btnRow.append(tutBtn);
   }
 
-  panel.append(title, label, btnRow);
+  panel.append(title, label, diffLabel, btnRow);
   panel.addEventListener('submit', (event) => {
     event.preventDefault();
-    onStart(input.value.trim() || 'Player Empire');
+    onStart(input.value.trim() || 'Player Empire', diffSelect.value as 'easy' | 'normal' | 'hard');
   });
 
   shell.append(panel);

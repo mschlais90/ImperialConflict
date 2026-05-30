@@ -214,7 +214,7 @@ describe('economy and ticks', () => {
 
     expect(empire.resources.food).toBe(0);
     expect(empire.resources.gc).toBe(51);
-    expect(planet.population).toBe(50);
+    expect(planet.population).toBe(90);
     expect(state.events.some((event) => event.type === 'notification' && event.category === 'warning')).toBe(true);
   });
 
