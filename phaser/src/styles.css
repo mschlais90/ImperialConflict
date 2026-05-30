@@ -1404,7 +1404,7 @@ details.collapsible[open] > summary::before {
 
 .exploration-row {
   display: grid;
-  grid-template-columns: 1fr 50px 50px 90px;
+  grid-template-columns: 1fr 50px 100px 50px 90px;
   gap: 8px;
   align-items: center;
   padding: 5px 8px;
@@ -1438,7 +1438,8 @@ details.collapsible[open] > summary::before {
 }
 
 .exploration-row-header span:nth-child(2),
-.exploration-row-header span:nth-child(3) {
+.exploration-row-header span:nth-child(3),
+.exploration-row-header span:nth-child(4) {
   text-align: center;
 }
 
@@ -1449,6 +1450,11 @@ details.collapsible[open] > summary::before {
 
 .exploration-sortable:hover {
   color: #eef4ff;
+}
+
+.exploration-bonus {
+  color: #7ee87e;
+  font-size: 11px;
 }
 
 .exploration-build-row {

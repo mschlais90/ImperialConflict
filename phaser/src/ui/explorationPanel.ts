@@ -1,8 +1,17 @@
 import { getPlanetsForEmpire, calcTravelTicks } from '../core/selectors/selectors';
-import type { Planet } from '../core/models/types';
+import type { Planet, ResourceKey } from '../core/models/types';
 import { UNITS } from '../core/data/units';
 import { button, formatNumber } from './dom';
 import type { UiContext } from './types';
+
+function getBonusInfo(planet: Planet): { resource: string; pct: number } | null {
+  const entries = Object.entries(planet.resourceBonuses) as Array<[ResourceKey, number]>;
+  const bonused = entries.filter(([, mult]) => mult > 1);
+  if (bonused.length === 0) return null;
+  bonused.sort((a, b) => b[1] - a[1]); // highest bonus first
+  const [res, mult] = bonused[0];
+  return { resource: res.charAt(0).toUpperCase() + res.slice(1), pct: Math.round((mult - 1) * 100) };
+}
 
 export function renderExplorationPanel(context: UiContext): HTMLElement {
   const state = context.controller.state;
@@ -112,15 +121,16 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
     };
   }
 
-  // Build list with travel info
+  // Build list with travel info and bonus
   const entries = unexplored.map((planet) => {
     const travel = bestTravelTicks(planet);
     const enRouteFleet = explorerFleets.find((f) => f.targetPlanetId === planet.id);
-    return { planet, ticks: travel.ticks, source: travel.source, enRouteFleet };
+    const bonus = getBonusInfo(planet);
+    return { planet, ticks: travel.ticks, source: travel.source, enRouteFleet, bonus };
   });
 
   // Sort state
-  let sortField: 'ticks' | 'size' = 'ticks';
+  let sortField: 'ticks' | 'size' | 'bonus' = 'ticks';
   let sortAsc = true;
 
   function sortEntries(): void {
@@ -129,10 +139,24 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
         const cmp = (a.ticks === Infinity ? 99999 : a.ticks) - (b.ticks === Infinity ? 99999 : b.ticks);
         return sortAsc ? cmp || b.planet.size - a.planet.size : -cmp || a.planet.size - b.planet.size;
       });
-    } else {
+    } else if (sortField === 'size') {
       entries.sort((a, b) => {
         const cmp = a.planet.size - b.planet.size;
         return sortAsc ? cmp : -cmp;
+      });
+    } else {
+      // Bonus sort: alphabetical by resource name (asc/desc togglable), then % always descending
+      entries.sort((a, b) => {
+        const aRes = a.bonus?.resource ?? '';
+        const bRes = b.bonus?.resource ?? '';
+        // No-bonus planets always sort to the end
+        if (!aRes && !bRes) return 0;
+        if (!aRes) return 1;
+        if (!bRes) return -1;
+        const resCmp = aRes.localeCompare(bRes);
+        if (resCmp !== 0) return sortAsc ? resCmp : -resCmp;
+        // Same resource: always sort by % descending
+        return (b.bonus?.pct ?? 0) - (a.bonus?.pct ?? 0);
       });
     }
   }
@@ -151,6 +175,11 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
   sizeHeader.textContent = 'Size';
   sizeHeader.title = 'Click to sort by size';
 
+  const bonusHeader = document.createElement('span');
+  bonusHeader.className = 'exploration-sortable';
+  bonusHeader.textContent = 'Bonus';
+  bonusHeader.title = 'Click to sort by bonus';
+
   const ticksHeader = document.createElement('span');
   ticksHeader.className = 'exploration-sortable';
   ticksHeader.textContent = 'Ticks ▲';
@@ -158,7 +187,7 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
 
   const actionHeader = document.createElement('span');
 
-  tableHeader.append(planetHeader, sizeHeader, ticksHeader, actionHeader);
+  tableHeader.append(planetHeader, sizeHeader, bonusHeader, ticksHeader, actionHeader);
   panel.append(tableHeader);
 
   // Planet rows
@@ -177,6 +206,15 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
       const size = document.createElement('span');
       size.className = 'exploration-cell-center';
       size.textContent = String(entry.planet.size);
+
+      const bonusCell = document.createElement('span');
+      bonusCell.className = 'exploration-cell-center';
+      if (entry.bonus) {
+        bonusCell.textContent = `${entry.bonus.resource} +${entry.bonus.pct}%`;
+        bonusCell.className += ' exploration-bonus';
+      } else {
+        bonusCell.textContent = '—';
+      }
 
       const ticks = document.createElement('span');
       ticks.className = 'exploration-cell-center';
@@ -208,7 +246,7 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
         action.append(exploreBtn);
       }
 
-      row.append(name, size, ticks, action);
+      row.append(name, size, bonusCell, ticks, action);
       list.append(row);
     }
   }
@@ -216,6 +254,7 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
   function updateSortHeaders(): void {
     const arrow = sortAsc ? ' ▲' : ' ▼';
     sizeHeader.textContent = sortField === 'size' ? `Size${arrow}` : 'Size';
+    bonusHeader.textContent = sortField === 'bonus' ? `Bonus${arrow}` : 'Bonus';
     ticksHeader.textContent = sortField === 'ticks' ? `Ticks${arrow}` : 'Ticks';
   }
 
@@ -225,6 +264,18 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
     } else {
       sortField = 'size';
       sortAsc = false; // default descending for size (biggest first)
+    }
+    sortEntries();
+    updateSortHeaders();
+    renderRows();
+  });
+
+  bonusHeader.addEventListener('click', () => {
+    if (sortField === 'bonus') {
+      sortAsc = !sortAsc;
+    } else {
+      sortField = 'bonus';
+      sortAsc = true; // default ascending alphabetical (Endurium, Food, Iron, Octarine)
     }
     sortEntries();
     updateSortHeaders();
