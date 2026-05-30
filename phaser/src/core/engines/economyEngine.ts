@@ -284,12 +284,12 @@ function calculateFoodConsumption(empirePlanets: Planet[]): number {
 function starvePopulation(state: GameState, empire: Empire, empirePlanets: Planet[]): void {
   let totalDeaths = 0;
   for (const planet of empirePlanets) {
-    if (planet.population <= 0) {
+    if (planet.population <= 100) {
       continue;
     }
 
-    const deaths = Math.max(Math.trunc(planet.population * 0.1), 1);
-    planet.population = Math.max(planet.population - deaths, 0);
+    const deaths = Math.trunc(planet.population * 0.2);
+    planet.population = Math.max(planet.population - deaths, 100);
     totalDeaths += deaths;
   }
 

@@ -314,6 +314,13 @@ h3 {
   flex-direction: column;
   gap: 4px;
   margin-bottom: 10px;
+  align-items: flex-start;
+}
+
+.ops-target-row .form-row {
+  grid-template-columns: auto minmax(130px, 180px);
+  justify-content: start;
+  gap: 8px;
 }
 
 .ops-section {
@@ -327,11 +334,17 @@ h3 {
 }
 
 .ops-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 4px 0;
   border-bottom: 1px solid rgba(130, 154, 196, 0.1);
+}
+
+.ops-row .ui-button {
+  min-width: 72px;
+  text-align: center;
 }
 
 .ops-info {
@@ -910,11 +923,11 @@ input[type="number"] {
   align-items: center;
 }
 
-/* Research allocation row — input close to label */
+/* Research allocation row — input offset ~one input-box width from label */
 .research-form-row {
   grid-template-columns: auto auto;
   justify-content: start;
-  gap: 12px;
+  gap: 88px;
 }
 
 .start-panel h1 {

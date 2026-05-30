@@ -208,14 +208,29 @@ describe('economy and ticks', () => {
   it('halves income and kills population during starvation', () => {
     const { state, empire, planet } = createControlledState();
     empire.resources = { gc: 0, food: 5, iron: 0, endurium: 0, octarine: 0 };
+    // population must exceed 100 — starvation cannot reduce below that floor
+    planet.population = 200;
+
+    advanceTick(state);
+
+    // food: 5 - (200/10)=20 → -15 starving, clamped to 0
+    // income: 100 + trunc(200/30)=106 → halved = 53
+    // starvation: deaths = trunc(200*0.2)=40, pop = max(200-40,100)=160
+    expect(empire.resources.food).toBe(0);
+    expect(empire.resources.gc).toBe(53);
+    expect(planet.population).toBe(160);
+    expect(state.events.some((event) => event.type === 'notification' && event.category === 'warning')).toBe(true);
+  });
+
+  it('does not reduce population below 100 from starvation', () => {
+    const { state, empire, planet } = createControlledState();
+    empire.resources = { gc: 0, food: 0, iron: 0, endurium: 0, octarine: 0 };
     planet.population = 100;
 
     advanceTick(state);
 
-    expect(empire.resources.food).toBe(0);
-    expect(empire.resources.gc).toBe(51);
-    expect(planet.population).toBe(90);
-    expect(state.events.some((event) => event.type === 'notification' && event.category === 'warning')).toBe(true);
+    // population at floor — starvation should not reduce further
+    expect(planet.population).toBe(100);
   });
 
   it('ends in defeat when the player has no planets or fleets', () => {
