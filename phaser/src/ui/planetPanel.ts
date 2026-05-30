@@ -460,26 +460,28 @@ function renderUncolonizedPlanet(context: UiContext, target: Planet): HTMLElemen
     }
   }
 
-  if (!bestPortal && !bestDirect) {
-    wrapper.append(emptyText('No idle explorers available.'));
-    return wrapper;
-  }
-
-  const usePortal = bestPortal && (!bestDirect || bestPortalTicks <= bestDirectTicks);
-  const source = usePortal ? bestPortal! : bestDirect!;
-  const ticks = usePortal ? bestPortalTicks : bestDirectTicks;
-  const label = usePortal ? `Send explorer via portal (${ticks} ticks)` : `Send explorer from ${source.planetName} (${ticks} ticks)`;
-
   const form = document.createElement('div');
   form.className = 'inline-form';
-  form.append(
-    button(label, () => {
-      context.runCommand(() =>
-        context.commands.sendExplorer({ empireId: context.player.id, sourcePlanetId: source.id, targetPlanetId: target.id }),
-      );
-    }),
-  );
-  wrapper.append(subtitle('Colonize'), form);
+
+  if (!bestPortal && !bestDirect) {
+    const noShipsBtn = button('No Exploration Ships Available', () => {}, 'ui-button');
+    noShipsBtn.disabled = true;
+    form.append(noShipsBtn);
+  } else {
+    const usePortal = bestPortal && (!bestDirect || bestPortalTicks <= bestDirectTicks);
+    const source = usePortal ? bestPortal! : bestDirect!;
+    const ticks = usePortal ? bestPortalTicks : bestDirectTicks;
+
+    form.append(
+      button(`Explore (${ticks} ticks)`, () => {
+        context.runCommand(() =>
+          context.commands.sendExplorer({ empireId: context.player.id, sourcePlanetId: source.id, targetPlanetId: target.id }),
+        );
+      }, 'ui-button primary'),
+    );
+  }
+
+  wrapper.append(form);
   return wrapper;
 }
 

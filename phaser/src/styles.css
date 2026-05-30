@@ -1433,6 +1433,32 @@ details.collapsible[open] > summary::before {
   padding: 3px 8px;
 }
 
+.exploration-cell-center {
+  text-align: center;
+}
+
+.exploration-row-header span:nth-child(2),
+.exploration-row-header span:nth-child(3) {
+  text-align: center;
+}
+
+.exploration-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.exploration-sortable:hover {
+  color: #eef4ff;
+}
+
+.exploration-build-row {
+  padding: 6px 0 4px;
+}
+
+.exploration-build-btn {
+  font-size: 12px;
+}
+
 .tutorial-panel {
   width: min(640px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);

@@ -1,6 +1,7 @@
 import { getPlanetsForEmpire, calcTravelTicks } from '../core/selectors/selectors';
 import type { Planet } from '../core/models/types';
-import { button } from './dom';
+import { UNITS } from '../core/data/units';
+import { button, formatNumber } from './dom';
 import type { UiContext } from './types';
 
 export function renderExplorationPanel(context: UiContext): HTMLElement {
@@ -17,6 +18,7 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
   panel.append(title);
 
   const playerPlanets = getPlanetsForEmpire(state, context.player.id);
+  const empire = state.empires.find((e) => e.id === context.player.id)!;
 
   // Explorer counts
   const idleExplorers = playerPlanets.reduce((sum, p) => sum + (p.units.explorer ?? 0), 0);
@@ -35,6 +37,35 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
     + `<span>En route: <strong>${explorerFleets.length}</strong></span>`;
   panel.append(header);
 
+  // Build Explorer button
+  const explorerCost = UNITS.explorer.cost.gc;
+  const canAfford = empire.resources.gc >= explorerCost;
+  const portalPlanets = playerPlanets.filter((p) => p.hasPortal);
+  const buildPlanetId = portalPlanets.length > 0 ? portalPlanets[0].id : empire.homePlanetId;
+  const buildPlanet = state.planets.find((p) => p.id === buildPlanetId);
+  const buildLabel = `Build Explorer (${formatNumber(explorerCost)} GC)`;
+
+  const buildBtn = button(buildLabel, () => {
+    context.runCommand(() =>
+      context.commands.queueExplorer({
+        empireId: context.player.id,
+        planetId: buildPlanetId,
+        count: 1,
+      }),
+    );
+  }, canAfford ? 'ui-button primary exploration-build-btn' : 'ui-button exploration-build-btn');
+  buildBtn.disabled = !canAfford;
+  if (!canAfford) {
+    buildBtn.title = 'Insufficient GC';
+  } else if (buildPlanet) {
+    buildBtn.title = `Will build on ${buildPlanet.planetName}`;
+  }
+
+  const buildRow = document.createElement('div');
+  buildRow.className = 'exploration-build-row';
+  buildRow.append(buildBtn);
+  panel.append(buildRow);
+
   // Find unexplored planets
   const unexplored = state.planets.filter((p) => p.ownerId < 0);
 
@@ -47,7 +78,6 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
   }
 
   // Find best explorer source for travel tick calculation
-  const portalPlanets = playerPlanets.filter((p) => p.hasPortal);
   const portalExplorerCount = portalPlanets.reduce((sum, p) => sum + (p.units.explorer ?? 0), 0);
 
   function bestTravelTicks(target: Planet): { ticks: number; source: Planet | null } {
@@ -89,61 +119,131 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
     return { planet, ticks: travel.ticks, source: travel.source, enRouteFleet };
   });
 
-  // Sort by ticks (ascending), then by size (descending)
-  entries.sort((a, b) => a.ticks - b.ticks || b.planet.size - a.planet.size);
+  // Sort state
+  let sortField: 'ticks' | 'size' = 'ticks';
+  let sortAsc = true;
+
+  function sortEntries(): void {
+    if (sortField === 'ticks') {
+      entries.sort((a, b) => {
+        const cmp = (a.ticks === Infinity ? 99999 : a.ticks) - (b.ticks === Infinity ? 99999 : b.ticks);
+        return sortAsc ? cmp || b.planet.size - a.planet.size : -cmp || a.planet.size - b.planet.size;
+      });
+    } else {
+      entries.sort((a, b) => {
+        const cmp = a.planet.size - b.planet.size;
+        return sortAsc ? cmp : -cmp;
+      });
+    }
+  }
+
+  sortEntries();
 
   // Table header
   const tableHeader = document.createElement('div');
   tableHeader.className = 'exploration-row exploration-row-header';
-  tableHeader.innerHTML = '<span>Planet</span><span>Size</span><span>Ticks</span><span></span>';
+
+  const planetHeader = document.createElement('span');
+  planetHeader.textContent = 'Planet';
+
+  const sizeHeader = document.createElement('span');
+  sizeHeader.className = 'exploration-sortable';
+  sizeHeader.textContent = 'Size';
+  sizeHeader.title = 'Click to sort by size';
+
+  const ticksHeader = document.createElement('span');
+  ticksHeader.className = 'exploration-sortable';
+  ticksHeader.textContent = 'Ticks ▲';
+  ticksHeader.title = 'Click to sort by travel ticks';
+
+  const actionHeader = document.createElement('span');
+
+  tableHeader.append(planetHeader, sizeHeader, ticksHeader, actionHeader);
   panel.append(tableHeader);
 
   // Planet rows
   const list = document.createElement('div');
   list.className = 'exploration-list';
 
-  for (const entry of entries) {
-    const row = document.createElement('div');
-    row.className = 'exploration-row';
+  function renderRows(): void {
+    list.innerHTML = '';
+    for (const entry of entries) {
+      const row = document.createElement('div');
+      row.className = 'exploration-row';
 
-    const name = document.createElement('span');
-    name.textContent = entry.planet.planetName;
+      const name = document.createElement('span');
+      name.textContent = entry.planet.planetName;
 
-    const size = document.createElement('span');
-    size.textContent = String(entry.planet.size);
+      const size = document.createElement('span');
+      size.className = 'exploration-cell-center';
+      size.textContent = String(entry.planet.size);
 
-    const ticks = document.createElement('span');
-    ticks.textContent = entry.ticks === Infinity ? '—' : String(entry.ticks);
+      const ticks = document.createElement('span');
+      ticks.className = 'exploration-cell-center';
+      ticks.textContent = entry.ticks === Infinity ? '—' : String(entry.ticks);
 
-    const action = document.createElement('span');
+      const action = document.createElement('span');
 
-    if (enRouteTargets.has(entry.planet.id)) {
-      const enRouteBtn = button(`En route (${entry.enRouteFleet!.ticksRemaining}t)`, () => {}, 'ui-button exploration-btn');
-      enRouteBtn.disabled = true;
-      enRouteBtn.title = 'An explorer is already travelling to this planet';
-      action.append(enRouteBtn);
-    } else if (!entry.source || idleExplorers <= 0) {
-      const noBtn = button('Explore', () => {}, 'ui-button exploration-btn');
-      noBtn.disabled = true;
-      noBtn.title = 'No explorers available';
-      action.append(noBtn);
-    } else {
-      const source = entry.source;
-      const exploreBtn = button('Explore', () => {
-        context.runCommand(() =>
-          context.commands.sendExplorer({
-            empireId: context.player.id,
-            sourcePlanetId: source.id,
-            targetPlanetId: entry.planet.id,
-          }),
-        );
-      }, 'ui-button exploration-btn');
-      action.append(exploreBtn);
+      if (enRouteTargets.has(entry.planet.id)) {
+        const enRouteBtn = button(`En route (${entry.enRouteFleet!.ticksRemaining}t)`, () => {}, 'ui-button exploration-btn');
+        enRouteBtn.disabled = true;
+        enRouteBtn.title = 'An explorer is already travelling to this planet';
+        action.append(enRouteBtn);
+      } else if (!entry.source || idleExplorers <= 0) {
+        const noBtn = button('Explore', () => {}, 'ui-button exploration-btn');
+        noBtn.disabled = true;
+        noBtn.title = 'No explorers available';
+        action.append(noBtn);
+      } else {
+        const source = entry.source;
+        const exploreBtn = button('Explore', () => {
+          context.runCommand(() =>
+            context.commands.sendExplorer({
+              empireId: context.player.id,
+              sourcePlanetId: source.id,
+              targetPlanetId: entry.planet.id,
+            }),
+          );
+        }, 'ui-button exploration-btn');
+        action.append(exploreBtn);
+      }
+
+      row.append(name, size, ticks, action);
+      list.append(row);
     }
-
-    row.append(name, size, ticks, action);
-    list.append(row);
   }
+
+  function updateSortHeaders(): void {
+    const arrow = sortAsc ? ' ▲' : ' ▼';
+    sizeHeader.textContent = sortField === 'size' ? `Size${arrow}` : 'Size';
+    ticksHeader.textContent = sortField === 'ticks' ? `Ticks${arrow}` : 'Ticks';
+  }
+
+  sizeHeader.addEventListener('click', () => {
+    if (sortField === 'size') {
+      sortAsc = !sortAsc;
+    } else {
+      sortField = 'size';
+      sortAsc = false; // default descending for size (biggest first)
+    }
+    sortEntries();
+    updateSortHeaders();
+    renderRows();
+  });
+
+  ticksHeader.addEventListener('click', () => {
+    if (sortField === 'ticks') {
+      sortAsc = !sortAsc;
+    } else {
+      sortField = 'ticks';
+      sortAsc = true; // default ascending for ticks (closest first)
+    }
+    sortEntries();
+    updateSortHeaders();
+    renderRows();
+  });
+
+  renderRows();
 
   panel.append(list);
   return panel;
