@@ -2,12 +2,75 @@ import { BUILDINGS, getBuildCost, getOverbuildMultiplier } from '../core/data/bu
 import { UNITS } from '../core/data/units';
 import { getTotalAgents, getTotalWizards } from '../core/engines/opsEngine';
 import type { GameState } from '../core/galaxy/galaxyData';
-import type { BuildingKey, CombatUnitKey, Planet, PlanetUnitKey, UnitKey } from '../core/models/types';
+import type { BuildingKey, CombatUnitKey, Planet, PlanetUnitKey, ResourceKey, UnitKey } from '../core/models/types';
 import { calcSciencePercent, calcTravelTicks, getEmpire, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
 import { button, collapsible, formatNumber, labeledControl, maxAffordable, numberInput, parseIntegerInput, resourceCostText, select } from './dom';
 import type { UiContext } from './types';
 
 const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
+
+function calcMaxPop(planet: Planet, welfareMultiplier = 1): number {
+  return Math.trunc((40 * planet.size + 650 * (planet.buildings.living_quarter ?? 0)) * welfareMultiplier);
+}
+
+function getBuildingTooltipContent(key: BuildingKey, planet: Planet, resourceSciPct: number): string {
+  const def = BUILDINGS[key];
+  const prod = def.production;
+  const lines: string[] = [];
+  const resourceMultiplier = 1 + resourceSciPct / 100;
+
+  for (const [resKey, base] of Object.entries(prod)) {
+    if (!base) continue;
+    if (resKey === 'rp') {
+      lines.push(`${base} RP/tick per building`);
+      continue;
+    }
+    const resourceKey = resKey as ResourceKey;
+    const bonus = planet.resourceBonuses[resourceKey] ?? 1;
+    const modified = Math.trunc(base * bonus * resourceMultiplier);
+    if (modified !== base) {
+      lines.push(`Base: ${base} ${resKey}/tick`);
+      lines.push(`Modified: ${modified} ${resKey}/tick`);
+      if (resourceSciPct > 0) lines.push(`  +${resourceSciPct.toFixed(1)}% resources science`);
+      if (bonus !== 1) lines.push(`  ×${bonus.toFixed(1)} planet bonus`);
+    } else {
+      lines.push(`${base} ${resKey}/tick per building`);
+    }
+  }
+
+  return lines.length > 0 ? lines.join('\n') : def.description;
+}
+
+let _buildingTooltipEl: HTMLElement | null = null;
+
+function getBuildingTooltipEl(): HTMLElement {
+  if (!_buildingTooltipEl) {
+    _buildingTooltipEl = document.createElement('div');
+    _buildingTooltipEl.className = 'building-tooltip';
+    _buildingTooltipEl.style.display = 'none';
+    document.body.append(_buildingTooltipEl);
+  }
+  return _buildingTooltipEl;
+}
+
+function attachBuildingTooltip(element: HTMLElement, content: string): void {
+  element.addEventListener('mouseenter', (e) => {
+    const tip = getBuildingTooltipEl();
+    tip.textContent = content;
+    tip.style.display = 'block';
+    positionBuildingTooltip(e as MouseEvent);
+  });
+  element.addEventListener('mousemove', (e) => positionBuildingTooltip(e as MouseEvent));
+  element.addEventListener('mouseleave', () => {
+    getBuildingTooltipEl().style.display = 'none';
+  });
+}
+
+function positionBuildingTooltip(e: MouseEvent): void {
+  const tip = getBuildingTooltipEl();
+  tip.style.left = `${e.clientX + 14}px`;
+  tip.style.top = `${e.clientY + 4}px`;
+}
 
 function countBuildingsAndQueue(planet: Planet): number {
   const built = BUILDING_KEYS.reduce((sum, key) => sum + (planet.buildings[key] ?? 0), 0);
@@ -44,6 +107,11 @@ export function renderPlanetPanel(context: UiContext): HTMLElement {
 
   const system = getSystem(state, selectedPlanet.systemId);
   const owner = selectedPlanet.ownerId >= 0 ? getEmpire(state, selectedPlanet.ownerId) : undefined;
+  const isOwnedByPlayer = selectedPlanet.ownerId === context.player.id;
+  const welfareMultiplier = isOwnedByPlayer
+    ? 1 + calcSciencePercent(state, context.player, 'welfare') / 100
+    : 1;
+  const maxPop = calcMaxPop(selectedPlanet, welfareMultiplier);
   const details: Array<[string, string]> = [
     ['System', system?.systemName ?? 'Unknown'],
   ];
@@ -52,7 +120,7 @@ export function renderPlanetPanel(context: UiContext): HTMLElement {
   }
   details.push(
     ['Size', `${countBuildingsAndQueue(selectedPlanet)}/${formatNumber(selectedPlanet.size)}`],
-    ['Population', formatNumber(selectedPlanet.population)],
+    ['Population', `${formatNumber(selectedPlanet.population)} / ${formatNumber(maxPop)}`],
   );
   if (selectedPlanet.hasPortal) {
     details.push(['Portal', 'Active']);
@@ -96,6 +164,7 @@ function renderOwnedPlanet(context: UiContext, planet: Planet): HTMLElement {
 function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   const state = context.controller.state!;
   const constructionSci = calcSciencePercent(state, context.player, 'construction');
+  const resourceSci = calcSciencePercent(state, context.player, 'resources');
   const frag = document.createElement('div');
   frag.className = 'panel-stack';
 
@@ -127,6 +196,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
     const label = document.createElement('span');
     label.className = 'build-label';
     label.textContent = `${BUILDINGS[key].name} ${built} (${affordable})`;
+    attachBuildingTooltip(label, getBuildingTooltipContent(key, planet, resourceSci));
 
     const costLabel = document.createElement('span');
     costLabel.className = affordable === 0 ? 'build-cost cost-unaffordable' : 'build-cost';
@@ -136,7 +206,18 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
     input.className = 'build-input';
     inputs.set(key, input);
 
-    row.append(label, costLabel, input);
+    const maxBtn = button('Max', () => {
+      input.value = String(affordable);
+      updateCostPreview();
+    });
+    maxBtn.className = 'build-max-btn ui-button';
+    maxBtn.disabled = affordable === 0;
+
+    const inputWrapper = document.createElement('div');
+    inputWrapper.className = 'build-input-wrapper';
+    inputWrapper.append(input, maxBtn);
+
+    row.append(label, costLabel, inputWrapper);
     buildForm.append(row);
   }
 
