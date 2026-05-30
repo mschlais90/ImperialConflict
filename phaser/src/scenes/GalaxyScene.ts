@@ -31,9 +31,21 @@ export class GalaxyScene extends Phaser.Scene {
 
     camera.setBackgroundColor('#030610');
     camera.setZoom(1);
-    // Center camera on galaxy origin (0,0) — same formula as the zoom handler
-    camera.scrollX = -camera.width / 2;
-    camera.scrollY = -camera.height / 2;
+
+    // Helper: center the camera on the galaxy origin (world 0,0).
+    // We use this.scale.width/height (the live canvas size in the Scale.RESIZE
+    // mode) rather than camera.width/height, which can still hold the original
+    // 1280×720 config values when the window is larger.
+    const centerOnGalaxy = (zoom: number) => {
+      camera.scrollX = -this.scale.width / (2 * zoom);
+      camera.scrollY = -this.scale.height / (2 * zoom);
+    };
+
+    centerOnGalaxy(1);
+
+    // Keep galaxy centered whenever the browser window resizes.
+    const onResize = () => { centerOnGalaxy(camera.zoom); };
+    this.scale.on('resize', onResize);
 
     const refreshScene = () => {
       this.children.removeAll(true);
@@ -48,6 +60,7 @@ export class GalaxyScene extends Phaser.Scene {
       if (controller.refreshScene === refreshScene) {
         controller.refreshScene = null;
       }
+      this.scale.off('resize', onResize);
       this.hideTooltip();
     });
 
@@ -59,14 +72,8 @@ export class GalaxyScene extends Phaser.Scene {
     this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _objects: unknown[], _dx: number, dy: number) => {
       const newZoom = Phaser.Math.Clamp(camera.zoom - dy * 0.001, MIN_ZOOM, MAX_ZOOM);
       if (newZoom === camera.zoom) return;
-      // Read viewport dimensions before zoom so there is no dependency on setZoom side-effects
-      const vw = camera.width;
-      const vh = camera.height;
       camera.setZoom(newZoom);
-      // scrollX = world-X of the left edge; to place world(0,0) at screen center:
-      //   center_world_x = scrollX + vw / (2 * zoom) = 0  =>  scrollX = -vw / (2 * zoom)
-      camera.scrollX = -vw / (2 * newZoom);
-      camera.scrollY = -vh / (2 * newZoom);
+      centerOnGalaxy(newZoom);
     });
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
