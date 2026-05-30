@@ -1404,7 +1404,7 @@ details.collapsible[open] > summary::before {
 
 .exploration-row {
   display: grid;
-  grid-template-columns: 1fr 50px 50px auto;
+  grid-template-columns: 1fr 50px 50px 90px;
   gap: 8px;
   align-items: center;
   padding: 5px 8px;
