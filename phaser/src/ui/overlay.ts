@@ -584,11 +584,32 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     // Refresh left panel only if no input focus
     if (!leftHasFocus) {
       const leftScroll = leftPanel.querySelector('.main-panel')?.scrollTop ?? 0;
+
+      // Preserve build input values across re-renders
+      const savedBuildInputs = new Map<number, string>();
+      leftPanel.querySelectorAll('.build-input').forEach((el, idx) => {
+        const input = el as HTMLInputElement;
+        if (input.value && input.value !== '0') {
+          savedBuildInputs.set(idx, input.value);
+        }
+      });
+
       const nextLeftPanel = document.createElement('div');
       nextLeftPanel.className = isFullPage ? 'overlay-left overlay-left-full' : 'overlay-left';
       if (controller.activeScene !== 'galaxy' || isFullPage) {
         nextLeftPanel.append(renderLeftContent(context));
       }
+
+      // Restore build input values
+      if (savedBuildInputs.size > 0) {
+        nextLeftPanel.querySelectorAll('.build-input').forEach((el, idx) => {
+          const saved = savedBuildInputs.get(idx);
+          if (saved !== undefined) {
+            (el as HTMLInputElement).value = saved;
+          }
+        });
+      }
+
       leftPanel.replaceWith(nextLeftPanel);
       leftPanel = nextLeftPanel;
       const nextMainPanel = leftPanel.querySelector('.main-panel');
