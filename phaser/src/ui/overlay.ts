@@ -21,6 +21,7 @@ import { renderPlanetPanel } from './planetPanel';
 import { renderResearchContent } from './researchPanel';
 import { renderSettingsPanel, shouldShowCombatPopups } from './settingsPanel';
 import { renderStandingsPanel } from './standingsPanel';
+import { renderExplorationPanel } from './explorationPanel';
 import { renderStartScreen } from './startScreen';
 import type { UiContext } from './types';
 import { createLocalCommandProxy } from '../net/commandProxy';
@@ -78,7 +79,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   let lastSeenBattleEventId = -1;
   let lastSeenEventId = -1;
   let speedBeforeBattle: number | null = null;
-  let viewMode: 'normal' | 'economy' | 'standings' | 'history' | 'massBuild' | 'ops' | 'fleet' | 'settings' | 'research' | 'notifications' = 'normal';
+  let viewMode: 'normal' | 'economy' | 'standings' | 'history' | 'massBuild' | 'ops' | 'fleet' | 'settings' | 'research' | 'notifications' | 'exploration' = 'normal';
   let menuOpen = false;
 
   /** Find this client's empire using clientState.empireId (multiplayer-safe). */
@@ -128,7 +129,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         controller.switchToGalaxy?.();
         break;
       case 'e':
-        viewMode = viewMode === 'economy' ? 'normal' : 'economy';
+        viewMode = viewMode === 'exploration' ? 'normal' : 'exploration';
         menuOpen = false;
         render();
         break;
@@ -158,7 +159,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         render();
         break;
       case 'r':
-        viewMode = viewMode === 'research' ? 'normal' : 'research';
+        viewMode = viewMode === 'economy' ? 'normal' : 'economy';
         menuOpen = false;
         render();
         break;
@@ -226,12 +227,12 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     }
     const shortcuts = [
       ['G', 'Galaxy view'],
-      ['E', 'Economy'],
+      ['E', 'Exploration'],
+      ['R', 'Resource Management'],
       ['A', 'Standings'],
       ['H', 'Battle History'],
       ['B', 'Planet Builder'],
       ['F', 'Fleet Management'],
-      ['R', 'Research'],
       ['N', 'Notifications'],
       ['O', 'Special Ops'],
       ['S', 'Settings'],
@@ -830,6 +831,9 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         break;
       case 'fleet':
         panel = renderFleetManagementPanel(context);
+        break;
+      case 'exploration':
+        panel = renderExplorationPanel(context);
         break;
       case 'settings':
         panel = renderSettingsPanel(context);

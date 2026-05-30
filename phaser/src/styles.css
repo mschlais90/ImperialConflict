@@ -1384,6 +1384,55 @@ details.collapsible[open] > summary::before {
   margin: 0;
 }
 
+.exploration-header {
+  display: flex;
+  gap: 16px;
+  padding: 8px 0;
+  color: #8fa8d4;
+  font-size: 13px;
+}
+
+.exploration-header strong {
+  color: #eef4ff;
+}
+
+.exploration-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.exploration-row {
+  display: grid;
+  grid-template-columns: 1fr 50px 50px auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 8px;
+  font-size: 12px;
+  color: #c7d5ee;
+}
+
+.exploration-row-header {
+  color: #6a7fa8;
+  font-weight: bold;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px solid rgba(100, 120, 180, 0.2);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+.exploration-row:not(.exploration-row-header):nth-child(even) {
+  background: rgba(30, 42, 68, 0.3);
+  border-radius: 3px;
+}
+
+.exploration-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
 .tutorial-panel {
   width: min(640px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);

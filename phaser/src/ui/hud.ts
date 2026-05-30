@@ -23,12 +23,13 @@ const SPEED_OPTIONS = [
 ] as const;
 
 const MENU_ITEMS: Array<{ label: string; key: string; mode: string | null; separator?: boolean }> = [
+  { label: 'Exploration', key: 'E', mode: 'exploration' },
   { label: 'Planet Builder', key: 'B', mode: 'massBuild' },
   { label: 'Fleet Management', key: 'F', mode: 'fleet' },
   { label: 'Battle History', key: 'H', mode: 'history' },
-  { label: 'Economy', key: 'E', mode: 'economy' },
+  { label: 'Resource Management', key: 'R', mode: 'economy' },
   { label: 'Special Ops', key: 'O', mode: 'ops' },
-  { label: 'Research', key: 'R', mode: 'research' },
+  { label: 'Research', key: '', mode: 'research' },
   { label: 'Notifications', key: 'N', mode: 'notifications' },
   { label: '', key: '', mode: null, separator: true },
   { label: 'Save', key: '', mode: null },

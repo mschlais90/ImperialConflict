@@ -29,8 +29,8 @@ export function renderTutorialScreen(root: HTMLElement, onBack: () => void): voi
       <p>You begin with one home planet, some starting resources, and an explorer. Your first priorities:</p>
       <ol>
         <li><strong>Build economy</strong> — Queue Cash Factories, Farms, and Mines on your home planet</li>
-        <li><strong>Explore</strong> — Build explorers and send them to uncolonized planets to expand</li>
-        <li><strong>Research</strong> — Set your research allocation (press <kbd>R</kbd>) to boost your empire</li>
+        <li><strong>Explore</strong> — Build explorers and send them to uncolonized planets to expand (press <kbd>E</kbd> for the Exploration panel)</li>
+        <li><strong>Research</strong> — Set your research allocation to boost your empire</li>
         <li><strong>Raise military</strong> — Train fighters and soldiers to defend and attack</li>
       </ol>
     </section>
@@ -117,16 +117,16 @@ export function renderTutorialScreen(root: HTMLElement, onBack: () => void): voi
       <h2>Keyboard Shortcuts</h2>
       <div class="tutorial-grid shortcuts">
         <div><kbd>G</kbd></div><div>Galaxy view</div>
-        <div><kbd>E</kbd></div><div>Economy panel</div>
+        <div><kbd>E</kbd></div><div>Exploration</div>
+        <div><kbd>R</kbd></div><div>Resource Management</div>
         <div><kbd>A</kbd></div><div>Standings</div>
         <div><kbd>B</kbd></div><div>Planet Builder</div>
         <div><kbd>F</kbd></div><div>Fleet Management</div>
-        <div><kbd>R</kbd></div><div>Research</div>
         <div><kbd>O</kbd></div><div>Special Ops</div>
         <div><kbd>H</kbd></div><div>Battle History</div>
         <div><kbd>N</kbd></div><div>Notifications</div>
         <div><kbd>S</kbd></div><div>Settings</div>
-        <div><kbd>0–4</kbd></div><div>Pause / Set game speed</div>
+        <div><kbd>0–4</kbd></div><div>Pause / Set game speed (1x–8x)</div>
         <div><kbd>ESC</kbd></div><div>Close panel / Galaxy view</div>
         <div><kbd>?</kbd></div><div>Shortcut help overlay</div>
       </div>

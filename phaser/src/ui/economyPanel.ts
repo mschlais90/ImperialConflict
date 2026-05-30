@@ -12,10 +12,10 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
   panel.className = 'main-panel interactive';
 
   const title = document.createElement('h2');
-  title.textContent = 'Economy Overview';
+  title.textContent = 'Resource Management';
   const hint = document.createElement('p');
   hint.className = 'empty-text';
-  hint.textContent = 'Press E to return';
+  hint.textContent = 'Press R to return';
   panel.append(title, hint);
 
   const breakdown = calcEconomyBreakdown(state, context.player.id);
