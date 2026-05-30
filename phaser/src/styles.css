@@ -1023,13 +1023,15 @@ details.collapsible[open] > summary::before {
 
 .build-row {
   display: grid;
-  grid-template-columns: minmax(80px, 1fr) auto auto;
-  gap: 6px;
-  align-items: center;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "label input" "cost input";
+  column-gap: 6px;
+  row-gap: 1px;
   font-size: 12px;
 }
 
 .build-label {
+  grid-area: label;
   color: #c7d5ee;
   white-space: nowrap;
   overflow: hidden;
@@ -1037,16 +1039,18 @@ details.collapsible[open] > summary::before {
 }
 
 .build-cost {
+  grid-area: cost;
   color: #8694ab;
   font-size: 11px;
-  white-space: nowrap;
 }
 
 .build-input-wrapper {
+  grid-area: input;
   display: flex;
   align-items: center;
   gap: 4px;
   white-space: nowrap;
+  align-self: center;
 }
 
 .build-input {

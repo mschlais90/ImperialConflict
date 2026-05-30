@@ -206,6 +206,13 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
     input.className = 'build-input';
     inputs.set(key, input);
 
+    input.addEventListener('blur', () => {
+      if (input.value.trim() === '') {
+        input.value = '0';
+        updateCostPreview();
+      }
+    });
+
     const maxBtn = button('Max', () => {
       input.value = String(affordable);
       updateCostPreview();
