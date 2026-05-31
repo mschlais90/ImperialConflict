@@ -67,6 +67,11 @@ export class Room {
     return client;
   }
 
+  /** Find a disconnected empire slot by player name (for rejoining via the Join field). */
+  findDisconnectedSlot(playerName: string): EmpireSlot | undefined {
+    return this.empireSlots.find((s) => !s.connected && s.playerName.toLowerCase() === playerName.toLowerCase());
+  }
+
   reconnectClient(ws: WebSocket, empireId: number): ConnectedClient | null {
     if (!this.started) return null;
 

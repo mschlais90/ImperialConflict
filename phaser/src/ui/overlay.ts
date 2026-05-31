@@ -449,6 +449,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       },
       onJoinRoom(code, playerName) {
         roomCode = code;
+        mpClient.roomCode = code;
         mpClient.connect(serverUrl);
         const waitForOpen = setInterval(() => {
           if (mpClient.isConnected) {

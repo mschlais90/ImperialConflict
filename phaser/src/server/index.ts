@@ -133,6 +133,12 @@ function handleJoin(ws: TaggedSocket, message: Extract<ClientMessage, { type: 'j
   }
 
   if (room.isStarted) {
+    // Try to reconnect by matching player name to a disconnected slot
+    const slot = room.findDisconnectedSlot(message.playerName);
+    if (slot) {
+      handleReconnect(ws, { type: 'reconnect', roomCode: message.roomCode, empireId: slot.empireId });
+      return;
+    }
     ws.send(JSON.stringify({ type: 'error', message: 'Game already in progress.' }));
     return;
   }
