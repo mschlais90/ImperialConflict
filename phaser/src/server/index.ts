@@ -11,9 +11,10 @@ const DIST_DIR = join(import.meta.dirname, '../../dist');
 
 const rooms = new Map<string, Room>();
 
-// Extend WebSocket with room tracking
+// Extend WebSocket with room tracking and heartbeat
 interface TaggedSocket extends WebSocket {
   roomCode?: string;
+  isAlive?: boolean;
 }
 
 function getRoom(ws: TaggedSocket): Room | undefined {
@@ -63,6 +64,9 @@ const server = createServer((req, res) => {
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws: TaggedSocket) => {
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
   ws.on('message', (raw) => {
     let message: ClientMessage;
     try {
@@ -180,6 +184,19 @@ function handleReconnect(ws: TaggedSocket, message: Extract<ClientMessage, { typ
     room.broadcastMessage({ type: 'playerReconnected', empireId: client.empireId });
   }
 }
+
+// Heartbeat: ping all clients every 30s, terminate unresponsive ones
+setInterval(() => {
+  for (const ws of wss.clients) {
+    const tagged = ws as TaggedSocket;
+    if (tagged.isAlive === false) {
+      tagged.terminate();
+      continue;
+    }
+    tagged.isAlive = false;
+    tagged.ping();
+  }
+}, 30_000);
 
 server.listen(PORT, () => {
   console.log(`Imperial Conflict server listening on port ${PORT}`);
