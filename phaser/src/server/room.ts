@@ -267,18 +267,25 @@ export class Room {
   }
 
   private startTickLoop(): void {
+    // Run a fast check interval; only advance a tick when enough time has
+    // elapsed for the current speed.  Speed changes how frequently ticks
+    // fire, not how many ticks are batched together.
+    let lastTickTime = Date.now();
+
     this.tickTimer = setInterval(() => {
       if (!this.state) return;
 
       const speed = this.state.currentSpeed;
       if (speed === SPEEDS.PAUSED) return;
 
-      for (let i = 0; i < speed; i++) {
+      const intervalForSpeed = TICK_INTERVAL_MS / speed;
+      const now = Date.now();
+      if (now - lastTickTime >= intervalForSpeed) {
+        lastTickTime = now;
         advanceTick(this.state);
+        this.broadcastState();
       }
-
-      this.broadcastState();
-    }, TICK_INTERVAL_MS);
+    }, 500);
   }
 
   private broadcastState(): void {
