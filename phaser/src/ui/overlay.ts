@@ -417,10 +417,16 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         }
       },
       onDisconnect() {
-        showToast('Disconnected from server.', true);
         controller.isMultiplayer = false;
         controller.multiplayerClient = null;
-        showStartScreen();
+        // Go straight to multiplayer lobby so the rejoin button is visible
+        if (loadMpSession()) {
+          showMultiplayerLobby();
+          showToast('Disconnected from server. Click Rejoin to reconnect.', true);
+        } else {
+          showToast('Disconnected from server.', true);
+          showStartScreen();
+        }
       },
     });
 

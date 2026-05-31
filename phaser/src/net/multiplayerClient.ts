@@ -25,8 +25,8 @@ export class MultiplayerClient {
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private static readonly MAX_RECONNECT_ATTEMPTS = 5;
-  private static readonly RECONNECT_DELAY_MS = 2000;
+  private static readonly MAX_RECONNECT_ATTEMPTS = 10;
+  private static readonly RECONNECT_DELAY_MS = 3000;
 
   constructor(callbacks: MultiplayerCallbacks) {
     this.callbacks = callbacks;
