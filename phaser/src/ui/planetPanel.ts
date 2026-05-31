@@ -351,12 +351,11 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   const explorerRow = document.createElement('div');
   explorerRow.className = 'inline-form';
   const explorerInput = numberInput(0, { min: 0 });
-  const explorerLabel = document.createElement('label');
-  explorerLabel.className = 'form-row';
-  explorerLabel.innerHTML = `Explorer (${explorerCost}) max: ${explorerAffordable}`;
-  explorerLabel.append(explorerInput);
+  const explorerLabelSpan = document.createElement('span');
+  explorerLabelSpan.innerHTML = `Explorer (${explorerCost}) max: ${explorerAffordable}`;
   explorerRow.append(
-    explorerLabel,
+    explorerLabelSpan,
+    explorerInput,
     button('Queue', () => {
       const parsed = parseIntegerInput(explorerInput.value, { label: 'Explorer count', min: 1, max: 999 });
       if (!parsed.ok) {

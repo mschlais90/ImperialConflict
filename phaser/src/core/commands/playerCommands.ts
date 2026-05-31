@@ -92,8 +92,20 @@ export function trainUnits(
   }
 
   deductCost(resolved.empire, totalCost);
-  resolved.planet.units[input.unitType] = (resolved.planet.units[input.unitType] ?? 0) + input.count;
-  return ok(`Trained ${input.count} ${input.unitType}`);
+
+  const baseTicks = UNITS[input.unitType].buildTicks;
+  if (baseTicks <= 0) {
+    // Instant units (agents, wizards)
+    resolved.planet.units[input.unitType] = (resolved.planet.units[input.unitType] ?? 0) + input.count;
+    return ok(`Trained ${input.count} ${input.unitType}`);
+  }
+
+  const constructionScience = getSciencePercent(state, resolved.empire, 'construction');
+  const ticks = Math.max(Math.trunc(baseTicks / (1 + constructionScience / 100)), 1);
+  for (let i = 0; i < input.count; i += 1) {
+    resolved.planet.buildQueue.push({ category: 'unit', itemType: input.unitType, ticksRemaining: ticks });
+  }
+  return ok(`Queued ${input.count} ${input.unitType}`);
 }
 
 export function sendFleet(

@@ -90,10 +90,12 @@ describe('AI controller', () => {
     ];
 
     processAiTurn(state, ai.id, 39);
-    expect(totalUnits(planet)).toBe(0);
+    const queuedUnitsBefore = planet.buildQueue.filter((o) => o.category === 'unit').length;
+    expect(queuedUnitsBefore).toBe(0);
 
     processAiTurn(state, ai.id, 40);
-    expect(totalUnits(planet)).toBeGreaterThan(0);
+    const queuedUnitsAfter = planet.buildQueue.filter((o) => o.category === 'unit').length;
+    expect(queuedUnitsAfter).toBeGreaterThan(0);
   });
 
   it('launches pooled attack fleets with garrison, transport capacity, and launch events', () => {

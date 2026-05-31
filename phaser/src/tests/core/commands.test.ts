@@ -23,13 +23,24 @@ describe('player commands', () => {
     expect(home.buildQueue.some((order) => order.itemType === 'farm')).toBe(true);
   });
 
-  it('trains affordable units immediately like the Godot fleet panel', () => {
+  it('queues combat units into the build queue with build ticks', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
     const player = state.empires[0];
     const home = getPlanetsForEmpire(state, player.id)[0];
     const result = trainUnits(state, { empireId: player.id, planetId: home.id, unitType: 'soldier', count: 2 });
     expect(result.ok).toBe(true);
-    expect(home.units.soldier).toBe(2);
+    expect(home.units.soldier ?? 0).toBe(0);
+    expect(home.buildQueue.filter((o) => o.itemType === 'soldier')).toHaveLength(2);
+    expect(home.buildQueue[home.buildQueue.length - 1].ticksRemaining).toBeGreaterThan(0);
+  });
+
+  it('trains agents instantly (buildTicks 0)', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const player = state.empires[0];
+    const home = getPlanetsForEmpire(state, player.id)[0];
+    const result = trainUnits(state, { empireId: player.id, planetId: home.id, unitType: 'agent', count: 1 });
+    expect(result.ok).toBe(true);
+    expect(home.units.agent).toBe(1);
   });
 
   it('rejects research allocation totals that are not 100', () => {
