@@ -9,11 +9,18 @@ type StandingsSortColumn = 'name' | 'networth' | 'planets' | 'military' | 'statu
 let sortColumn: StandingsSortColumn = 'networth';
 let sortAsc = false;
 
-const HEADERS: Array<{ label: string; column: StandingsSortColumn }> = [
+const HEADERS_SP: Array<{ label: string; column: StandingsSortColumn }> = [
   { label: 'Empire', column: 'name' },
   { label: 'Networth', column: 'networth' },
   { label: 'Planets', column: 'planets' },
   { label: 'Military', column: 'military' },
+  { label: 'Status', column: 'status' },
+];
+
+const HEADERS_MP: Array<{ label: string; column: StandingsSortColumn }> = [
+  { label: 'Empire', column: 'name' },
+  { label: 'Networth', column: 'networth' },
+  { label: 'Planets', column: 'planets' },
   { label: 'Status', column: 'status' },
 ];
 
@@ -72,13 +79,20 @@ export function renderStandingsPanel(context: UiContext): HTMLElement {
     return cmp * dir;
   });
 
+  const isMP = context.controller.isMultiplayer;
+
   const table = document.createElement('div');
-  table.className = 'standings-table';
+  table.className = isMP ? 'standings-table standings-table-mp' : 'standings-table';
+
+  const headers = isMP ? HEADERS_MP : HEADERS_SP;
+
+  // Reset sort column if it was 'military' and we switched to MP
+  if (isMP && sortColumn === 'military') sortColumn = 'networth';
 
   // Header
   const headerRow = document.createElement('div');
   headerRow.className = 'standings-row standings-header';
-  for (const hdr of HEADERS) {
+  for (const hdr of headers) {
     const cell = document.createElement('span');
     cell.className = 'standings-header-sortable';
     const arrow = sortColumn === hdr.column ? (sortAsc ? ' \u25B2' : ' \u25BC') : '';
@@ -117,9 +131,6 @@ export function renderStandingsPanel(context: UiContext): HTMLElement {
     const planets = document.createElement('span');
     planets.textContent = String(row.planets);
 
-    const military = document.createElement('span');
-    military.textContent = formatNumber(row.military);
-
     const status = document.createElement('span');
     const isDisconnected = context.disconnectedPlayers.has(row.empire.id);
     if (row.eliminated) {
@@ -128,10 +139,16 @@ export function renderStandingsPanel(context: UiContext): HTMLElement {
       status.textContent = 'Offline';
       status.classList.add('standings-offline');
     } else {
-      status.textContent = context.controller.isMultiplayer && row.empire.controllerType === 'human' ? 'Online' : 'Active';
+      status.textContent = isMP && row.empire.controllerType === 'human' ? 'Online' : 'Active';
     }
 
-    rowEl.append(name, nw, planets, military, status);
+    if (isMP) {
+      rowEl.append(name, nw, planets, status);
+    } else {
+      const military = document.createElement('span');
+      military.textContent = formatNumber(row.military);
+      rowEl.append(name, nw, planets, military, status);
+    }
     table.append(rowEl);
   }
 

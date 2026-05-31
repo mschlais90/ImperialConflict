@@ -303,10 +303,6 @@ describe('AI controller', () => {
   });
 });
 
-function totalUnits(planet: Planet): number {
-  return Object.values(planet.units).reduce((total, count) => total + (count ?? 0), 0);
-}
-
 function makeOnlyViableAttackTarget(state: ReturnType<typeof createNewGame>, attacker: Empire, target: Empire): Planet {
   for (const planet of state.planets) {
     if (planet.ownerId >= 0 && planet.ownerId !== attacker.id) {

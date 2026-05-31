@@ -1196,6 +1196,10 @@ details.collapsible[open] > summary::before {
   border-bottom: 1px solid rgba(130, 154, 196, 0.12);
 }
 
+.standings-table-mp .standings-row {
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+}
+
 .standings-header {
   font-size: 11px;
   text-transform: uppercase;
