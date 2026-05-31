@@ -9,8 +9,9 @@ const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
 // Persists selection across re-renders within the same session
 let persistedSelection: Set<number> | null = null;
 
-// Persists building dropdown selection across re-renders
+// Persists building dropdown and count input across re-renders
 let persistedBuildingKey: BuildingKey = 'mine';
+let persistedCount = '1';
 
 // Persists sort state across re-renders
 let sortColumn: SortColumn = 'name';
@@ -289,7 +290,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   buildingLabelEl.textContent = 'Building:';
   buildingRow.append(buildingLabelEl, buildingSelect);
 
-  const countInput = numberInput(1, { min: 1 });
+  const countInput = numberInput(Number(persistedCount) || 1, { min: 1 });
   countInput.className = 'build-input';
   const maxBtn = button('Max', () => {
     const buildingType = buildingSelect.value as BuildingKey;
@@ -298,6 +299,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     if (selectedPlanets.length === 0) return;
     const max = calcMaxMassAffordable(buildingType, constructionSci, selectedPlanets, context.player.resources);
     countInput.value = String(Math.max(max, 1));
+    persistedCount = countInput.value;
     updateCostPreview();
   });
   maxBtn.className = 'build-max-btn ui-button';
@@ -353,7 +355,10 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     persistedBuildingKey = buildingSelect.value as BuildingKey;
     updateCostPreview();
   });
-  countInput.addEventListener('input', updateCostPreview);
+  countInput.addEventListener('input', () => {
+    persistedCount = countInput.value;
+    updateCostPreview();
+  });
   updateCostPreview();
 
   const buildBtn = button('Build on Selected Planets', () => {
