@@ -263,13 +263,22 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
       } else {
         const source = entry.source;
         const exploreBtn = button('Explore', () => {
-          context.runCommand(() =>
-            context.commands.sendExplorer({
-              empireId: context.player.id,
-              sourcePlanetId: source.id,
-              targetPlanetId: entry.planet.id,
-            }),
-          );
+          const result = context.commands.sendExplorer({
+            empireId: context.player.id,
+            sourcePlanetId: source.id,
+            targetPlanetId: entry.planet.id,
+          });
+          if (!context.controller.isMultiplayer) {
+            context.setNotice(result.message, !result.ok);
+          }
+          if (result.ok) {
+            // Update just this button in-place instead of full re-render
+            exploreBtn.textContent = `En route (${entry.ticks}t)`;
+            exploreBtn.disabled = true;
+            exploreBtn.className = 'ui-button exploration-btn';
+            exploreBtn.title = 'An explorer is already travelling to this planet';
+            context.controller.refreshScene?.();
+          }
         }, 'ui-button exploration-btn');
         action.append(exploreBtn);
       }
