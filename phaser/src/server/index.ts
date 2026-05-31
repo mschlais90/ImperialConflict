@@ -8,8 +8,26 @@ import { serializeState } from './stateSerializer';
 
 const PORT = Number(process.env.PORT ?? 3001);
 const DIST_DIR = join(import.meta.dirname, '../../dist');
+const START_TIME = new Date().toISOString();
 
 const rooms = new Map<string, Room>();
+
+// Log crashes and shutdowns so we can diagnose disconnects in Render logs
+process.on('uncaughtException', (err) => {
+  console.error(`[CRASH] Uncaught exception at ${new Date().toISOString()}:`, err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error(`[CRASH] Unhandled rejection at ${new Date().toISOString()}:`, reason);
+});
+process.on('SIGTERM', () => {
+  console.log(`[SHUTDOWN] SIGTERM received at ${new Date().toISOString()} — server started at ${START_TIME}, active rooms: ${rooms.size}`);
+  process.exit(0);
+});
+process.on('SIGINT', () => {
+  console.log(`[SHUTDOWN] SIGINT received at ${new Date().toISOString()}`);
+  process.exit(0);
+});
 
 // Extend WebSocket with room tracking and heartbeat
 interface TaggedSocket extends WebSocket {
@@ -97,11 +115,13 @@ wss.on('connection', (ws: TaggedSocket) => {
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', (code) => {
     const room = getRoom(ws);
     if (room) {
+      console.log(`[DISCONNECT] Client left room ${room.roomCode} (code: ${code})`);
       room.removeClient(ws);
       if (room.isEmpty) {
+        console.log(`[ROOM] Room ${room.roomCode} empty — destroyed`);
         room.stop();
         rooms.delete(room.roomCode);
       }
@@ -125,6 +145,7 @@ function handleCreate(ws: TaggedSocket, message: Extract<ClientMessage, { type: 
   }
 
   ws.roomCode = roomCode;
+  console.log(`[ROOM] Room ${roomCode} created by "${message.playerName}"`);
   ws.send(JSON.stringify({ type: 'roomCreated', roomCode }));
   ws.send(JSON.stringify({ type: 'joined', empireId: client.empireId, players: room.getPlayerInfoList() }));
 }
