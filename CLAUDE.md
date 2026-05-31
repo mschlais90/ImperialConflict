@@ -2,20 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Repository state: mid-migration
+## Overview
 
-This repo holds two codebases. The original is a Godot 4.4 / GDScript game; it is being rewritten to Phaser 4 + TypeScript under `phaser/`.
-
-- **`phaser/`** — the active codebase. New work happens here.
-- **Godot project (repo root: `ai/`, `autoloads/`, `data/`, `models/`, `scenes/`, `project.godot`)** — the **behavior reference**. It stays intact until the Phaser app reaches parity. Do not modify Godot files except docs/ignore rules. When porting a feature, read the corresponding `.gd` file to confirm behavior.
-
-The Phaser MVP is not full parity. Deferred Godot features are tracked in `docs/phaser-migration-backlog.md` — add an item there before deferring it, never silently drop parity.
-
-Migration plan and design spec: `docs/superpowers/plans/2026-05-17-phaser-mvp-migration.md` and `docs/superpowers/specs/2026-05-17-phaser-mvp-migration-design.md`. Work is organized into numbered tasks (Task 1–10).
+This is a single-player/multiplayer 4X space strategy game built with Phaser 4 + TypeScript under `phaser/`.
 
 ## Commands
 
-All commands run from `phaser/` (the Godot project at the root has no build system; it just needs Godot 4.4 to open `project.godot`).
+All commands run from `phaser/`.
 
 ```bash
 cd phaser
@@ -46,22 +39,20 @@ The Phaser app has three layers with a **strict, one-way dependency direction**:
 
 `core/` cannot depend on `scenes/` or `ui/`. Scenes and UI read state snapshots and dispatch player actions through the command API — they do not mutate nested core state directly.
 
-### Godot → TypeScript module mapping
+### Core modules
 
-The port is roughly 1:1 by file. When changing a core module, the matching `.gd` file is the source of truth for behavior:
-
-| Godot reference | TypeScript module |
+| Module | Description |
 | --- | --- |
-| `autoloads/game_manager.gd` | `core/engines/gameManager.ts` (`createNewGame`, galaxy generation) |
-| `autoloads/galaxy_data.gd` | `core/galaxy/galaxyData.ts` (`GameState` shape) |
-| `autoloads/tick_engine.gd` | `core/engines/tickEngine.ts` (`advanceTick`, speed constants) |
-| `autoloads/economy_engine.gd` | `core/engines/economyEngine.ts` |
-| `autoloads/combat_engine.gd` | `core/engines/combatEngine.ts` |
-| `autoloads/ops_engine.gd` | `core/engines/opsEngine.ts` |
-| `ai/ai_controller.gd` | `core/ai/aiController.ts` |
-| `data/*_data.gd` | `core/data/buildings.ts`, `units.ts`, `sciences.ts` |
-| `models/*.gd` | `core/models/types.ts` |
-| `autoloads/event_bus.gd` (signal bus) | `core/events/eventLog.ts` (append-only log) |
+| `core/engines/gameManager.ts` | `createNewGame`, galaxy generation |
+| `core/galaxy/galaxyData.ts` | `GameState` shape |
+| `core/engines/tickEngine.ts` | `advanceTick`, speed constants |
+| `core/engines/economyEngine.ts` | Per-empire economy processing |
+| `core/engines/combatEngine.ts` | Fleet combat resolution |
+| `core/engines/opsEngine.ts` | Agent ops and wizard spells |
+| `core/ai/aiController.ts` | AI decision-making |
+| `core/data/buildings.ts`, `units.ts`, `sciences.ts` | Static game data |
+| `core/models/types.ts` | Type definitions |
+| `core/events/eventLog.ts` | Append-only event log |
 
 ### Core simulation model
 
@@ -78,7 +69,6 @@ The port is roughly 1:1 by file. When changing a core module, the matching `.gd`
 
 ## Conventions
 
-- **Match Godot behavior, including representation choices.** Example: `GameSpeed` is the numeric union `0 | 1 | 2 | 4` (paused/normal/fast/fastest) to mirror Godot, not string labels.
 - **Keep the core pure.** No timers, no `async`, no DOM, no Phaser inside `core/`. Side effects belong in scenes/UI.
 - **Don't pre-mutate.** Build a plan and validate it fully before mutating `GameState` — partial mutations on a failed command/attack are a recurring class of bug here.
 - Unit tests live in `phaser/src/tests/core/` (Vitest, node environment); the Playwright smoke test is in `phaser/src/tests/e2e/`.

@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://cplaneticon001"]
-
-[ext_resource type="Script" path="res://scenes/system_view/planet_icon.gd" id="1_planeticon"]
-
-[node name="PlanetIcon" type="Node2D"]
-script = ExtResource("1_planeticon")
