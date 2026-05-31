@@ -4,6 +4,10 @@ import { UNITS } from '../core/data/units';
 import { button, formatNumber } from './dom';
 import type { UiContext } from './types';
 
+// Persists sort state across re-renders
+let persistedSortField: 'ticks' | 'size' | 'bonus' = 'ticks';
+let persistedSortAsc = true;
+
 function getBonusInfo(planet: Planet): { resource: string; pct: number } | null {
   const entries = Object.entries(planet.resourceBonuses) as Array<[ResourceKey, number]>;
   const bonused = entries.filter(([, mult]) => mult > 1);
@@ -142,11 +146,13 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
     return { planet, ticks: travel.ticks, source: travel.source, enRouteFleet, bonus };
   });
 
-  // Sort state
-  let sortField: 'ticks' | 'size' | 'bonus' = 'ticks';
-  let sortAsc = true;
+  // Sort state (uses module-level persistence)
+  let sortField = persistedSortField;
+  let sortAsc = persistedSortAsc;
 
   function sortEntries(): void {
+    persistedSortField = sortField;
+    persistedSortAsc = sortAsc;
     if (sortField === 'ticks') {
       entries.sort((a, b) => {
         const cmp = (a.ticks === Infinity ? 99999 : a.ticks) - (b.ticks === Infinity ? 99999 : b.ticks);
@@ -195,7 +201,7 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
 
   const ticksHeader = document.createElement('span');
   ticksHeader.className = 'exploration-sortable';
-  ticksHeader.textContent = 'Ticks ▲';
+  ticksHeader.textContent = 'Ticks';
   ticksHeader.title = 'Click to sort by travel ticks';
 
   const actionHeader = document.createElement('span');
@@ -206,6 +212,15 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
   // Planet rows
   const list = document.createElement('div');
   list.className = 'exploration-list';
+
+  function updateSortHeaders(): void {
+    const arrow = sortAsc ? ' ▲' : ' ▼';
+    sizeHeader.textContent = sortField === 'size' ? `Size${arrow}` : 'Size';
+    bonusHeader.textContent = sortField === 'bonus' ? `Bonus${arrow}` : 'Bonus';
+    ticksHeader.textContent = sortField === 'ticks' ? `Ticks${arrow}` : 'Ticks';
+  }
+
+  updateSortHeaders();
 
   function renderRows(): void {
     list.innerHTML = '';
@@ -262,13 +277,6 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
       row.append(name, size, bonusCell, ticks, action);
       list.append(row);
     }
-  }
-
-  function updateSortHeaders(): void {
-    const arrow = sortAsc ? ' ▲' : ' ▼';
-    sizeHeader.textContent = sortField === 'size' ? `Size${arrow}` : 'Size';
-    bonusHeader.textContent = sortField === 'bonus' ? `Bonus${arrow}` : 'Bonus';
-    ticksHeader.textContent = sortField === 'ticks' ? `Ticks${arrow}` : 'Ticks';
   }
 
   sizeHeader.addEventListener('click', () => {
