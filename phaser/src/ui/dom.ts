@@ -1,14 +1,7 @@
 import type { ResourceKey } from '../core/models/types';
+import { resourceIcon } from './resourceIcons';
 
-const RESOURCE_LABELS: Record<ResourceKey, string> = {
-  gc: 'GC',
-  food: 'food',
-  iron: 'iron',
-  endurium: 'endurium',
-  octarine: 'octarine',
-};
-
-const RESOURCE_ORDER: ResourceKey[] = ['gc', 'food', 'iron', 'endurium', 'octarine'];
+export const RESOURCE_ORDER: ResourceKey[] = ['gc', 'food', 'iron', 'endurium', 'octarine'];
 
 export function clearElement(element: HTMLElement): void {
   element.replaceChildren();
@@ -81,10 +74,10 @@ export function formatNumber(value: number): string {
   return Math.round(value).toLocaleString('en-US');
 }
 
-export function resourceCostText(cost: Partial<Record<ResourceKey, number>>): string {
+export function resourceCostHtml(cost: Partial<Record<ResourceKey, number>>): string {
   const parts = RESOURCE_ORDER.flatMap((resource) => {
     const amount = cost[resource] ?? 0;
-    return amount > 0 ? [`${formatNumber(amount)} ${RESOURCE_LABELS[resource]}`] : [];
+    return amount > 0 ? [`${formatNumber(amount)}\u00a0${resourceIcon(resource)}`] : [];
   });
 
   return parts.length > 0 ? parts.join(', ') : 'Free';

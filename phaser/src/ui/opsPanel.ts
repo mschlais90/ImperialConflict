@@ -12,6 +12,7 @@ import {
 import { calcEmpireNetworth, getPlanetsForEmpire } from '../core/selectors/selectors';
 import type { Empire } from '../core/models/types';
 import { button, formatNumber, select } from './dom';
+import { resourceIcon } from './resourceIcons';
 import type { UiContext } from './types';
 
 const AGENT_OPS: { type: AgentOperationType; name: string; description: string; needsPlanet: boolean }[] = [
@@ -117,7 +118,7 @@ export function renderOpsPanel(context: UiContext): HTMLElement {
   const agentCost = getAgentOperationCost(state, context.player);
   const agentCostEl = document.createElement('p');
   agentCostEl.className = 'ops-cost';
-  agentCostEl.textContent = `Cost: ${formatNumber(agentCost)} GC per operation`;
+  agentCostEl.innerHTML = `Cost: ${formatNumber(agentCost)} ${resourceIcon('gc')} per operation`;
   agentSection.append(agentCostEl);
 
   for (const op of AGENT_OPS) {
@@ -175,7 +176,7 @@ export function renderOpsPanel(context: UiContext): HTMLElement {
   const spellCost = getSpellCost(state, context.player);
   const spellCostEl = document.createElement('p');
   spellCostEl.className = 'ops-cost';
-  spellCostEl.textContent = `Cost: ${formatNumber(spellCost)} octarine per spell`;
+  spellCostEl.innerHTML = `Cost: ${formatNumber(spellCost)} ${resourceIcon('octarine')} per spell`;
   wizardSection.append(spellCostEl);
 
   for (const spell of WIZARD_SPELLS) {

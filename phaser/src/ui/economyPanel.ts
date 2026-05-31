@@ -1,5 +1,6 @@
 import { calcEconomyBreakdown } from '../core/selectors/economySelectors';
 import { collapsible, formatNumber } from './dom';
+import { resourceIcon, resourceName } from './resourceIcons';
 import type { UiContext } from './types';
 
 export function renderEconomyPanel(context: UiContext): HTMLElement {
@@ -27,7 +28,7 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
     ? Math.trunc(breakdown.income.total / 2) - breakdown.upkeep.total
     : breakdown.income.total - breakdown.upkeep.total;
 
-  panel.append(collapsible('econ-gc', summaryRow('GC (Income)', netGc), () => {
+  panel.append(collapsible('econ-gc', summaryRow(`${resourceIcon('gc')} ${resourceName('gc')} (Income)`, netGc), () => {
     const frag = document.createElement('div');
     frag.className = 'key-value-list';
     frag.append(
@@ -56,7 +57,7 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
   // Food
   const netFood = breakdown.production.food.total - breakdown.foodConsumption.total - (breakdown.decay.food ?? 0);
   const foodProd = breakdown.production.food;
-  panel.append(collapsible('econ-food', summaryRow('Food', netFood), () => {
+  panel.append(collapsible('econ-food', summaryRow(`${resourceIcon('food')} ${resourceName('food')}`, netFood), () => {
     const frag = document.createElement('div');
     frag.className = 'key-value-list';
     frag.append(kvRow(`Farms (${foodProd.buildingCount} x 100)`, `+${formatNumber(foodProd.baseProduction)}`));
@@ -93,7 +94,7 @@ export function renderEconomyPanel(context: UiContext): HTMLElement {
     const net = prod.total - decay;
     const info = RESOURCE_BUILDINGS[resource];
 
-    panel.append(collapsible(`econ-${resource}`, summaryRow(capitalize(resource), net), () => {
+    panel.append(collapsible(`econ-${resource}`, summaryRow(`${resourceIcon(resource)} ${resourceName(resource)}`, net), () => {
       const frag = document.createElement('div');
       frag.className = 'key-value-list';
       frag.append(kvRow(`${info.buildingName} (${prod.buildingCount} x ${info.perBuilding})`, `+${formatNumber(prod.baseProduction)}`));

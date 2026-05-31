@@ -1,4 +1,5 @@
 import { button } from './dom';
+import { resourceIcon, resourceName } from './resourceIcons';
 
 export function renderTutorialScreen(root: HTMLElement, onBack: () => void): void {
   const shell = document.createElement('div');
@@ -38,11 +39,11 @@ export function renderTutorialScreen(root: HTMLElement, onBack: () => void): voi
     <section>
       <h2>Resources</h2>
       <div class="tutorial-grid">
-        <div><strong>GC</strong> (Credits)</div><div>Primary currency for building and training</div>
-        <div><strong>Food</strong></div><div>Feeds population and military units</div>
-        <div><strong>Iron</strong></div><div>Used for buildings and combat units</div>
-        <div><strong>Endurium</strong></div><div>Advanced material for portals and heavy units</div>
-        <div><strong>Octarine</strong></div><div>Magical resource for wizard spells</div>
+        <div>${resourceIcon('gc')} <strong>${resourceName('gc')}</strong></div><div>Primary currency for building and training</div>
+        <div>${resourceIcon('food')} <strong>${resourceName('food')}</strong></div><div>Feeds population and military units</div>
+        <div>${resourceIcon('iron')} <strong>${resourceName('iron')}</strong></div><div>Used for buildings and combat units</div>
+        <div>${resourceIcon('endurium')} <strong>${resourceName('endurium')}</strong></div><div>Advanced material for portals and heavy units</div>
+        <div>${resourceIcon('octarine')} <strong>${resourceName('octarine')}</strong></div><div>Magical resource for wizard spells</div>
       </div>
     </section>
 

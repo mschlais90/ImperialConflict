@@ -1,7 +1,8 @@
 import { BUILDINGS, getBuildCost, getOverbuildMultiplier } from '../core/data/buildings';
 import type { BonusKey, BuildingKey, Planet, ResourceKey } from '../core/models/types';
 import { calcSciencePercent, getPlanetsForEmpire } from '../core/selectors/selectors';
-import { button, numberInput, parseIntegerInput, resourceCostText } from './dom';
+import { button, numberInput, parseIntegerInput, resourceCostHtml } from './dom';
+import { resourceIcon } from './resourceIcons';
 import type { UiContext } from './types';
 
 const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
@@ -19,16 +20,18 @@ let sortAsc = true;
 
 type SortColumn = 'name' | 'portal' | 'built' | 'lasers' | 'ob' | 'bonuses';
 
-const BONUS_LABELS: Record<BonusKey, string> = {
-  gc: 'GC',
-  food: 'Food',
-  iron: 'Iron',
-  endurium: 'End',
-  octarine: 'Oct',
+const NON_RESOURCE_BONUS_LABELS: Partial<Record<BonusKey, string>> = {
   research: 'Research',
   population_growth: 'Pop',
   defense: 'Defense',
 };
+
+const RESOURCE_BONUS_KEYS: ReadonlySet<BonusKey> = new Set(['gc', 'food', 'iron', 'endurium', 'octarine']);
+
+function bonusLabel(key: BonusKey): string {
+  if (RESOURCE_BONUS_KEYS.has(key)) return resourceIcon(key as 'gc' | 'food' | 'iron' | 'endurium' | 'octarine');
+  return NON_RESOURCE_BONUS_LABELS[key] ?? key;
+}
 
 function countBuildings(planet: Planet): number {
   return BUILDING_KEYS.reduce((sum, key) => sum + (planet.buildings[key] ?? 0), 0);
@@ -45,12 +48,12 @@ function overbuildPercent(planet: Planet): number {
   return Math.round((mult - 1) * 100);
 }
 
-function bonusText(planet: Planet): string {
+function bonusHtml(planet: Planet): string {
   const entries = Object.entries(planet.resourceBonuses) as Array<[BonusKey, number]>;
   if (entries.length === 0) return '';
   return entries
     .filter(([, mult]) => mult > 1)
-    .map(([res, mult]) => `${BONUS_LABELS[res]} +${Math.round((mult - 1) * 100)}%`)
+    .map(([res, mult]) => `${bonusLabel(res)} +${Math.round((mult - 1) * 100)}%`)
     .join(', ');
 }
 
@@ -197,7 +200,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
   function createRow(planet: Planet): HTMLElement {
     const total = countBuildingsAndQueue(planet);
     const ob = overbuildPercent(planet);
-    const bonus = bonusText(planet);
+    const bonus = bonusHtml(planet);
 
     const row = document.createElement('div');
     row.className = 'mass-build-row';
@@ -231,7 +234,9 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     const laserCell = textCell(lasers > 0 ? String(lasers) : '-');
     const obCell = textCell(ob > 0 ? `${ob}%` : '-');
     if (ob > 0) obCell.classList.add('mass-build-overbuild');
-    const bonusCell = textCell(bonus || '-');
+    const bonusCell = document.createElement('span');
+    bonusCell.className = 'mass-build-cell';
+    bonusCell.innerHTML = bonus || '-';
     if (bonus) bonusCell.classList.add('mass-build-bonus');
 
     row.append(cbCell, nameCell, portalCell, builtCell, laserCell, obCell, bonusCell);
@@ -324,8 +329,8 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     if (isPortal) countInput.value = '1';
     const baseCost = getBuildCost(buildingType, constructionSci);
     const perUnitLine = isPortal
-      ? `Cost per portal: ${resourceCostText(baseCost)} (skips planets that already have one)`
-      : `Cost per unit: ${resourceCostText(baseCost)}`;
+      ? `Cost per portal: ${resourceCostHtml(baseCost)} (skips planets that already have one)`
+      : `Cost per unit: ${resourceCostHtml(baseCost)}`;
 
     let selectedPlanets = planets.filter((p) => selected.has(p.id));
     if (isPortal) {
@@ -335,7 +340,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     }
 
     if (selectedPlanets.length === 0) {
-      costPreview.textContent = `${perUnitLine}\nSelect planets to see total cost`;
+      costPreview.innerHTML = `${perUnitLine}<br>Select planets to see total cost`;
       return;
     }
 
@@ -348,7 +353,7 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
       }
     }
 
-    costPreview.textContent = `${perUnitLine}\nTotal for ${selectedPlanets.length} planet${selectedPlanets.length > 1 ? 's' : ''}: ${resourceCostText(totalCost)}`;
+    costPreview.innerHTML = `${perUnitLine}<br>Total for ${selectedPlanets.length} planet${selectedPlanets.length > 1 ? 's' : ''}: ${resourceCostHtml(totalCost)}`;
   }
 
   buildingSelect.addEventListener('change', () => {

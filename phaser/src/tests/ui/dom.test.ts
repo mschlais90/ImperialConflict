@@ -1,13 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { formatNumber, parseIntegerInput, resourceCostText } from '../../ui/dom';
+import { formatNumber, parseIntegerInput, resourceCostHtml } from '../../ui/dom';
 
 describe('DOM UI helpers', () => {
   it('formats whole numbers for compact UI display', () => {
     expect(formatNumber(1234.8)).toBe('1,235');
   });
 
-  it('renders resource costs in stable resource order', () => {
-    expect(resourceCostText({ iron: 20, gc: 300, octarine: 0 })).toBe('300 GC, 20 iron');
+  it('renders resource costs in stable resource order with icons', () => {
+    const html = resourceCostHtml({ iron: 20, gc: 300, octarine: 0 });
+    // Should contain gc icon then iron icon, in that order, with no octarine (amount is 0)
+    expect(html).toContain('300');
+    expect(html).toContain('20');
+    expect(html).toContain('res-icon-gc');
+    expect(html).toContain('res-icon-iron');
+    expect(html).not.toContain('res-icon-octarine');
+    // GC should appear before iron
+    expect(html.indexOf('res-icon-gc')).toBeLessThan(html.indexOf('res-icon-iron'));
+  });
+
+  it('returns Free when all costs are zero', () => {
+    expect(resourceCostHtml({ gc: 0 })).toBe('Free');
+    expect(resourceCostHtml({})).toBe('Free');
   });
 
   it('rejects blank, fractional, non-finite, and out-of-range integer input', () => {

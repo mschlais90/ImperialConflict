@@ -2,6 +2,7 @@ import { getPlanetsForEmpire, calcTravelTicks } from '../core/selectors/selector
 import type { Planet, ResourceKey } from '../core/models/types';
 import { UNITS } from '../core/data/units';
 import { button, formatNumber } from './dom';
+import { resourceIcon } from './resourceIcons';
 import type { UiContext } from './types';
 
 // Persists sort state across re-renders
@@ -56,9 +57,7 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
   const portalPlanets = playerPlanets.filter((p) => p.hasPortal);
   const buildPlanetId = portalPlanets.length > 0 ? portalPlanets[0].id : empire.homePlanetId;
   const buildPlanet = state.planets.find((p) => p.id === buildPlanetId);
-  const buildLabel = `Build Explorer (${formatNumber(explorerCost)} GC)`;
-
-  const buildBtn = button(buildLabel, () => {
+  const buildBtn = button('', () => {
     context.runCommand(() =>
       context.commands.queueExplorer({
         empireId: context.player.id,
@@ -67,9 +66,10 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
       }),
     );
   }, canAfford ? 'ui-button primary exploration-build-btn' : 'ui-button exploration-build-btn');
+  buildBtn.innerHTML = `Build Explorer (${formatNumber(explorerCost)} ${resourceIcon('gc')})`;
   buildBtn.disabled = !canAfford;
   if (!canAfford) {
-    buildBtn.title = 'Insufficient GC';
+    buildBtn.title = 'Insufficient resources';
   } else if (buildPlanet) {
     buildBtn.title = `Will build on ${buildPlanet.planetName}`;
   }

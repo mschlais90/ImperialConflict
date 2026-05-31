@@ -1,7 +1,7 @@
 import { UNITS } from '../core/data/units';
 import type { CombatUnitKey, Fleet, Planet, ResourceKey, UnitKey } from '../core/models/types';
 import { calcTravelTicks, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
-import { button, formatNumber, maxAffordable, numberInput, parseIntegerInput, resourceCostText } from './dom';
+import { button, formatNumber, maxAffordable, numberInput, parseIntegerInput, resourceCostHtml } from './dom';
 import { fleetForm } from './planetPanel';
 import type { UiContext } from './types';
 
@@ -436,10 +436,10 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     const selectedPlanets = ownedPlanets.filter((p) => selected.has(p.id));
     const count = Math.max(1, parseInt(countInput.value, 10) || 1);
     const cost = UNITS[selectedUnitType].cost;
-    const perUnit = resourceCostText(cost);
+    const perUnit = resourceCostHtml(cost);
 
     if (selectedPlanets.length === 0) {
-      costPreview.textContent = `Cost per unit: ${perUnit}\nSelect planets to see total cost`;
+      costPreview.innerHTML = `Cost per unit: ${perUnit}<br>Select planets to see total cost`;
       return;
     }
 
@@ -447,7 +447,7 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     for (const [res, amt] of Object.entries(cost) as Array<[ResourceKey, number]>) {
       totalCost[res as ResourceKey] = amt * count * selectedPlanets.length;
     }
-    costPreview.textContent = `Cost per unit: ${perUnit}\nTotal for ${selectedPlanets.length} planet${selectedPlanets.length !== 1 ? 's' : ''}: ${resourceCostText(totalCost)}`;
+    costPreview.innerHTML = `Cost per unit: ${perUnit}<br>Total for ${selectedPlanets.length} planet${selectedPlanets.length !== 1 ? 's' : ''}: ${resourceCostHtml(totalCost)}`;
   }
 
   unitSelect.addEventListener('change', () => {

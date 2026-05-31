@@ -4,7 +4,7 @@ import { getTotalAgents, getTotalWizards } from '../core/engines/opsEngine';
 import type { GameState } from '../core/galaxy/galaxyData';
 import type { BonusKey, BuildingKey, CombatUnitKey, Planet, PlanetUnitKey, ResourceKey, UnitKey } from '../core/models/types';
 import { calcSciencePercent, calcTravelTicks, getEmpire, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
-import { button, collapsible, formatNumber, labeledControl, maxAffordable, numberInput, parseIntegerInput, resourceCostText, select } from './dom';
+import { button, collapsible, formatNumber, maxAffordable, numberInput, parseIntegerInput, resourceCostHtml, select } from './dom';
 import type { UiContext } from './types';
 
 const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
@@ -203,7 +203,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
 
     const costLabel = document.createElement('span');
     costLabel.className = affordable === 0 ? 'build-cost cost-unaffordable' : 'build-cost';
-    costLabel.textContent = resourceCostText(cost);
+    costLabel.innerHTML = resourceCostHtml(cost);
 
     const input = numberInput(0, { min: 0 });
     input.className = 'build-input';
@@ -314,7 +314,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   if (!planet.hasPortal && !portalBuilding) {
     const portalCost = getBuildCost('portal', constructionSci, planet);
     const canAffordPortal = maxAffordable(context.player.resources, portalCost) >= 1;
-    const portalBtn = button(`Build Portal (${resourceCostText(portalCost)})`, () => {
+    const portalBtn = button('', () => {
       const result = context.commands.queueBuilding({
         empireId: context.player.id,
         planetId: planet.id,
@@ -328,6 +328,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
         context.setNotice(result.message, true);
       }
     }, canAffordPortal ? 'ui-button primary portal-build-btn' : 'ui-button portal-build-btn');
+    portalBtn.innerHTML = `Build Portal (${resourceCostHtml(portalCost)})`;
     portalBtn.disabled = !canAffordPortal;
     if (!canAffordPortal) portalBtn.title = 'Insufficient resources';
     frag.append(portalBtn);
@@ -340,7 +341,7 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
     (sum, p) => sum + p.buildQueue.filter((o) => o.category === 'unit' && o.itemType === 'explorer').length,
     0,
   );
-  const explorerCost = resourceCostText(UNITS.explorer.cost);
+  const explorerCost = resourceCostHtml(UNITS.explorer.cost);
   const explorerAffordable = maxAffordable(context.player.resources, UNITS.explorer.cost);
 
   const explorerCount = document.createElement('div');
@@ -350,8 +351,12 @@ function buildingsSection(context: UiContext, planet: Planet): HTMLElement {
   const explorerRow = document.createElement('div');
   explorerRow.className = 'inline-form';
   const explorerInput = numberInput(0, { min: 0 });
+  const explorerLabel = document.createElement('label');
+  explorerLabel.className = 'form-row';
+  explorerLabel.innerHTML = `Explorer (${explorerCost}) max: ${explorerAffordable}`;
+  explorerLabel.append(explorerInput);
   explorerRow.append(
-    labeledControl(`Explorer (${explorerCost}) max: ${explorerAffordable}`, explorerInput),
+    explorerLabel,
     button('Queue', () => {
       const parsed = parseIntegerInput(explorerInput.value, { label: 'Explorer count', min: 1, max: 999 });
       if (!parsed.ok) {
@@ -411,7 +416,7 @@ function unitsSection(context: UiContext, planet: Planet): HTMLElement {
 
     const costLabel = document.createElement('span');
     costLabel.className = 'build-cost';
-    costLabel.textContent = resourceCostText(cost);
+    costLabel.innerHTML = resourceCostHtml(cost);
 
     const inputWrapper = document.createElement('span');
     inputWrapper.className = 'build-input-wrapper';

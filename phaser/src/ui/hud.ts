@@ -3,6 +3,7 @@ import { calcEconomyBreakdown } from '../core/selectors/economySelectors';
 import type { GameSpeed } from '../core/events/eventLog';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { button, formatNumber } from './dom';
+import { resourceIcon } from './resourceIcons';
 import type { UiContext } from './types';
 
 export interface MenuCallbacks {
@@ -69,7 +70,7 @@ export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement
     if (resource === 'food' && breakdown.isStarving) {
       item.classList.add('hud-starvation');
     }
-    const label = resource === 'gc' ? 'GC' : resource;
+    const label = resourceIcon(resource);
     const starvingSuffix = resource === 'food' && breakdown.isStarving ? ' <span class="hud-starving-label">STARVING</span>' : '';
     item.innerHTML = `<span>${label}${starvingSuffix}</span><strong>${formatNumber(player.resources[resource])} <span class="${colorClass}">(${sign}${formatNumber(net)})</span></strong>`;
     resources.append(item);
