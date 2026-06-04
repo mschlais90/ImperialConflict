@@ -56,6 +56,13 @@ const server = createServer((req, res) => {
   const url = req.url ?? '/';
   const pathname = url.split('?')[0];
 
+  // Keep-alive endpoint to prevent Render free tier from spinning down
+  if (pathname === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, rooms: rooms.size }));
+    return;
+  }
+
   // Serve static files from dist/
   let filePath = join(DIST_DIR, pathname === '/' ? 'index.html' : pathname);
 

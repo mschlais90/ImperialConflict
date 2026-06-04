@@ -6,11 +6,10 @@ import { createEmpire, createPlanet, type Empire, type Fleet, type Planet } from
 import { calcEmpireNetworth, getPlanetsForEmpire, getPlayerEmpire } from '../../core/selectors/selectors';
 
 describe('economy and ticks', () => {
-  it('advances current tick and emits a tick event', () => {
+  it('advances current tick', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
     advanceTick(state);
     expect(state.currentTick).toBe(1);
-    expect(state.events.some((event) => event.type === 'tick_processed' && event.tick === 1)).toBe(true);
   });
 
   it('completes build queue items and adds buildings', () => {

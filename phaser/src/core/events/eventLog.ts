@@ -38,7 +38,7 @@ export type EventLogEntry = GameEvent & {
 };
 
 /** Maximum events retained in the log. Older events are pruned to keep serialization lean. */
-const MAX_EVENTS = 500;
+const MAX_EVENTS = 1000;
 
 export function appendEvent(state: GameState, event: GameEvent): void {
   state.events.push({ id: state.nextEventId, ...event });

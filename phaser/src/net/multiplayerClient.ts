@@ -24,9 +24,12 @@ export class MultiplayerClient {
   private intentionalDisconnect = false;
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
 
   private static readonly MAX_RECONNECT_ATTEMPTS = 10;
   private static readonly RECONNECT_DELAY_MS = 3000;
+  /** Ping the HTTP health endpoint every 4 minutes to prevent Render free-tier spin-down. */
+  private static readonly KEEP_ALIVE_INTERVAL_MS = 4 * 60 * 1000;
 
   constructor(callbacks: MultiplayerCallbacks) {
     this.callbacks = callbacks;
@@ -44,6 +47,7 @@ export class MultiplayerClient {
 
     this.ws.addEventListener('open', () => {
       this.reconnectAttempts = 0;
+      this.startKeepAlive();
       // If we have reconnect info, send reconnect message automatically
       if (this.reconnectInfo) {
         this.reconnect(this.reconnectInfo.roomCode, this.reconnectInfo.empireId);
@@ -85,6 +89,7 @@ export class MultiplayerClient {
   disconnect(): void {
     this.intentionalDisconnect = true;
     this.reconnectInfo = null;
+    this.stopKeepAlive();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -132,6 +137,24 @@ export class MultiplayerClient {
 
   sendChat(text: string): void {
     this.send({ type: 'chat', text });
+  }
+
+  /** Periodically fetch /health over HTTP to keep the Render service awake. */
+  private startKeepAlive(): void {
+    this.stopKeepAlive();
+    if (!this.serverUrl) return;
+    // Derive HTTP URL from WebSocket URL (wss:// → https://, ws:// → http://)
+    const httpUrl = this.serverUrl.replace(/^ws(s?):\/\//, 'http$1://').replace(/\/$/, '') + '/health';
+    this.keepAliveTimer = setInterval(() => {
+      fetch(httpUrl).catch(() => { /* ignore — the WS reconnect logic handles failures */ });
+    }, MultiplayerClient.KEEP_ALIVE_INTERVAL_MS);
+  }
+
+  private stopKeepAlive(): void {
+    if (this.keepAliveTimer) {
+      clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = null;
+    }
   }
 
   private send(message: ClientMessage): void {

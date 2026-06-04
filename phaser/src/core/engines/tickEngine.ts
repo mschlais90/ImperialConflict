@@ -18,5 +18,4 @@ export function setSpeed(state: GameState, speed: GameSpeed): void {
 export function advanceTick(state: GameState): void {
   state.currentTick += 1;
   processEconomyTick(state);
-  appendEvent(state, { type: 'tick_processed', tick: state.currentTick });
 }
