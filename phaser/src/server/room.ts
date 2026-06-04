@@ -282,7 +282,11 @@ export class Room {
       const now = Date.now();
       if (now - lastTickTime >= intervalForSpeed) {
         lastTickTime = now;
-        advanceTick(this.state);
+        try {
+          advanceTick(this.state);
+        } catch (err) {
+          console.error(`[Room] Tick ${this.state.currentTick} threw:`, err);
+        }
         this.broadcastState();
       }
     }, 500);

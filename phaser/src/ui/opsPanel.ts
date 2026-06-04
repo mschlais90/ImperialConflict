@@ -53,7 +53,7 @@ export function renderOpsPanel(context: UiContext): HTMLElement {
 
   // Target selection
   const enemies = state.empires.filter(
-    (e) => e.id !== context.player.id && !state.events.some((ev) => ev.type === 'empire_eliminated' && ev.empireId === e.id),
+    (e) => e.id !== context.player.id && !e.isEliminated,
   );
 
   if (enemies.length === 0) {

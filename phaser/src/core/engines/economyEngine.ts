@@ -35,11 +35,11 @@ export function processEconomyTick(state: GameState): void {
   advanceFleets(state);
 
   for (const empire of state.empires) {
-    processEmpireTick(state, empire);
+    if (!empire.isEliminated) processEmpireTick(state, empire);
   }
 
   for (const empire of state.empires) {
-    if (empire.controllerType === 'ai') {
+    if (!empire.isEliminated && empire.controllerType === 'ai') {
       processAiTurn(state, empire.id, state.currentTick);
     }
   }
@@ -376,15 +376,13 @@ function checkEliminations(state: GameState): void {
   }
 
   for (const empire of state.empires) {
-    const alreadyEliminated = state.events.some(
-      (event) => event.type === 'empire_eliminated' && event.empireId === empire.id,
-    );
-    if (alreadyEliminated) {
+    if (empire.isEliminated) {
       continue;
     }
 
     const planetCount = getPlanetsForEmpire(state, empire.id).length;
     if (planetCount === 0) {
+      empire.isEliminated = true;
       state.fleets = state.fleets.filter((fleet) => fleet.ownerId !== empire.id);
       appendEvent(state, { type: 'empire_eliminated', tick: state.currentTick, empireId: empire.id });
     }
@@ -393,12 +391,12 @@ function checkEliminations(state: GameState): void {
   const humanEmpires = state.empires.filter((empire) => empire.controllerType === 'human');
   const nonHumanEmpires = state.empires.filter((empire) => empire.controllerType !== 'human');
 
-  if (humanEmpires.length > 0 && humanEmpires.every((empire) => isEmpireEliminated(state, empire.id))) {
+  if (humanEmpires.length > 0 && humanEmpires.every((empire) => empire.isEliminated)) {
     finishGame(state, false);
     return;
   }
 
-  if (nonHumanEmpires.length > 0 && nonHumanEmpires.every((empire) => isEmpireEliminated(state, empire.id))) {
+  if (nonHumanEmpires.length > 0 && nonHumanEmpires.every((empire) => empire.isEliminated)) {
     finishGame(state, true);
   }
 }
@@ -407,10 +405,6 @@ function finishGame(state: GameState, playerWon: boolean): void {
   state.currentState = 'game_over';
   state.currentSpeed = 0;
   appendEvent(state, { type: 'game_over', tick: state.currentTick, playerWon });
-}
-
-function isEmpireEliminated(state: GameState, empireId: number): boolean {
-  return state.events.some((event) => event.type === 'empire_eliminated' && event.empireId === empireId);
 }
 
 function getSciencePercent(state: GameState, empire: Empire, science: ScienceKey): number {

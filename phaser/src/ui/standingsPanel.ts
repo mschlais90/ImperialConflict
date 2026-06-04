@@ -52,7 +52,7 @@ export function renderStandingsPanel(context: UiContext): HTMLElement {
       if (f.ownerId !== empire.id || f.isExploration) continue;
       for (const k of COMBAT_KEYS) military += f.units[k] ?? 0;
     }
-    const eliminated = state.events.some((e) => e.type === 'empire_eliminated' && e.empireId === empire.id);
+    const eliminated = empire.isEliminated;
     return { empire, nw, planets, military, eliminated };
   });
 
