@@ -1,5 +1,23 @@
 import type { ClientMessage, GameSettings, PlayerInfo, SerializedCommand, SerializedGameState, ServerMessage } from '../core/protocol/messages';
 import type { GameSpeed } from '../core/events/eventLog';
+import { applyTickDelta } from '../core/protocol/stateDelta';
+
+/**
+ * Shallow-clone a state into a fresh top-level object with fresh array
+ * references (elements are shared but never mutated in place after delivery).
+ * Each onTick/onGameStarted consumer thus gets a stable per-tick snapshot,
+ * matching the old "fresh full state every tick" semantics.
+ */
+function cloneStateView(state: SerializedGameState): SerializedGameState {
+  return {
+    ...state,
+    empires: [...state.empires],
+    systems: [...state.systems],
+    planets: [...state.planets],
+    fleets: [...state.fleets],
+    events: [...state.events],
+  };
+}
 
 export interface MultiplayerCallbacks {
   onRoomCreated: (roomCode: string) => void;
@@ -19,6 +37,8 @@ export interface MultiplayerCallbacks {
 export class MultiplayerClient {
   private ws: WebSocket | null = null;
   private callbacks: MultiplayerCallbacks;
+  /** Authoritative mirror of server state, rebuilt from full snapshots + tick deltas. */
+  private currentState: SerializedGameState | null = null;
   private serverUrl: string | null = null;
   private reconnectInfo: { roomCode: string; empireId: number } | null = null;
   private intentionalDisconnect = false;
@@ -181,15 +201,20 @@ export class MultiplayerClient {
         this.callbacks.onPlayerReconnected(message.empireId);
         break;
       case 'gameStarted':
+        this.currentState = cloneStateView(message.state);
         this.callbacks.onGameStarted(message.state);
         break;
       case 'tick':
-        this.callbacks.onTick(message.state);
+        if (this.currentState) {
+          applyTickDelta(this.currentState, message);
+          this.callbacks.onTick(cloneStateView(this.currentState));
+        }
         break;
       case 'commandResult':
         this.callbacks.onCommandResult(message.ok, message.message);
         break;
       case 'reconnected':
+        this.currentState = cloneStateView(message.state);
         this.callbacks.onReconnected(message.empireId, message.state);
         break;
       case 'chat':

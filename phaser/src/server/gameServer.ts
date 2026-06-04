@@ -84,7 +84,9 @@ export function startServer(options: StartServerOptions = {}): Promise<RunningSe
     }
   });
 
-  const wss = new WebSocketServer({ server });
+  // Compress messages on the wire. Tick deltas and the initial full-state
+  // payload are highly repetitive JSON, so deflate shrinks them substantially.
+  const wss = new WebSocketServer({ server, perMessageDeflate: true });
 
   function handleCreate(ws: TaggedSocket, message: Extract<ClientMessage, { type: 'create' }>): void {
     let roomCode = generateRoomCode();
