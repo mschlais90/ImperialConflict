@@ -143,7 +143,11 @@ export function performAgentOp(
 
   if (rollFloat(state) > chance) {
     const lost = loseAgentsOnFailure(state, attacker);
-    return { success: false, message: `${agentOpName(opType)} failed! (${Math.trunc(chance * 100)}% chance) Lost ${lost} agent${lost === 1 ? '' : 's'}.` };
+    const msg = `${agentOpName(opType)} failed against ${targetEmpire.empireName}! (${Math.trunc(chance * 100)}% chance) Lost ${lost} agent${lost === 1 ? '' : 's'}.`;
+    if (attacker.controllerType === 'human') {
+      appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: msg });
+    }
+    return { success: false, message: msg };
   }
 
   switch (opType) {
@@ -199,7 +203,11 @@ export function performWizardSpell(
 
   if (rollFloat(state) > chance) {
     const lost = loseWizardsOnFailure(state, attacker);
-    return { success: false, message: `${spellName(spellType)} failed! (${Math.trunc(chance * 100)}% chance) Lost ${lost} wizard${lost === 1 ? '' : 's'}.` };
+    const msg = `${spellName(spellType)} failed against ${targetEmpire.empireName}! (${Math.trunc(chance * 100)}% chance) Lost ${lost} wizard${lost === 1 ? '' : 's'}.`;
+    if (attacker.controllerType === 'human') {
+      appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: msg });
+    }
+    return { success: false, message: msg };
   }
 
   switch (spellType) {

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { APP_CONTROLLER_KEY, type AppController } from '../app/appController';
 import { UNITS } from '../core/data/units';
-import { getEmpire, getPlanetsInSystem, getSystemOwner, isSystemContested } from '../core/selectors/selectors';
+import { getEmpire, getPlanetsInSystem, getSystem, getSystemOwner, isSystemContested } from '../core/selectors/selectors';
 import type { CombatUnitKey } from '../core/models/types';
 
 const GODOT_SCALE = 20;
@@ -32,19 +32,27 @@ export class GalaxyScene extends Phaser.Scene {
     camera.setBackgroundColor('#030610');
     camera.setZoom(1);
 
-    // Helper: center the camera on the galaxy origin (world 0,0).
+    // Helper: center the camera on a world position.
     // We use this.scale.width/height (the live canvas size in the Scale.RESIZE
     // mode) rather than camera.width/height, which can still hold the original
     // 1280×720 config values when the window is larger.
-    const centerOnGalaxy = (zoom: number) => {
-      camera.scrollX = -this.scale.width / (2 * zoom);
-      camera.scrollY = -this.scale.height / (2 * zoom);
+    const centerOnWorld = (wx: number, wy: number, zoom: number) => {
+      camera.scrollX = wx - this.scale.width / (2 * zoom);
+      camera.scrollY = wy - this.scale.height / (2 * zoom);
     };
 
-    centerOnGalaxy(1);
+    // Center on player's home system if available, otherwise galaxy origin
+    const state = controller.state!;
+    const empireId = controller.clientState?.empireId ?? 0;
+    const playerEmpire = getEmpire(state, empireId);
+    const homeSystem = playerEmpire ? getSystem(state, playerEmpire.homeSystemId) : undefined;
+    const focusX = homeSystem ? homeSystem.position.x * GODOT_SCALE : 0;
+    const focusY = homeSystem ? homeSystem.position.y * GODOT_SCALE : 0;
 
-    // Keep galaxy centered whenever the browser window resizes.
-    const onResize = () => { centerOnGalaxy(camera.zoom); };
+    centerOnWorld(focusX, focusY, 1);
+
+    // Keep view centered on the same point whenever the browser window resizes.
+    const onResize = () => { centerOnWorld(focusX, focusY, camera.zoom); };
     this.scale.on('resize', onResize);
 
     const refreshScene = () => {
@@ -72,8 +80,11 @@ export class GalaxyScene extends Phaser.Scene {
     this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _objects: unknown[], _dx: number, dy: number) => {
       const newZoom = Phaser.Math.Clamp(camera.zoom - dy * 0.001, MIN_ZOOM, MAX_ZOOM);
       if (newZoom === camera.zoom) return;
+      // Zoom toward current camera center, not the initial focus point
+      const cx = camera.scrollX + this.scale.width / (2 * camera.zoom);
+      const cy = camera.scrollY + this.scale.height / (2 * camera.zoom);
       camera.setZoom(newZoom);
-      centerOnGalaxy(newZoom);
+      centerOnWorld(cx, cy, newZoom);
     });
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
