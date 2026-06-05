@@ -4,6 +4,7 @@ import { advanceTick, setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import type { GameSpeed } from '../core/events/eventLog';
 import type { GameState } from '../core/galaxy/galaxyData';
 import type { ClientMessage, PlayerInfo, SerializedCommand, ServerMessage } from '../core/protocol/messages';
+import { computeTickDelta, createDeltaSnapshot, type DeltaSnapshot } from '../core/protocol/stateDelta';
 import { executeCommand } from './commandHandler';
 import { serializeState } from './stateSerializer';
 
@@ -32,6 +33,7 @@ export class Room {
   private clients: ConnectedClient[] = [];
   private empireSlots: EmpireSlot[] = [];
   private state: GameState | null = null;
+  private snapshot: DeltaSnapshot | null = null;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private started = false;
   private autoPauseOnDisconnect = true;
@@ -222,6 +224,9 @@ export class Room {
     this.state = createMultiplayerGame(this.empireSlots);
     this.started = true;
 
+    // Baseline for per-tick deltas: the full state every client receives now.
+    this.snapshot = createDeltaSnapshot(this.state);
+
     const serialized = serializeState(this.state);
     for (const c of this.clients) {
       this.send(c.ws, { type: 'gameStarted', state: serialized });
@@ -294,8 +299,10 @@ export class Room {
 
   private broadcastState(): void {
     if (!this.state) return;
-    const serialized = serializeState(this.state);
-    this.broadcast({ type: 'tick', state: serialized });
+    if (!this.snapshot) this.snapshot = createDeltaSnapshot(this.state);
+    // Send only what changed since the last broadcast, not the whole world.
+    const delta = computeTickDelta(this.state, this.snapshot);
+    this.broadcast(delta);
   }
 
   stop(): void {

@@ -1,7 +1,7 @@
 import type { AgentOperationType, SpellType } from '../engines/opsEngine';
-import type { GameSpeed } from '../events/eventLog';
-import type { GameState } from '../galaxy/galaxyData';
-import type { BuildingKey, CombatUnitKey, ScienceKey, UnitKey } from '../models/types';
+import type { EventLogEntry, GameSpeed } from '../events/eventLog';
+import type { AiControllerState, GameLifecycleState, GameState } from '../galaxy/galaxyData';
+import type { BuildingKey, CombatUnitKey, Empire, Fleet, Planet, ScienceKey, SolarSystem, UnitKey } from '../models/types';
 
 // ---------------------------------------------------------------------------
 // Lobby / player info
@@ -42,6 +42,36 @@ export type SerializedCommand =
 export type SerializedGameState = Omit<GameState, 'rng'>;
 
 // ---------------------------------------------------------------------------
+// Per-tick delta — only what changed since the last broadcast.
+//
+// Collections that did not change are omitted entirely. `empires`, `planets`,
+// `systems`, and `aiControllers` carry only changed entities (upsert by id).
+// `fleets`, when present, is the COMPLETE authoritative array (it replaces the
+// client's, wiping any optimistically-created phantom fleets). `newEvents`
+// carries only events appended since the last delta.
+// ---------------------------------------------------------------------------
+
+export interface TickDelta {
+  type: 'tick';
+  tick: number;
+  speed: GameSpeed;
+  lifecycle: GameLifecycleState;
+  counters: {
+    nextEmpireId: number;
+    nextSystemId: number;
+    nextPlanetId: number;
+    nextFleetId: number;
+    nextEventId: number;
+  };
+  empires?: Empire[];
+  planets?: Planet[];
+  systems?: SolarSystem[];
+  fleets?: Fleet[];
+  aiControllers?: Record<number, AiControllerState>;
+  newEvents?: EventLogEntry[];
+}
+
+// ---------------------------------------------------------------------------
 // Client -> Server messages
 // ---------------------------------------------------------------------------
 
@@ -65,7 +95,7 @@ export type ServerMessage =
   | { type: 'playerLeft'; empireId: number }
   | { type: 'playerReconnected'; empireId: number }
   | { type: 'gameStarted'; state: SerializedGameState }
-  | { type: 'tick'; state: SerializedGameState }
+  | TickDelta
   | { type: 'commandResult'; ok: boolean; message: string }
   | { type: 'reconnected'; empireId: number; state: SerializedGameState }
   | { type: 'chat'; empireId: number; playerName: string; text: string }
