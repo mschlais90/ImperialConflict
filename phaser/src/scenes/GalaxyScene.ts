@@ -27,6 +27,11 @@ export class GalaxyScene extends Phaser.Scene {
 
     controller.activeScene = 'galaxy';
     controller.switchToGalaxy = () => this.scene.start('GalaxyScene');
+    controller.navigateToSystem = (systemId: number) => {
+      controller.clientState!.selectedSystemId = systemId;
+      controller.clientState!.selectedPlanetId = null;
+      this.scene.start('SystemScene');
+    };
     controller.overlay.render();
 
     camera.setBackgroundColor('#030610');

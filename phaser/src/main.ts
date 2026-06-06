@@ -47,6 +47,7 @@ const controller: AppController = {
   loadGame: null,
   activeScene: 'galaxy',
   switchToGalaxy: null,
+  navigateToSystem: null,
   isMultiplayer: false,
   isHost: false,
   multiplayerClient: null,

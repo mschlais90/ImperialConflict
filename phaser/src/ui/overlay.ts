@@ -15,7 +15,7 @@ import { renderEconomyPanel } from './economyPanel';
 import { renderFleetManagementPanel } from './fleetPanel';
 import { renderHud, type MenuCallbacks } from './hud';
 import { renderMassBuildPanel } from './massBuild';
-import { renderNotificationsContent } from './notifications';
+import { renderNotificationsContent, type NotificationCallbacks } from './notifications';
 import { renderOpsPanel } from './opsPanel';
 import { renderPlanetPanel } from './planetPanel';
 import { renderResearchContent } from './researchPanel';
@@ -917,13 +917,52 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     return panel;
   }
 
+  function createNotificationCallbacks(context: UiContext): NotificationCallbacks {
+    return {
+      onNavigateToPlanet: (systemId, planetId) => {
+        viewMode = 'normal';
+        if (controller.navigateToSystem) {
+          controller.navigateToSystem(systemId);
+          // navigateToSystem clears selectedPlanetId — set it after
+          controller.clientState!.selectedPlanetId = planetId;
+          controller.overlay.render();
+        } else {
+          controller.clientState!.selectedSystemId = systemId;
+          controller.clientState!.selectedPlanetId = planetId;
+          render();
+        }
+      },
+      onViewBattle: (report, attackerId, defenderId) => {
+        const state = controller.state!;
+        const attackerEmpire = getEmpire(state, attackerId);
+        const defenderEmpire = getEmpire(state, defenderId);
+        const attackerName = attackerEmpire?.empireName ?? 'Unknown';
+        const defenderName = defenderEmpire?.empireName ?? 'Unknown';
+        const isPlayerAttacker = context.player.id === attackerId;
+
+        const reportEl = renderBattleReport(report, attackerName, defenderName, isPlayerAttacker, () => {
+          battleReportScreen?.remove();
+          battleReportScreen = null;
+        });
+
+        if (battleReportScreen) {
+          battleReportScreen.replaceWith(reportEl);
+        } else {
+          root.append(reportEl);
+        }
+        battleReportScreen = reportEl;
+      },
+    };
+  }
+
   function renderNotificationsFullPanel(context: UiContext): HTMLElement {
     const state = controller.state!;
     const panel = document.createElement('section');
     panel.className = 'main-panel interactive';
     const title = document.createElement('h2');
     title.textContent = 'Notifications';
-    panel.append(title, renderNotificationsContent(state, context.player.id));
+    const callbacks = createNotificationCallbacks(context);
+    panel.append(title, renderNotificationsContent(state, context.player.id, callbacks));
     return panel;
   }
 
