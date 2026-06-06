@@ -1,5 +1,6 @@
 import { isFileSystemAccessSupported, getSavedDirHandle, pickSaveDirectory, clearDirHandle } from '../core/persistence/saveLoad';
 import { button } from './dom';
+import { isMusicEnabled, setMusicEnabled } from './music';
 import type { UiContext } from './types';
 
 const SETTINGS_KEY = 'ic_settings';
@@ -55,6 +56,19 @@ export function renderSettingsPanel(context: UiContext): HTMLElement {
   note.className = 'empty-text';
   note.textContent = 'Battles are always recorded in History (H) regardless of this setting.';
   panel.append(note);
+
+  // Music toggle
+  const musicRow = document.createElement('label');
+  musicRow.className = 'settings-row';
+  const musicCheckbox = document.createElement('input');
+  musicCheckbox.type = 'checkbox';
+  musicCheckbox.checked = isMusicEnabled();
+  musicCheckbox.addEventListener('change', () => {
+    setMusicEnabled(musicCheckbox.checked);
+    context.setNotice(musicCheckbox.checked ? 'Music enabled.' : 'Music disabled.');
+  });
+  musicRow.append(musicCheckbox, document.createTextNode(' Background music'));
+  panel.append(musicRow);
 
   // Save directory setting
   if (isFileSystemAccessSupported()) {

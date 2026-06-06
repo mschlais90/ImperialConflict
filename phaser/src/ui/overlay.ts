@@ -30,6 +30,7 @@ import { createDualCommandProxy } from '../net/remoteCommandProxy';
 import { renderLobbyScreen, type LobbyController } from './lobbyScreen';
 import type { PlayerInfo, SerializedGameState } from '../core/protocol/messages';
 import { renderTutorialScreen } from './tutorialScreen';
+import { startMusic, stopMusic } from './music';
 import { createSeededRng } from '../core/random/rng';
 
 const MP_SESSION_KEY = 'ic_mp_session';
@@ -289,6 +290,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   }
 
   function showStartScreen(): void {
+    stopMusic();
     clearElement(root);
     chatPanel = null;
     root.append(toastContainer);
@@ -302,11 +304,13 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       if (controller.startNewGame) {
         controller.startNewGame(empireName, difficulty);
         syncLastSeenEventIds();
+        startMusic();
         return;
       }
       controller.playerName = empireName;
       controller.state = createNewGame({ empireName, difficulty });
       syncLastSeenEventIds();
+      startMusic();
       render();
     }, () => {
       getSavedDirHandle().then((dir) => {
@@ -506,6 +510,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     } else {
       render();
     }
+
+    startMusic();
 
     // Show chat panel for multiplayer games
     ensureChatPanel();
@@ -1147,6 +1153,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           controller.overlay.render();
         }
         syncLastSeenEventIds();
+        startMusic();
         showToast(`Loaded: ${file.name}`, false);
       }).catch(() => {
         context.setNotice('Failed to load save file.', true);
@@ -1190,6 +1197,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
               controller.overlay.render();
             }
             syncLastSeenEventIds();
+            startMusic();
             showToast(`Loaded: ${entry.name}`, false);
           }).catch(() => {
             context.setNotice('Failed to load save file.', true);
