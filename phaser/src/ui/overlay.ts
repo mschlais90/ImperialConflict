@@ -592,9 +592,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     const isFullPage = viewMode !== 'normal';
 
-    // Input focus preservation: skip panel re-render when user is typing
     const activeEl = document.activeElement;
-    const leftHasFocus = leftPanel.contains(activeEl) && (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLSelectElement);
+    const focusedInput = leftPanel.contains(activeEl) && activeEl instanceof HTMLInputElement ? activeEl : null;
 
     const context = createContext(player);
 
@@ -603,16 +602,24 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     hudPanel.replaceWith(nextHudPanel);
     hudPanel = nextHudPanel;
 
-    // Refresh left panel only if no input focus
-    if (!leftHasFocus) {
+    // Always refresh left panel — preserve input values and re-focus
+    {
       const leftScroll = leftPanel.querySelector('.main-panel')?.scrollTop ?? 0;
 
-      // Preserve build input values across re-renders
+      // Save build input values and which input index was focused
       const savedBuildInputs = new Map<number, string>();
+      let focusedInputIdx = -1;
+      let focusedSelectionStart: number | null = null;
+      let focusedSelectionEnd: number | null = null;
       leftPanel.querySelectorAll('.build-input').forEach((el, idx) => {
         const input = el as HTMLInputElement;
         if (input.value && input.value !== '0') {
           savedBuildInputs.set(idx, input.value);
+        }
+        if (input === focusedInput) {
+          focusedInputIdx = idx;
+          focusedSelectionStart = input.selectionStart;
+          focusedSelectionEnd = input.selectionEnd;
         }
       });
 
@@ -637,6 +644,18 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       leftPanel = nextLeftPanel;
       const nextMainPanel = leftPanel.querySelector('.main-panel');
       if (nextMainPanel) nextMainPanel.scrollTop = leftScroll;
+
+      // Re-focus the input that was focused before re-render
+      if (focusedInputIdx >= 0) {
+        const inputs = nextLeftPanel.querySelectorAll('.build-input');
+        const target = inputs[focusedInputIdx] as HTMLInputElement | undefined;
+        if (target) {
+          target.focus();
+          if (focusedSelectionStart !== null && focusedSelectionEnd !== null) {
+            target.setSelectionRange(focusedSelectionStart, focusedSelectionEnd);
+          }
+        }
+      }
     }
 
     syncGameOverPanel();
