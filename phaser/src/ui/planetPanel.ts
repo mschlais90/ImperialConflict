@@ -440,6 +440,7 @@ function unitsSection(context: UiContext, planet: Planet): HTMLElement {
         }
       }
       input.value = String(Math.max(0, maxAffordable(remaining, UNITS[key].cost)));
+      updateTrainCostPreview();
     });
     unitMaxBtn.className = 'build-max-btn ui-button';
     unitMaxBtn.disabled = affordable === 0;
@@ -447,6 +448,39 @@ function unitsSection(context: UiContext, planet: Planet): HTMLElement {
 
     row.append(label, costLabel, inputWrapper);
     trainForm.append(row);
+  }
+
+  // Live cost preview for units
+  const trainCostPreview = document.createElement('div');
+  trainCostPreview.className = 'build-cost-preview';
+
+  function updateTrainCostPreview(): void {
+    const totals: Record<string, number> = {};
+    for (const key of TRAINABLE_UNITS) {
+      const input = inputs.get(key);
+      if (!input) continue;
+      const count = parseInt(input.value, 10);
+      if (!count || count <= 0) continue;
+      const cost = UNITS[key].cost;
+      for (const [res, amount] of Object.entries(cost)) {
+        totals[res] = (totals[res] ?? 0) + (amount as number) * count;
+      }
+    }
+    const entries = Object.entries(totals).filter(([, v]) => v > 0);
+    if (entries.length === 0) {
+      trainCostPreview.textContent = '';
+      return;
+    }
+    const parts = entries.map(([res, amount]) => {
+      const available = (context.player.resources as Record<string, number>)[res] ?? 0;
+      const unaffordable = amount > available;
+      return `<span class="${unaffordable ? 'cost-unaffordable' : ''}">${formatNumber(amount)} ${res}</span>`;
+    });
+    trainCostPreview.innerHTML = `Total: ${parts.join(', ')}`;
+  }
+
+  for (const input of inputs.values()) {
+    input.addEventListener('input', updateTrainCostPreview);
   }
 
   const trainAllBtn = button('Train All', () => {
@@ -479,7 +513,7 @@ function unitsSection(context: UiContext, planet: Planet): HTMLElement {
   });
   trainAllBtn.classList.add('primary');
 
-  frag.append(subtitle('Train'), trainForm, trainAllBtn);
+  frag.append(subtitle('Train'), trainForm, trainCostPreview, trainAllBtn);
 
   return frag;
 }

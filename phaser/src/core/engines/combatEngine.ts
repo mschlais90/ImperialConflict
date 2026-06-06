@@ -45,6 +45,8 @@ export interface BattleReport {
   attackerInitial: UnitCounts;
   defenderInitial: Partial<Record<PlanetUnitKey, number>>;
   defenderLasers: number;
+  /** Surviving defender units that retreated to a portal planet. */
+  defenderRetreated?: UnitCounts;
 }
 
 export function resolveBattle(state: GameState, attackerFleet: Fleet, defenderPlanet: Planet): BattleReport {
@@ -85,6 +87,10 @@ export function resolveBattle(state: GameState, attackerFleet: Fleet, defenderPl
   report.attackerWon = ground.attackerWon;
 
   if (report.attackerWon) {
+    // Surviving defender units retreat to a portal planet if one exists
+    report.defenderRetreated = { ...defenderUnits };
+    retreatSurvivors(state, defenderId, defenderUnits);
+
     defenderPlanet.ownerId = attackerFleet.ownerId;
     defenderPlanet.units = {
       fighter: getCount(attackerUnits, 'fighter'),
@@ -131,6 +137,21 @@ export function resolveBattle(state: GameState, attackerFleet: Fleet, defenderPl
   });
 
   return report;
+}
+
+/** Send surviving defender combat units to a friendly portal planet after a lost battle. */
+function retreatSurvivors(state: GameState, defenderId: number, survivors: UnitCounts): void {
+  const retreatTarget = getPlanetsForEmpire(state, defenderId).find(
+    (p) => p.hasPortal,
+  );
+  if (retreatTarget === undefined) return;
+
+  for (const unit of COMBAT_UNIT_KEYS) {
+    const count = getCount(survivors, unit);
+    if (count > 0) {
+      retreatTarget.units[unit] = (retreatTarget.units[unit] ?? 0) + count;
+    }
+  }
 }
 
 function poolPortalDefense(state: GameState, defenderPlanet: Planet): void {

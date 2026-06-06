@@ -1146,6 +1146,13 @@ details.collapsible[open] > summary::before {
 
 .build-input {
   width: 60px !important;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.build-input::-webkit-outer-spin-button,
+.build-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .build-max {

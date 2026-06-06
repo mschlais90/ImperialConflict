@@ -622,12 +622,13 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         nextLeftPanel.append(renderLeftContent(context));
       }
 
-      // Restore build input values
+      // Restore build input values and trigger cost preview updates
       if (savedBuildInputs.size > 0) {
         nextLeftPanel.querySelectorAll('.build-input').forEach((el, idx) => {
           const saved = savedBuildInputs.get(idx);
           if (saved !== undefined) {
             (el as HTMLInputElement).value = saved;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
           }
         });
       }
