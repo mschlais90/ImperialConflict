@@ -4,20 +4,11 @@ import type { GameState } from '../core/galaxy/galaxyData';
 import type { UnitKey } from '../core/models/types';
 import { getEmpire, getPlanet, getSystem } from '../core/selectors/selectors';
 
-export function renderNotifications(state: GameState): HTMLElement {
-  const panel = document.createElement('section');
-  panel.className = 'notifications-panel interactive';
-  const title = document.createElement('h2');
-  title.textContent = 'Notifications';
-  panel.append(title, renderNotificationsContent(state));
-  return panel;
-}
-
-export function renderNotificationsContent(state: GameState): HTMLElement {
+export function renderNotificationsContent(state: GameState, playerId: number): HTMLElement {
   const frag = document.createElement('div');
 
-  const filtered = state.events.filter((e) => e.type !== 'building_completed' && e.type !== 'speed_changed' && e.type !== 'tick_processed');
-  for (const event of [...filtered].reverse().slice(0, 12)) {
+  const filtered = state.events.filter((e) => isRelevantToPlayer(e, state, playerId));
+  for (const event of [...filtered].reverse().slice(0, 50)) {
     const item = document.createElement('div');
     item.className = 'notice';
     item.textContent = eventText(event, state);
@@ -25,6 +16,47 @@ export function renderNotificationsContent(state: GameState): HTMLElement {
   }
 
   return frag;
+}
+
+/** Returns true if the event is relevant to the given player. */
+function isRelevantToPlayer(event: EventLogEntry, state: GameState, playerId: number): boolean {
+  switch (event.type) {
+    // Always hidden
+    case 'building_completed':
+    case 'speed_changed':
+    case 'tick_processed':
+      return false;
+
+    // Always shown
+    case 'game_started':
+    case 'empire_eliminated':
+    case 'game_over':
+      return true;
+
+    // Only show the player's own fleets
+    case 'fleet_launched':
+      return event.ownerId === playerId;
+    case 'fleet_arrived': {
+      const planet = getPlanet(state, event.targetPlanetId);
+      return planet !== undefined && planet.ownerId === playerId;
+    }
+
+    // Battles: only if the player is the attacker or defender
+    case 'battle_resolved':
+      return event.attackerId === playerId || event.defenderId === playerId;
+
+    // Only the player's own units
+    case 'unit_completed':
+      return event.empireId === playerId;
+
+    // Only the player's own colonizations
+    case 'planet_colonized':
+      return event.empireId === playerId;
+
+    // Notifications (ops, starvation, combat): already scoped by the emitter
+    case 'notification':
+      return true;
+  }
 }
 
 function eventText(event: EventLogEntry, state: GameState): string {

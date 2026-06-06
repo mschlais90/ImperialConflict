@@ -718,6 +718,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           break;
         }
         case 'unit_completed': {
+          if (event.empireId !== player.id) break;
           for (const [unitType, count] of Object.entries(event.counts)) {
             if (!count || count <= 0) continue;
             const name = (UNITS as Record<string, { name: string }>)[unitType]?.name ?? unitType;
@@ -897,13 +898,13 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     return panel;
   }
 
-  function renderNotificationsFullPanel(_context: UiContext): HTMLElement {
+  function renderNotificationsFullPanel(context: UiContext): HTMLElement {
     const state = controller.state!;
     const panel = document.createElement('section');
     panel.className = 'main-panel interactive';
     const title = document.createElement('h2');
     title.textContent = 'Notifications';
-    panel.append(title, renderNotificationsContent(state));
+    panel.append(title, renderNotificationsContent(state, context.player.id));
     return panel;
   }
 

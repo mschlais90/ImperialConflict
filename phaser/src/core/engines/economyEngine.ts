@@ -132,7 +132,7 @@ function processEmpireTick(state: GameState, empire: Empire): void {
     return;
   }
 
-  advanceBuildQueues(state, empirePlanets);
+  advanceBuildQueues(state, empire.id, empirePlanets);
   calculateProduction(state, empire, empirePlanets);
   applyResourceDecay(empire);
 
@@ -160,7 +160,7 @@ function processEmpireTick(state: GameState, empire: Empire): void {
   tickDebuffs(state, empire);
 }
 
-function advanceBuildQueues(state: GameState, empirePlanets: Planet[]): void {
+function advanceBuildQueues(state: GameState, empireId: number, empirePlanets: Planet[]): void {
   const unitCounts: Partial<Record<UnitKey, number>> = {};
 
   for (const planet of empirePlanets) {
@@ -182,7 +182,7 @@ function advanceBuildQueues(state: GameState, empirePlanets: Planet[]): void {
 
   // Emit a single aggregated event for all units completed this tick
   if (Object.keys(unitCounts).length > 0) {
-    appendEvent(state, { type: 'unit_completed', tick: state.currentTick, counts: unitCounts });
+    appendEvent(state, { type: 'unit_completed', tick: state.currentTick, empireId, counts: unitCounts });
   }
 }
 
