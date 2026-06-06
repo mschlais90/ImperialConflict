@@ -8,7 +8,7 @@ export function renderNotificationsContent(state: GameState, playerId: number): 
   const frag = document.createElement('div');
 
   const filtered = state.events.filter((e) => isRelevantToPlayer(e, state, playerId));
-  for (const event of [...filtered].reverse().slice(0, 50)) {
+  for (const event of [...filtered].reverse().slice(0, 200)) {
     const item = document.createElement('div');
     item.className = 'notice';
     item.textContent = eventText(event, state);
