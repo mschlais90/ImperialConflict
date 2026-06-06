@@ -110,12 +110,6 @@ function colonizePlanet(state: GameState, planet: Planet, empireId: number): voi
   planet.ownerId = empireId;
   planet.population = planet.size;
   appendEvent(state, { type: 'planet_colonized', tick: state.currentTick, planetId: planet.id, empireId });
-  appendEvent(state, {
-    type: 'notification',
-    tick: state.currentTick,
-    message: `Colonized ${planet.planetName}!`,
-    category: 'explore',
-  });
 }
 
 function mergeFleetIntoPlanet(planet: Planet, fleet: Fleet): void {
@@ -167,6 +161,8 @@ function processEmpireTick(state: GameState, empire: Empire): void {
 }
 
 function advanceBuildQueues(state: GameState, empirePlanets: Planet[]): void {
+  const unitCounts: Partial<Record<UnitKey, number>> = {};
+
   for (const planet of empirePlanets) {
     const completedIndexes: number[] = [];
     for (let i = 0; i < planet.buildQueue.length; i += 1) {
@@ -179,9 +175,14 @@ function advanceBuildQueues(state: GameState, empirePlanets: Planet[]): void {
 
     for (let i = completedIndexes.length - 1; i >= 0; i -= 1) {
       const order = planet.buildQueue[completedIndexes[i]];
-      completeBuildOrder(state, planet, order.itemType, order.category);
+      completeBuildOrder(state, planet, order.itemType, order.category, unitCounts);
       planet.buildQueue.splice(completedIndexes[i], 1);
     }
+  }
+
+  // Emit a single aggregated event for all units completed this tick
+  if (Object.keys(unitCounts).length > 0) {
+    appendEvent(state, { type: 'unit_completed', tick: state.currentTick, counts: unitCounts });
   }
 }
 
@@ -190,6 +191,7 @@ function completeBuildOrder(
   planet: Planet,
   itemType: BuildingKey | UnitKey,
   category: 'building' | 'unit',
+  unitCounts: Partial<Record<UnitKey, number>>,
 ): void {
   if (category === 'building') {
     const buildingType = itemType as BuildingKey;
@@ -205,7 +207,7 @@ function completeBuildOrder(
   if (isPlanetUnit(unitType)) {
     planet.units[unitType] = (planet.units[unitType] ?? 0) + 1;
   }
-  appendEvent(state, { type: 'unit_completed', tick: state.currentTick, planetId: planet.id, unitType });
+  unitCounts[unitType] = (unitCounts[unitType] ?? 0) + 1;
 }
 
 function calculateProduction(state: GameState, empire: Empire, empirePlanets: Planet[]): void {

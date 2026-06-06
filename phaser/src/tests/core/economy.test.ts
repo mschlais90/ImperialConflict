@@ -115,9 +115,6 @@ describe('economy and ticks', () => {
     expect(state.events).toContainEqual(
       expect.objectContaining({ type: 'planet_colonized', planetId: target.id, empireId: empire.id }),
     );
-    expect(state.events).toContainEqual(
-      expect.objectContaining({ type: 'notification', category: 'explore', message: `Colonized ${target.planetName}!` }),
-    );
   });
 
   it('lands non-explorer fleets on unowned planets without colonization events', () => {

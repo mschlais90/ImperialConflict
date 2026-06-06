@@ -718,10 +718,11 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           break;
         }
         case 'unit_completed': {
-          const planet = state.planets.find((p) => p.id === event.planetId);
-          if (!planet || planet.ownerId !== player.id) break;
-          const name = (UNITS as Record<string, { name: string }>)[event.unitType]?.name ?? event.unitType;
-          unitCounts.set(name, (unitCounts.get(name) ?? 0) + 1);
+          for (const [unitType, count] of Object.entries(event.counts)) {
+            if (!count || count <= 0) continue;
+            const name = (UNITS as Record<string, { name: string }>)[unitType]?.name ?? unitType;
+            unitCounts.set(name, (unitCounts.get(name) ?? 0) + count);
+          }
           break;
         }
         case 'notification':

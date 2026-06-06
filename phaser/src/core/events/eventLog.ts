@@ -25,7 +25,7 @@ export type GameEvent =
       report: BattleReport;
     }
   | { type: 'building_completed'; tick: number; planetId: number; buildingType: BuildingKey }
-  | { type: 'unit_completed'; tick: number; planetId: number; unitType: UnitKey }
+  | { type: 'unit_completed'; tick: number; counts: Partial<Record<UnitKey, number>> }
   | { type: 'empire_eliminated'; tick: number; empireId: number }
   | { type: 'planet_colonized'; tick: number; planetId: number; empireId: number }
   | { type: 'notification'; tick: number; message: string; category?: string }

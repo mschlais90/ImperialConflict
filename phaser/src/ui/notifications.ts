@@ -1,5 +1,7 @@
+import { UNITS } from '../core/data/units';
 import type { EventLogEntry } from '../core/events/eventLog';
 import type { GameState } from '../core/galaxy/galaxyData';
+import type { UnitKey } from '../core/models/types';
 import { getEmpire, getPlanet, getSystem } from '../core/selectors/selectors';
 
 export function renderNotifications(state: GameState): HTMLElement {
@@ -50,8 +52,12 @@ function eventText(event: EventLogEntry, state: GameState): string {
     }
     case 'building_completed':
       return `Tick ${event.tick}: ${event.buildingType} completed.`;
-    case 'unit_completed':
-      return `Tick ${event.tick}: ${event.unitType} completed.`;
+    case 'unit_completed': {
+      const parts = (Object.entries(event.counts) as Array<[UnitKey, number]>)
+        .filter(([, count]) => count > 0)
+        .map(([unit, count]) => `${count} ${UNITS[unit].name}${count > 1 ? 's' : ''}`);
+      return `Tick ${event.tick}: Trained ${parts.join(', ')}.`;
+    }
     case 'planet_colonized': {
       const planet = getPlanet(state, event.planetId);
       const empire = getEmpire(state, event.empireId);
