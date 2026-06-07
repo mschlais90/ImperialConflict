@@ -75,13 +75,15 @@ export function resolveBattle(state: GameState, attackerFleet: Fleet, defenderPl
   const defenderUnits: UnitCounts = combatUnitsFromPlanet(defenderPlanet);
 
   const defenseBonus = defenderPlanet.resourceBonuses['defense'] ?? 1;
+  const transportsBefore1 = getCount(attackerUnits, 'transport');
   const airGround = phaseAirVsGround(state, attackerUnits, defenderPlanet.buildings.laser ?? 0, defenseBonus);
-  airGround.groundLostToTransports = killStrandedGround(attackerUnits);
+  airGround.groundLostToTransports = killProportionalGround(attackerUnits, airGround.transportsLost, transportsBefore1);
   report.phases.push(airGround);
   defenderPlanet.buildings.laser = airGround.remainingLasers;
 
+  const transportsBefore2 = getCount(attackerUnits, 'transport');
   const airAir = phaseAirVsAir(attackerUnits, defenderUnits, attackerMilitaryBonus, defenderMilitaryBonus);
-  airAir.groundLostToTransports = killStrandedGround(attackerUnits);
+  airAir.groundLostToTransports = killProportionalGround(attackerUnits, airAir.transportsLostToFighters, transportsBefore2);
   report.phases.push(airAir);
 
   const ground = phaseGroundVsGround(attackerUnits, defenderUnits, attackerMilitaryBonus, defenderMilitaryBonus);
@@ -328,18 +330,17 @@ function phaseGroundVsGround(
   };
 }
 
-function killStrandedGround(attackerUnits: UnitCounts): { soldiersKilled: number; droidsKilled: number } {
-  const transportCapacity = getCount(attackerUnits, 'transport') * (UNITS.transport.capacity ?? 100);
+/** Kill ground units proportionally when transports are destroyed (troops inside die). */
+function killProportionalGround(attackerUnits: UnitCounts, transportsLost: number, transportsBefore: number): { soldiersKilled: number; droidsKilled: number } {
   const soldiers = getCount(attackerUnits, 'soldier');
   const droids = getCount(attackerUnits, 'droid');
-  const totalGround = soldiers + droids;
   let soldiersKilled = 0;
   let droidsKilled = 0;
 
-  if (totalGround > transportCapacity && totalGround > 0) {
-    const excess = totalGround - transportCapacity;
-    soldiersKilled = Math.min(Math.trunc((excess * soldiers) / totalGround + 0.5), soldiers);
-    droidsKilled = Math.min(excess - soldiersKilled, droids);
+  if (transportsLost > 0 && transportsBefore > 0) {
+    const lossFraction = transportsLost / transportsBefore;
+    soldiersKilled = Math.trunc(soldiers * lossFraction);
+    droidsKilled = Math.trunc(droids * lossFraction);
     attackerUnits.soldier = soldiers - soldiersKilled;
     attackerUnits.droid = droids - droidsKilled;
   }
