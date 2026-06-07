@@ -101,7 +101,8 @@ describe('combat engine', () => {
     expect(target.ownerId).toBe(defender.id);
     expect(target.units.agent).toBe(3);
     expect(target.units.wizard).toBe(2);
-    expect(target.units.soldier).toBe(100);
+    // Symmetric ground formula: defender loses a small % even when winning
+    expect(target.units.soldier).toBe(99);
     expect(target.units.droid).toBe(10);
   });
 

@@ -302,13 +302,8 @@ function phaseGroundVsGround(
   let attackerLossPct = 0;
   let defenderLossPct = 0;
   if (attackerPower + defenderPower > 0) {
-    if (attackerWon) {
-      attackerLossPct = (0.05 * defenderPower) / Math.max(attackerPower, 1);
-      defenderLossPct = 0.15;
-    } else {
-      attackerLossPct = 0.15;
-      defenderLossPct = (0.05 * attackerPower) / Math.max(defenderPower, 1);
-    }
+    attackerLossPct = Math.min(0.15, (0.15 * defenderPower) / Math.max(attackerPower, 1));
+    defenderLossPct = Math.min(0.15, (0.15 * attackerPower) / Math.max(defenderPower, 1));
   }
 
   const attackerSoldiersLost = Math.trunc(attackerSoldiers * attackerLossPct);
