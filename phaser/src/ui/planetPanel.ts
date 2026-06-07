@@ -740,9 +740,15 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[],
 
   sendBtn.classList.add('send-fleet-highlight');
 
+  const clearAllBtn = button('Clear all', () => {
+    for (const unit of COMBAT_UNITS) {
+      inputs.get(unit)!.value = '0';
+    }
+  });
+
   const btnRow = document.createElement('div');
   btnRow.className = 'fleet-btn-row';
-  btnRow.append(sendAllBtn, sendBtn);
+  btnRow.append(sendAllBtn, clearAllBtn, sendBtn);
 
   const pctRow = document.createElement('div');
   pctRow.className = 'fleet-pct-row';

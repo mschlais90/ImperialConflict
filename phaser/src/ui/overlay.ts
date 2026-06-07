@@ -597,30 +597,45 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     }
 
     const isFullPage = viewMode !== 'normal';
-
     const activeEl = document.activeElement;
-    const focusedInput = leftPanel.contains(activeEl) && activeEl instanceof HTMLInputElement ? activeEl : null;
+
+    // If a <select> inside the left panel has focus (native dropdown is open),
+    // skip re-rendering the left panel so the dropdown is not dismissed.
+    const selectFocused = leftPanel.contains(activeEl) && activeEl instanceof HTMLSelectElement;
+
+    // Track which <input> has focus for value/cursor restoration after re-render.
+    const focusedInput = !selectFocused && leftPanel.contains(activeEl) && activeEl instanceof HTMLInputElement
+      ? activeEl
+      : null;
 
     const context = createContext(player);
 
-    // Always refresh HUD
+    // Always refresh HUD (separate element, does not disturb left panel focus).
     const nextHudPanel = renderHud(context, createMenuCallbacks(state, context));
     hudPanel.replaceWith(nextHudPanel);
     hudPanel = nextHudPanel;
 
-    // Always refresh left panel — preserve input values and re-focus
+    if (selectFocused) {
+      // Leave the left panel untouched so the native dropdown stays open.
+      syncGameOverPanel();
+      checkForNewBattles();
+      checkForNewEvents();
+      return;
+    }
+
+    // Re-render the left panel, preserving all input values and restoring focus.
     {
       const leftScroll = leftPanel.querySelector('.main-panel')?.scrollTop ?? 0;
 
-      // Save build input values and which input index was focused
-      const savedBuildInputs = new Map<number, string>();
+      // Save every input's value and locate the focused input by positional index.
+      const savedInputValues = new Map<number, string>();
       let focusedInputIdx = -1;
       let focusedSelectionStart: number | null = null;
       let focusedSelectionEnd: number | null = null;
-      leftPanel.querySelectorAll('.build-input').forEach((el, idx) => {
+      leftPanel.querySelectorAll('input').forEach((el, idx) => {
         const input = el as HTMLInputElement;
         if (input.value && input.value !== '0') {
-          savedBuildInputs.set(idx, input.value);
+          savedInputValues.set(idx, input.value);
         }
         if (input === focusedInput) {
           focusedInputIdx = idx;
@@ -635,30 +650,28 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         nextLeftPanel.append(renderLeftContent(context));
       }
 
-      // Restore build input values and trigger cost preview updates
-      if (savedBuildInputs.size > 0) {
-        nextLeftPanel.querySelectorAll('.build-input').forEach((el, idx) => {
-          const saved = savedBuildInputs.get(idx);
-          if (saved !== undefined) {
-            (el as HTMLInputElement).value = saved;
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        });
-      }
+      // Restore all input values and fire input events so dependent displays update.
+      nextLeftPanel.querySelectorAll('input').forEach((el, idx) => {
+        const saved = savedInputValues.get(idx);
+        if (saved !== undefined) {
+          const input = el as HTMLInputElement;
+          input.value = saved;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
 
       leftPanel.replaceWith(nextLeftPanel);
       leftPanel = nextLeftPanel;
       const nextMainPanel = leftPanel.querySelector('.main-panel');
       if (nextMainPanel) nextMainPanel.scrollTop = leftScroll;
 
-      // Re-focus the input that was focused before re-render
+      // Re-focus the previously focused input and restore cursor position.
       if (focusedInputIdx >= 0) {
-        const inputs = nextLeftPanel.querySelectorAll('.build-input');
-        const target = inputs[focusedInputIdx] as HTMLInputElement | undefined;
+        const target = nextLeftPanel.querySelectorAll('input')[focusedInputIdx] as HTMLInputElement | undefined;
         if (target) {
           target.focus();
           if (focusedSelectionStart !== null && focusedSelectionEnd !== null) {
-            target.setSelectionRange(focusedSelectionStart, focusedSelectionEnd);
+            try { target.setSelectionRange(focusedSelectionStart, focusedSelectionEnd); } catch { /* number inputs */ }
           }
         }
       }
