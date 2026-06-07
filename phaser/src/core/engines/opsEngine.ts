@@ -151,8 +151,13 @@ export function performAgentOp(
   }
 
   switch (opType) {
-    case 'spy':
-      return spy(state, targetEmpire, 'SPY');
+    case 'spy': {
+      const result = spy(state, targetEmpire, 'SPY');
+      if (result.success && attacker.controllerType === 'human') {
+        appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: result.message });
+      }
+      return result;
+    }
     case 'destroy_cash':
       return destroyCash(state, targetEmpire);
     case 'destroy_units':
@@ -211,8 +216,13 @@ export function performWizardSpell(
   }
 
   switch (spellType) {
-    case 'vision':
-      return spy(state, targetEmpire, 'VISION');
+    case 'vision': {
+      const result = spy(state, targetEmpire, 'VISION');
+      if (result.success && attacker.controllerType === 'human') {
+        appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: result.message });
+      }
+      return result;
+    }
     case 'hypnotize':
       return targetPlanet === undefined ? { success: false, message: 'No target planet selected' } : hypnotize(state, targetPlanet);
     case 'reduce_food':
