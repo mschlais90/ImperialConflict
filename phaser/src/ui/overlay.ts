@@ -5,7 +5,6 @@ import type { GameState } from '../core/galaxy/galaxyData';
 import { downloadSave, uploadSave, getSavedDirHandle, saveToDirectory, listSavesInDirectory, loadFromDirectory } from '../core/persistence/saveLoad';
 import type { GameSpeed } from '../core/events/eventLog';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
-import { BUILDINGS } from '../core/data/buildings';
 import { UNITS } from '../core/data/units';
 import { getEmpire, getPlanet } from '../core/selectors/selectors';
 import { renderBattleReport } from './battleReport';
@@ -718,8 +717,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     if (newEvents.length === 0) return;
     lastSeenEventId = newEvents[newEvents.length - 1].id;
 
-    // Group building/unit completions by type for concise toasts
-    const buildingCounts = new Map<string, number>();
+    // Group unit completions by type for concise toasts
     const unitCounts = new Map<string, number>();
     const toasts: Array<{ message: string; isError: boolean }> = [];
 
@@ -749,10 +747,6 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           break;
         }
         case 'building_completed': {
-          const planet = state.planets.find((p) => p.id === event.planetId);
-          if (!planet || planet.ownerId !== player.id) break;
-          const name = (BUILDINGS as Record<string, { name: string }>)[event.buildingType]?.name ?? event.buildingType;
-          buildingCounts.set(name, (buildingCounts.get(name) ?? 0) + 1);
           break;
         }
         case 'unit_completed': {
@@ -770,9 +764,6 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       }
     }
 
-    for (const [name, count] of buildingCounts) {
-      toasts.push({ message: count > 1 ? `${count}x ${name} completed` : `${name} completed`, isError: false });
-    }
     for (const [name, count] of unitCounts) {
       toasts.push({ message: count > 1 ? `${count}x ${name} completed` : `${name} completed`, isError: false });
     }
