@@ -76,17 +76,17 @@ export function resolveBattle(state: GameState, attackerFleet: Fleet, defenderPl
 
   const defenseBonus = defenderPlanet.resourceBonuses['defense'] ?? 1;
   const transportsBefore1 = getCount(attackerUnits, 'transport');
-  const airGround = phaseAirVsGround(state, attackerUnits, defenderPlanet.buildings.laser ?? 0, defenseBonus);
+  const airGround = phaseAirVsGround(state, attackerUnits, defenderPlanet.buildings.laser ?? 0, defenseBonus, attackerMilitaryBonus, defenderMilitaryBonus);
   airGround.groundLostToTransports = killProportionalGround(attackerUnits, airGround.transportsLost, transportsBefore1);
   report.phases.push(airGround);
   defenderPlanet.buildings.laser = airGround.remainingLasers;
 
   const transportsBefore2 = getCount(attackerUnits, 'transport');
-  const airAir = phaseAirVsAir(attackerUnits, defenderUnits, attackerMilitaryBonus, defenderMilitaryBonus);
+  const airAir = phaseAirVsAir(attackerUnits, defenderUnits, attackerMilitaryBonus, defenderMilitaryBonus, defenseBonus);
   airAir.groundLostToTransports = killProportionalGround(attackerUnits, airAir.transportsLostToFighters, transportsBefore2);
   report.phases.push(airAir);
 
-  const ground = phaseGroundVsGround(attackerUnits, defenderUnits, attackerMilitaryBonus, defenderMilitaryBonus);
+  const ground = phaseGroundVsGround(attackerUnits, defenderUnits, attackerMilitaryBonus, defenderMilitaryBonus, defenseBonus);
   report.phases.push(ground);
   report.attackerWon = ground.attackerWon;
 
@@ -191,23 +191,26 @@ function phaseAirVsGround(
   state: GameState,
   attackerUnits: UnitCounts,
   laserCount: number,
-  defenseBonus = 1,
+  defenseBonus: number,
+  attackerMilitaryBonus: number,
+  defenderMilitaryBonus: number,
 ): Extract<BattlePhaseReport, { phase: 'Air vs Ground' }> {
   let bombers = getCount(attackerUnits, 'bomber');
   let transports = getCount(attackerUnits, 'transport');
   let lasersDestroyed = 0;
 
+  const destroyChance = 0.1 * attackerMilitaryBonus;
   for (let i = 0; i < bombers; i += 1) {
     if (laserCount <= 0) {
       break;
     }
-    if (rollFloat(state) < 0.1) {
+    if (rollFloat(state) < destroyChance) {
       lasersDestroyed += 1;
       laserCount -= 1;
     }
   }
 
-  let unitsKilledByLasers = Math.trunc(laserCount * 10 * defenseBonus);
+  let unitsKilledByLasers = Math.trunc(laserCount * 10 * defenseBonus * defenderMilitaryBonus);
   const transportsLost = Math.min(transports, unitsKilledByLasers);
   unitsKilledByLasers -= transportsLost;
   transports -= transportsLost;
@@ -232,6 +235,7 @@ function phaseAirVsAir(
   defenderUnits: UnitCounts,
   attackerMilitaryBonus: number,
   defenderMilitaryBonus: number,
+  defenseBonus: number,
 ): Extract<BattlePhaseReport, { phase: 'Air vs Air' }> {
   let attackerFighters = getCount(attackerUnits, 'fighter');
   let defenderFighters = getCount(defenderUnits, 'fighter');
@@ -241,7 +245,7 @@ function phaseAirVsAir(
 
   if (attackerFighters > 0 && defenderFighters > 0) {
     const attackerPower = UNITS.fighter.airAttack * attackerMilitaryBonus;
-    const defenderPower = UNITS.fighter.airDefense * defenderMilitaryBonus;
+    const defenderPower = UNITS.fighter.airDefense * defenderMilitaryBonus * defenseBonus;
     const attackerLossRatio = (defenderPower * defenderFighters) / (attackerPower * attackerFighters) / 4;
     attackerFightersLost = Math.min(
       Math.trunc(Math.min(attackerFighters * attackerLossRatio, attackerFighters) / 2),
@@ -286,6 +290,7 @@ function phaseGroundVsGround(
   defenderUnits: UnitCounts,
   attackerMilitaryBonus: number,
   defenderMilitaryBonus: number,
+  defenseBonus: number,
 ): Extract<BattlePhaseReport, { phase: 'Ground vs Ground' }> {
   let transportCapacity = getCount(attackerUnits, 'transport') * (UNITS.transport.capacity ?? 100);
   const attackerSoldiers = Math.min(getCount(attackerUnits, 'soldier'), transportCapacity);
@@ -297,7 +302,7 @@ function phaseGroundVsGround(
     (attackerSoldiers * UNITS.soldier.groundAttack + attackerDroids * UNITS.droid.groundAttack) * attackerMilitaryBonus,
   );
   const defenderPower = Math.trunc(
-    (defenderSoldiers * UNITS.soldier.groundDefense + defenderDroids * UNITS.droid.groundDefense) * defenderMilitaryBonus,
+    (defenderSoldiers * UNITS.soldier.groundDefense + defenderDroids * UNITS.droid.groundDefense) * defenderMilitaryBonus * defenseBonus,
   );
   const attackerWon = attackerPower > defenderPower;
 
