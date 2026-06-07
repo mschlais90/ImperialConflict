@@ -47,6 +47,8 @@ export interface BattleReport {
   defenderLasers: number;
   /** Surviving defender units that retreated to a portal planet. */
   defenderRetreated?: UnitCounts;
+  /** Surviving attacker units that retreated to a portal planet. */
+  attackerRetreated?: UnitCounts;
 }
 
 export function resolveBattle(state: GameState, attackerFleet: Fleet, defenderPlanet: Planet): BattleReport {
@@ -107,6 +109,10 @@ export function resolveBattle(state: GameState, attackerFleet: Fleet, defenderPl
       wizard: 0,
     };
   } else {
+    // Surviving attacker units retreat to a portal planet if one exists
+    report.attackerRetreated = { ...attackerUnits };
+    retreatSurvivors(state, attackerFleet.ownerId, attackerUnits);
+
     const agents = defenderPlanet.units.agent ?? 0;
     const wizards = defenderPlanet.units.wizard ?? 0;
     defenderPlanet.units = {

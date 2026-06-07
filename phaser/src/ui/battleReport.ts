@@ -130,13 +130,29 @@ export function renderBattleReportContent(
   }
 
   // Retreat summary
-  if (report.attackerWon && report.defenderRetreated) {
-    const retreated = COMBAT_DISPLAY
-      .filter((unit) => (report.defenderRetreated![unit] ?? 0) > 0)
-      .map((unit) => `${formatNumber(report.defenderRetreated![unit]!)} ${UNITS[unit].name}`);
-    if (retreated.length > 0) {
+  {
+    const retreatLines: Array<[string, string]> = [];
+    if (report.attackerWon && report.defenderRetreated) {
+      const retreated = COMBAT_DISPLAY
+        .filter((unit) => (report.defenderRetreated![unit] ?? 0) > 0)
+        .map((unit) => `${formatNumber(report.defenderRetreated![unit]!)} ${UNITS[unit].name}`);
+      if (retreated.length > 0) {
+        retreatLines.push(['Defender retreated via portal', retreated.join(', ')]);
+      }
+    }
+    if (!report.attackerWon && report.attackerRetreated) {
+      const retreated = COMBAT_DISPLAY
+        .filter((unit) => (report.attackerRetreated![unit] ?? 0) > 0)
+        .map((unit) => `${formatNumber(report.attackerRetreated![unit]!)} ${UNITS[unit].name}`);
+      if (retreated.length > 0) {
+        retreatLines.push(['Attacker retreated via portal', retreated.join(', ')]);
+      }
+    }
+    if (retreatLines.length > 0) {
       frag.append(separator(), sectionHeader('Retreat'));
-      frag.append(detailRow('Defender retreated via portal', retreated.join(', ')));
+      for (const [label, value] of retreatLines) {
+        frag.append(detailRow(label, value));
+      }
     }
   }
 
@@ -226,10 +242,12 @@ export function calcBattleLosses(report: BattleReport, isAttacker: boolean): num
     return total;
   }
   if (isAttacker && !report.attackerWon) {
-    // Attacker lost — all initial units (fleet is destroyed, no retreat)
+    // Attacker lost — initial minus any that retreated to a portal
     let total = 0;
     for (const unit of COMBAT_DISPLAY) {
-      total += report.attackerInitial[unit] ?? 0;
+      const initial = report.attackerInitial[unit] ?? 0;
+      const retreated = report.attackerRetreated?.[unit] ?? 0;
+      total += initial - retreated;
     }
     return total;
   }
