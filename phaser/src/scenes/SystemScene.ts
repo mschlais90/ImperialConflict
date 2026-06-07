@@ -160,7 +160,8 @@ export class SystemScene extends Phaser.Scene {
       ring.strokeCircle(0, 0, radius + 4);
     }
 
-    if (planet.hasPortal) {
+    const isOwnPlanet = planet.ownerId === controller.clientState?.empireId;
+    if (isOwnPlanet && planet.hasPortal) {
       ring.fillStyle(0xfff3a1, 1);
       ring.fillTriangle(radius + 12, -8, radius + 22, 0, radius + 12, 8);
     }
@@ -195,7 +196,7 @@ export class SystemScene extends Phaser.Scene {
     const labelX = x - layout.labelWidth / 2;
     const labelY = y + radius + 14;
     this.add
-      .text(labelX, labelY, this.formatPlanetLabel(planet, ownerName), {
+      .text(labelX, labelY, this.formatPlanetLabel(planet, ownerName, isOwnPlanet), {
         color: '#e8edf7',
         fontFamily: 'Inter, system-ui, sans-serif',
         fontSize: `${layout.fontSize}px`,
@@ -288,10 +289,10 @@ export class SystemScene extends Phaser.Scene {
       .setResolution(2);
   }
 
-  private formatPlanetLabel(planet: Planet, ownerName: string): string {
-    const portal = planet.hasPortal ? '\nPortal' : '';
+  private formatPlanetLabel(planet: Planet, ownerName: string, isOwnPlanet: boolean): string {
+    const portal = isOwnPlanet && planet.hasPortal ? '\nPortal' : '';
     const owner = planet.ownerId >= 0 ? `\n${ownerName}` : '';
-    const lasers = (planet.buildings.laser ?? 0) > 0 ? `\nTurrets: ${planet.buildings.laser}` : '';
+    const lasers = isOwnPlanet && (planet.buildings.laser ?? 0) > 0 ? `\nTurrets: ${planet.buildings.laser}` : '';
 
     return `${planet.planetName}${owner}\nSize ${planet.size}  Pop ${Math.floor(planet.population)}${portal}${lasers}`;
   }

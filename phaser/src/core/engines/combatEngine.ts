@@ -92,6 +92,11 @@ export function resolveBattle(state: GameState, attackerFleet: Fleet, defenderPl
     retreatSurvivors(state, defenderId, defenderUnits);
 
     defenderPlanet.ownerId = attackerFleet.ownerId;
+    // Destroy portal on captured planet
+    if (defenderPlanet.hasPortal) {
+      defenderPlanet.hasPortal = false;
+      defenderPlanet.buildings.portal = 0;
+    }
     defenderPlanet.units = {
       fighter: getCount(attackerUnits, 'fighter'),
       bomber: getCount(attackerUnits, 'bomber'),
