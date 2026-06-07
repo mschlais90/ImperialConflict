@@ -699,6 +699,13 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[],
     }
   });
 
+  function applyPct(pct: number): void {
+    for (const unit of COMBAT_UNITS) {
+      const available = getAvailableUnits(unit);
+      inputs.get(unit)!.value = String(Math.floor(available * pct / 100));
+    }
+  }
+
   const sendBtn = button('Send fleet', () => {
     const units: Partial<Record<CombatUnitKey, number>> = {};
     for (const unit of COMBAT_UNITS) {
@@ -731,10 +738,36 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[],
     }
   });
 
+  sendBtn.classList.add('send-fleet-highlight');
+
   const btnRow = document.createElement('div');
   btnRow.className = 'fleet-btn-row';
   btnRow.append(sendAllBtn, sendBtn);
-  form.append(btnRow);
+
+  const pctRow = document.createElement('div');
+  pctRow.className = 'fleet-pct-row';
+  for (const pct of [5, 10, 25, 50, 75]) {
+    const pctBtn = button(`${pct}%`, () => applyPct(pct));
+    pctRow.append(pctBtn);
+  }
+
+  const customPctRow = document.createElement('div');
+  customPctRow.className = 'fleet-pct-row';
+  const customPctInput = document.createElement('input');
+  customPctInput.type = 'number';
+  customPctInput.min = '0';
+  customPctInput.max = '100';
+  customPctInput.value = '50';
+  customPctInput.className = 'fleet-pct-input';
+  const sendPctBtn = button('Send %', () => {
+    let val = parseInt(customPctInput.value, 10);
+    if (isNaN(val) || val < 0) val = 0;
+    if (val > 100) val = 100;
+    applyPct(val);
+  });
+  customPctRow.append(customPctInput, sendPctBtn);
+
+  form.append(btnRow, pctRow, customPctRow);
   return form;
 }
 

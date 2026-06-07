@@ -997,7 +997,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         if (result.ok) {
           controller.refreshScene?.();
         }
-        render();
+        refreshAfterTick();
       },
       setNotice(message, isError = false, rerender = false) {
         showToast(message, isError);

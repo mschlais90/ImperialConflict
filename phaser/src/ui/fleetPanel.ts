@@ -309,7 +309,16 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     refreshCheckboxes();
     updatePreview();
   });
-  toggleRow.append(selAllBtn, deselAllBtn);
+  const selNoPortalsBtn = button('Select All Without Portals', () => {
+    selected.clear();
+    for (const p of ownedPlanets) {
+      if (!p.hasPortal) selected.add(p.id);
+    }
+    refreshCheckboxes();
+    updatePreview();
+  });
+  selNoPortalsBtn.classList.add('mass-build-toggle-btn-compact');
+  toggleRow.append(selAllBtn, deselAllBtn, selNoPortalsBtn);
   wrapper.append(toggleRow);
 
   // Planet table
@@ -318,7 +327,7 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
 
   const headerRow = document.createElement('div');
   headerRow.className = 'mass-train-row mass-train-row-header';
-  for (const text of ['', 'Planet', '', 'Has', 'Can Train']) {
+  for (const text of ['', 'Planet', '', 'F', 'B', 'T', 'S', 'D', 'A', 'W', 'Has', 'Can Train']) {
     const cell = document.createElement('span');
     cell.textContent = text;
     headerRow.append(cell);
@@ -360,6 +369,14 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     portalCell.className = 'mass-train-cell-portal';
     portalCell.textContent = planet.hasPortal ? '\u{1F310}' : '';
 
+    const UNIT_COL_KEYS = ['fighter', 'bomber', 'transport', 'soldier', 'droid', 'agent', 'wizard'] as const;
+    const unitCountCells = UNIT_COL_KEYS.map((uk) => {
+      const cell = document.createElement('span');
+      cell.className = 'mass-train-cell-num';
+      cell.textContent = String(planet.units[uk] ?? 0);
+      return cell;
+    });
+
     const hasCell = document.createElement('span');
     hasCell.className = 'mass-train-cell-num';
     hasCell.textContent = String(planet.units[selectedUnitType as keyof typeof planet.units] ?? 0);
@@ -368,7 +385,7 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     affordCell.className = 'mass-train-cell-num';
     affordCell.textContent = String(maxAffordable(player.resources, UNITS[selectedUnitType].cost));
 
-    row.append(cbCell, nameCell, portalCell, hasCell, affordCell);
+    row.append(cbCell, nameCell, portalCell, ...unitCountCells, hasCell, affordCell);
     return row;
   }
 

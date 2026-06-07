@@ -149,7 +149,37 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     refreshCheckboxes();
     updateCostPreview();
   });
-  toggleRow.append(selectAllBtn, deselectAllBtn);
+  const selectNoLasersBtn = button('Select All Without Lasers', () => {
+    selected.clear();
+    for (const p of planets) {
+      const hasLaser = (p.buildings.laser ?? 0) > 0;
+      const laserInQueue = p.buildQueue.some((o) => o.category === 'building' && o.itemType === 'laser');
+      if (!hasLaser && !laserInQueue) selected.add(p.id);
+    }
+    refreshCheckboxes();
+    updateCostPreview();
+  });
+  selectNoLasersBtn.classList.add('mass-build-toggle-btn-compact');
+  const selectNoPortalsBtn = button('Select All Without Portals', () => {
+    selected.clear();
+    for (const p of planets) {
+      const portalInQueue = p.buildQueue.some((o) => o.category === 'building' && o.itemType === 'portal');
+      if (!p.hasPortal && !portalInQueue) selected.add(p.id);
+    }
+    refreshCheckboxes();
+    updateCostPreview();
+  });
+  selectNoPortalsBtn.classList.add('mass-build-toggle-btn-compact');
+  const selectNotOverbuiltBtn = button('Select All Not Overbuilt', () => {
+    selected.clear();
+    for (const p of planets) {
+      if (overbuildPercent(p) === 0) selected.add(p.id);
+    }
+    refreshCheckboxes();
+    updateCostPreview();
+  });
+  selectNotOverbuiltBtn.classList.add('mass-build-toggle-btn-compact');
+  toggleRow.append(selectAllBtn, deselectAllBtn, selectNoLasersBtn, selectNoPortalsBtn, selectNotOverbuiltBtn);
   container.append(toggleRow);
 
   // Planet table

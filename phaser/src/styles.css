@@ -292,6 +292,26 @@ h3 {
   gap: 8px;
 }
 
+.fleet-pct-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.fleet-pct-input {
+  width: 56px;
+  background: #0d1626;
+  color: #c7d5ee;
+  border: 1px solid rgba(160, 181, 218, 0.35);
+  border-radius: 6px;
+  padding: 7px 6px;
+}
+
+.send-fleet-highlight {
+  border-color: rgba(210, 60, 60, 0.65) !important;
+}
+
 .inline-form.wrap {
   flex-wrap: wrap;
 }
@@ -806,6 +826,11 @@ input[type="number"] {
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.mass-build-toggle-btn-compact {
+  font-size: 10px;
 }
 
 .mass-build-table {
@@ -891,8 +916,8 @@ input[type="number"] {
 /* Mass Train table */
 .mass-train-table {
   display: grid;
-  grid-template-columns: 24px auto 20px 44px 60px;
-  gap: 0 6px;
+  grid-template-columns: 24px auto 20px 22px 22px 22px 22px 22px 22px 22px 44px 60px;
+  gap: 0 4px;
   font-size: 12px;
   margin-bottom: 10px;
   justify-content: start;
