@@ -258,8 +258,11 @@ function phaseAirVsAir(
   }
 
   const attackerTransports = getCount(attackerUnits, 'transport');
-  if (defenderFighters > 0 && attackerTransports > 0) {
-    const lossRate = defenderFighters / (defenderFighters + Math.max(attackerFighters, 1));
+  if (attackerTransports > 0 && defenderFighters > 0) {
+    const initialAttackerFighters = attackerFighters + attackerFightersLost;
+    const lossRate = initialAttackerFighters > 0
+      ? attackerFightersLost / initialAttackerFighters
+      : 0.3;
     transportsLost = Math.trunc(attackerTransports * lossRate);
     attackerUnits.transport = attackerTransports - transportsLost;
   }
