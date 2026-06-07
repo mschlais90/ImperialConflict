@@ -9,7 +9,7 @@ import {
   type SolarSystem,
 } from '../models/types';
 import { createSeededRng, type Rng } from '../random/rng';
-import { getPlanetsInSystem } from '../selectors/selectors';
+
 
 export interface NewGameOptions {
   empireName?: string;
@@ -28,6 +28,9 @@ const MAX_PLANETS_PER_SYSTEM = 15;
 const MIN_PLANET_SIZE = 90;
 const MAX_PLANET_SIZE = 350;
 const AI_EMPIRE_COUNT = 3;
+
+/** Fixed planet sizes for every home system so all empires start on equal footing. */
+const HOME_PLANET_SIZES = [250, 300, 200, 270, 180, 230, 160, 310, 220, 190];
 
 const EMPIRE_COLORS = ['#3380ff', '#ff4d4d', '#4de64d', '#ffcc33', '#cc66ff', '#ff8833'] as const;
 
@@ -113,7 +116,6 @@ function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string, em
     state.systems.push(system);
 
     const planetCount = rng.intRange(MIN_PLANETS_PER_SYSTEM, MAX_PLANETS_PER_SYSTEM);
-    const systemPlanetsStart = state.planets.length;
     for (let planetIndex = 0; planetIndex < planetCount; planetIndex += 1) {
       const planetId = state.nextPlanetId;
       state.nextPlanetId += 1;
@@ -124,23 +126,10 @@ function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string, em
         size: rng.intRange(MIN_PLANET_SIZE, MAX_PLANET_SIZE),
       });
 
-      // Every planet gets one random bonus (1–5%)
-      const bonusKey = rng.pick(ALL_BONUS_KEYS);
-      planet.resourceBonuses[bonusKey] = rng.floatRange(1.01, 1.05);
+      assignRandomBonus(planet, rng);
 
       state.planets.push(planet);
       system.planetIds.push(planetId);
-    }
-
-    // One randomly chosen planet per system gets a second distinct bonus
-    const systemPlanets = state.planets.slice(systemPlanetsStart);
-    if (systemPlanets.length > 0) {
-      const doublePlanet = rng.pick(systemPlanets);
-      const existingKey = Object.keys(doublePlanet.resourceBonuses)[0] as BonusKey | undefined;
-      const remaining = ALL_BONUS_KEYS.filter((k) => k !== existingKey);
-      if (remaining.length > 0) {
-        doublePlanet.resourceBonuses[rng.pick(remaining)] = rng.floatRange(1.01, 1.05);
-      }
     }
   }
 
@@ -179,7 +168,10 @@ function createEmpires(state: GameState, rng: Rng, playerEmpireName: string, tot
     `Expected at least 3 systems to select a player home, got ${sortedByCenter.length}.`,
   );
 
-  const playerHomeIdx = sortedByCenter[rng.intRange(2, Math.min(6, sortedByCenter.length - 1))];
+  // Pick home systems from the inner half of the galaxy, spread apart
+  const innerHalf = sortedByCenter.slice(0, Math.max(Math.floor(sortedByCenter.length / 2), totalEmpires));
+
+  const playerHomeIdx = innerHalf[rng.intRange(0, Math.min(2, innerHalf.length - 1))];
   invariant(playerHomeIdx !== undefined, 'Unable to select a player home system.');
   homeSystemIndices.push(playerHomeIdx);
 
@@ -187,7 +179,7 @@ function createEmpires(state: GameState, rng: Rng, playerEmpireName: string, tot
     let bestIdx = -1;
     let bestMinDist = 0;
 
-    for (const candidateIdx of sortedByCenter) {
+    for (const candidateIdx of innerHalf) {
       if (homeSystemIndices.includes(candidateIdx)) {
         continue;
       }
@@ -223,7 +215,7 @@ function createEmpires(state: GameState, rng: Rng, playerEmpireName: string, tot
       color: EMPIRE_COLORS[i] ?? '#ffffff',
     });
 
-    assignHomePlanet(state, empire, homeSystemIndices[i]);
+    assignHomePlanet(state, empire, homeSystemIndices[i], rng);
     state.empires.push(empire);
 
     if (!isHuman) {
@@ -232,13 +224,34 @@ function createEmpires(state: GameState, rng: Rng, playerEmpireName: string, tot
   }
 }
 
-function assignHomePlanet(state: GameState, empire: Empire, homeSystemIndex: number): void {
+function assignHomePlanet(state: GameState, empire: Empire, homeSystemIndex: number, rng: Rng): void {
   const homeSystem = state.systems[homeSystemIndex];
   invariant(homeSystem !== undefined, `Unable to find home system at index ${homeSystemIndex}.`);
   empire.homeSystemId = homeSystem.id;
 
-  const [homePlanet] = [...getPlanetsInSystem(state, homeSystem.id)].sort((a, b) => b.size - a.size);
-  invariant(homePlanet !== undefined, `Unable to find a home planet in system ${homeSystem.id}.`);
+  // Remove existing planets from this system
+  const oldPlanetIds = new Set(homeSystem.planetIds);
+  state.planets = state.planets.filter((p) => !oldPlanetIds.has(p.id));
+  homeSystem.planetIds.length = 0;
+
+  // Generate exactly 10 planets with fixed sizes for fairness
+  for (let i = 0; i < HOME_PLANET_SIZES.length; i += 1) {
+    const planetId = state.nextPlanetId;
+    state.nextPlanetId += 1;
+    const planet = createPlanet({
+      id: planetId,
+      planetName: `${homeSystem.systemName} ${romanNumeral(i + 1)}`,
+      systemId: homeSystem.id,
+      size: HOME_PLANET_SIZES[i],
+    });
+    assignRandomBonus(planet, rng);
+    state.planets.push(planet);
+    homeSystem.planetIds.push(planetId);
+  }
+
+  // First planet (size 250) is the home planet
+  const homePlanet = state.planets.find((p) => p.id === homeSystem.planetIds[0]);
+  invariant(homePlanet !== undefined, `Unable to find home planet in system ${homeSystem.id}.`);
   setStartingPlanetState(homePlanet, empire.id);
   empire.homePlanetId = homePlanet.id;
   empire.resources = {
@@ -257,6 +270,22 @@ function setStartingPlanetState(planet: Planet, empireId: number): void {
   planet.resourceBonuses = {};
   planet.buildings = {};
   planet.units = {};
+}
+
+function assignRandomBonus(planet: Planet, rng: Rng): void {
+  const roll = rng.float();
+  if (roll < 0.5) {
+    // 50% — no bonus
+    return;
+  }
+  const bonusKey = rng.pick(ALL_BONUS_KEYS);
+  if (roll < 0.9) {
+    // 40% — bonus 1–20%
+    planet.resourceBonuses[bonusKey] = rng.floatRange(1.01, 1.20);
+  } else {
+    // 10% — bonus 20–30%
+    planet.resourceBonuses[bonusKey] = rng.floatRange(1.20, 1.30);
+  }
 }
 
 function systemDistanceFromCenter(system: SolarSystem): number {

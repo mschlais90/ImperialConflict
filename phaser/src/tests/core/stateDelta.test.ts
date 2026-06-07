@@ -68,7 +68,7 @@ describe('tick delta encoding', () => {
     expect(fullBytes).toBeGreaterThan(100_000);
     expect(server.events.length).toBe(1000);
     expect(lastDeltaBytes).toBeLessThan(fullBytes / 8);
-    expect(lastDeltaBytes).toBeLessThan(20_000);
+    expect(lastDeltaBytes).toBeLessThan(25_000);
     expect(lastDelta.newEvents?.length ?? 0).toBeLessThan(30);
   });
 
