@@ -28,6 +28,7 @@ import { MultiplayerClient } from '../net/multiplayerClient';
 import { createDualCommandProxy } from '../net/remoteCommandProxy';
 import { renderLobbyScreen, type LobbyController } from './lobbyScreen';
 import type { PlayerInfo, SerializedGameState } from '../core/protocol/messages';
+import { renderSimulatorScreen } from './simulatorScreen';
 import { renderTutorialScreen } from './tutorialScreen';
 import { startMusic, stopMusic } from './music';
 import { createSeededRng } from '../core/random/rng';
@@ -337,6 +338,16 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       showMultiplayerLobby();
     }, () => {
       showTutorial();
+    }, () => {
+      showSimulator();
+    });
+  }
+
+  function showSimulator(): void {
+    clearElement(root);
+    root.append(toastContainer);
+    renderSimulatorScreen(root, () => {
+      showStartScreen();
     });
   }
 

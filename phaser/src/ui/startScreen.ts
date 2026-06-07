@@ -1,6 +1,6 @@
 import { button } from './dom';
 
-export function renderStartScreen(root: HTMLElement, onStart: (empireName: string, difficulty: 'easy' | 'normal' | 'hard') => void, onLoad?: () => void, onMultiplayer?: () => void, onTutorial?: () => void): void {
+export function renderStartScreen(root: HTMLElement, onStart: (empireName: string, difficulty: 'easy' | 'normal' | 'hard') => void, onLoad?: () => void, onMultiplayer?: () => void, onTutorial?: () => void, onSimulator?: () => void): void {
   const shell = document.createElement('div');
   shell.className = 'start-screen interactive';
 
@@ -51,6 +51,11 @@ export function renderStartScreen(root: HTMLElement, onStart: (empireName: strin
     const tutBtn = button('Tutorial', () => onTutorial(), 'ui-button');
     tutBtn.type = 'button';
     btnRow.append(tutBtn);
+  }
+  if (onSimulator) {
+    const simBtn = button('Simulator', () => onSimulator(), 'ui-button');
+    simBtn.type = 'button';
+    btnRow.append(simBtn);
   }
 
   panel.append(title, label, diffLabel, btnRow);
