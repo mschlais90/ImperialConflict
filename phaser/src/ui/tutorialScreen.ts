@@ -29,7 +29,7 @@ export function renderTutorialScreen(root: HTMLElement, onBack: () => void): voi
       <h2>Getting Started</h2>
       <p>You begin with one home planet, some starting resources, and an explorer. Your first priorities:</p>
       <ol>
-        <li><strong>Build economy</strong> — Queue Cash Factories, Farms, and Mines on your home planet</li>
+        <li><strong>Build economy</strong> — Queue Cash Factories, Hydroponic Farms, and Mining Facilities on your home planet</li>
         <li><strong>Explore</strong> — Build explorers and send them to uncolonized planets to expand (press <kbd>E</kbd> for the Exploration panel)</li>
         <li><strong>Research</strong> — Set your research allocation to boost your empire</li>
         <li><strong>Raise military</strong> — Train fighters and soldiers to defend and attack</li>
@@ -51,9 +51,9 @@ export function renderTutorialScreen(root: HTMLElement, onBack: () => void): voi
       <h2>Buildings</h2>
       <div class="tutorial-grid">
         <div><strong>Cash Factory</strong></div><div>Generates GC income</div>
-        <div><strong>Farm</strong></div><div>Produces food</div>
-        <div><strong>Mine</strong></div><div>Produces iron</div>
-        <div><strong>Refinery</strong></div><div>Produces endurium</div>
+        <div><strong>Hydroponic Farm</strong></div><div>Produces food</div>
+        <div><strong>Mining Facility</strong></div><div>Produces iron</div>
+        <div><strong>Refinement Station</strong></div><div>Produces endurium</div>
         <div><strong>Occult Center</strong></div><div>Produces octarine</div>
         <div><strong>Research Center</strong></div><div>Generates research points</div>
         <div><strong>Tax Office</strong></div><div>Boosts GC income</div>
