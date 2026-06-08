@@ -6,6 +6,7 @@ export type GameLifecycleState = 'main_menu' | 'playing' | 'game_over';
 
 export interface AiControllerState {
   empireId: number;
+  difficulty: 'easy' | 'normal' | 'hard';
   recentAttacks: Record<number, { tick: number; powerNeeded: number }>;
 }
 

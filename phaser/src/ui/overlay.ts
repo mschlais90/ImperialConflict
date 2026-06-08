@@ -29,6 +29,7 @@ import { createDualCommandProxy } from '../net/remoteCommandProxy';
 import { renderLobbyScreen, type LobbyController } from './lobbyScreen';
 import type { PlayerInfo, SerializedGameState } from '../core/protocol/messages';
 import { renderSimulatorScreen } from './simulatorScreen';
+import { renderSinglePlayerSetup } from './singlePlayerSetup';
 import { renderTutorialScreen } from './tutorialScreen';
 import { startMusic, stopMusic } from './music';
 import { createSeededRng } from '../core/random/rng';
@@ -294,53 +295,66 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     clearElement(root);
     chatPanel = null;
     root.append(toastContainer);
-    renderStartScreen(root, (empireName, difficulty) => {
+    renderStartScreen(root, {
+      onSinglePlayer: () => showSinglePlayerSetup(),
+      onMultiplayer: () => showMultiplayerLobby(),
+      onTutorial: () => showTutorial(),
+      onSimulator: () => showSimulator(),
+      onLoad: () => {
+        getSavedDirHandle().then((dir) => {
+          if (dir) {
+            showLoadPicker({
+              controller,
+              player: undefined as never,
+              commands: undefined as never,
+              runCommand: () => {},
+              setNotice: (msg, isError) => showToast(msg, isError ?? false),
+              disconnectedPlayers,
+            });
+          } else {
+            openFilePicker({
+              controller,
+              player: undefined as never,
+              commands: undefined as never,
+              runCommand: () => {},
+              setNotice: (msg, isError) => showToast(msg, isError ?? false),
+              disconnectedPlayers,
+            });
+          }
+        });
+      },
+    });
+  }
+
+  function showSinglePlayerSetup(): void {
+    clearElement(root);
+    root.append(toastContainer);
+    renderSinglePlayerSetup(root, (options) => {
       forcedGameOver = null;
       viewMode = 'normal';
       battleReportQueue = [];
       speedBeforeBattle = null;
       battleReportScreen?.remove();
       battleReportScreen = null;
+      const empireCount = 1 + options.aiCount;
+      const difficulty = options.aiDifficulties[0] ?? 'normal';
       if (controller.startNewGame) {
-        controller.startNewGame(empireName, difficulty);
+        controller.startNewGame(options.empireName, difficulty, empireCount, options.aiDifficulties);
         syncLastSeenEventIds();
         startMusic();
         return;
       }
-      controller.playerName = empireName;
-      controller.state = createNewGame({ empireName, difficulty });
+      controller.playerName = options.empireName;
+      controller.state = createNewGame({
+        empireName: options.empireName,
+        difficulty,
+        empireCount,
+        aiDifficulties: options.aiDifficulties,
+      });
       syncLastSeenEventIds();
       startMusic();
       render();
-    }, () => {
-      getSavedDirHandle().then((dir) => {
-        if (dir) {
-          showLoadPicker({
-            controller,
-            player: undefined as never,
-            commands: undefined as never,
-            runCommand: () => {},
-            setNotice: (msg, isError) => showToast(msg, isError ?? false),
-            disconnectedPlayers,
-          });
-        } else {
-          openFilePicker({
-            controller,
-            player: undefined as never,
-            commands: undefined as never,
-            runCommand: () => {},
-            setNotice: (msg, isError) => showToast(msg, isError ?? false),
-            disconnectedPlayers,
-          });
-        }
-      });
-    }, () => {
-      showMultiplayerLobby();
-    }, () => {
-      showTutorial();
-    }, () => {
-      showSimulator();
-    });
+    }, () => showStartScreen());
   }
 
   function showSimulator(): void {

@@ -18,6 +18,8 @@ export interface NewGameOptions {
   empireCount?: number;
   /** AI difficulty level. Defaults to 'normal'. */
   difficulty?: 'easy' | 'normal' | 'hard';
+  /** Per-AI difficulty levels (indexed by AI number 0..n-1). Falls back to `difficulty`. */
+  aiDifficulties?: Array<'easy' | 'normal' | 'hard'>;
 }
 
 const GALAXY_RADIUS = 50;
@@ -95,13 +97,13 @@ export function createNewGame(options: NewGameOptions = {}): GameState {
   state.currentSpeed = 0;
   state.difficulty = options.difficulty;
 
-  generateGalaxy(state, rng, playerEmpireName, empireCount);
+  generateGalaxy(state, rng, playerEmpireName, empireCount, options.aiDifficulties);
   appendEvent(state, { type: 'game_started', tick: state.currentTick, empireName: playerEmpireName });
 
   return state;
 }
 
-function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string, empireCount: number): void {
+function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string, empireCount: number, aiDifficulties?: Array<'easy' | 'normal' | 'hard'>): void {
   const positions = generateSystemPositions(rng);
   invariant(
     positions.length === SYSTEM_COUNT,
@@ -133,7 +135,7 @@ function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string, em
     }
   }
 
-  createEmpires(state, rng, playerEmpireName, empireCount);
+  createEmpires(state, rng, playerEmpireName, empireCount, aiDifficulties);
 }
 
 function generateSystemPositions(rng: Rng): Array<{ x: number; y: number }> {
@@ -158,7 +160,7 @@ function generateSystemPositions(rng: Rng): Array<{ x: number; y: number }> {
   return positions;
 }
 
-function createEmpires(state: GameState, rng: Rng, playerEmpireName: string, totalEmpires: number): void {
+function createEmpires(state: GameState, rng: Rng, playerEmpireName: string, totalEmpires: number, aiDifficulties?: Array<'easy' | 'normal' | 'hard'>): void {
   const homeSystemIndices: number[] = [];
   const sortedByCenter = state.systems
     .map((_, index) => index)
@@ -219,7 +221,9 @@ function createEmpires(state: GameState, rng: Rng, playerEmpireName: string, tot
     state.empires.push(empire);
 
     if (!isHuman) {
-      state.aiControllers[empireId] = { empireId, recentAttacks: {} };
+      const aiIndex = i - 1;
+      const aiDiff = aiDifficulties?.[aiIndex] ?? state.difficulty ?? 'normal';
+      state.aiControllers[empireId] = { empireId, difficulty: aiDiff, recentAttacks: {} };
     }
   }
 }

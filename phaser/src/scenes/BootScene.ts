@@ -12,9 +12,9 @@ export class BootScene extends Phaser.Scene {
     const controller = this.registry.get(APP_CONTROLLER_KEY) as AppController;
 
     this.cameras.main.setBackgroundColor('#030610');
-    controller.startNewGame = (empireName: string, difficulty: 'easy' | 'normal' | 'hard') => {
+    controller.startNewGame = (empireName: string, difficulty: 'easy' | 'normal' | 'hard', empireCount?: number, aiDifficulties?: Array<'easy' | 'normal' | 'hard'>) => {
       controller.playerName = empireName;
-      const state = createNewGame({ empireName, difficulty });
+      const state = createNewGame({ empireName, difficulty, empireCount, aiDifficulties });
       controller.state = state;
       const player = getPlayerEmpire(state);
       controller.clientState = {

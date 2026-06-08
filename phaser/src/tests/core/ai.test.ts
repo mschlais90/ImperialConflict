@@ -99,7 +99,7 @@ describe('AI controller', () => {
   });
 
   it('launches pooled attack fleets with garrison, transport capacity, and launch events', () => {
-    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42, difficulty: 'hard' });
     state.currentTick = 101;
     const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     const source = getPlanetsForEmpire(state, ai.id)[0];
@@ -139,7 +139,7 @@ describe('AI controller', () => {
   });
 
   it('records recent attack attempts and uses cooldown before retargeting the same planet', () => {
-    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42, difficulty: 'hard' });
     const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     const source = getPlanetsForEmpire(state, ai.id)[0];
     const target = state.empires.find((empire) => empire.controllerType === 'human')!;
@@ -188,7 +188,7 @@ describe('AI controller', () => {
   });
 
   it('keeps excess ground units on their original planets when transport capacity is partial', () => {
-    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42, difficulty: 'hard' });
     const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
     const planets = prepareAiAttackPlanets(state, ai);
     const target = state.empires.find((empire) => empire.controllerType === 'human')!;
@@ -259,7 +259,7 @@ describe('AI controller', () => {
   });
 
   it('runs AI turns after all empires finish economy production', () => {
-    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42, difficulty: 'hard' });
     state.currentTick = 100;
 
     const [attacker, target] = state.empires.filter((empire) => empire.controllerType === 'ai');

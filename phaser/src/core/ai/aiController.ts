@@ -31,8 +31,9 @@ const MIN_GARRISON_PER_PLANET = 10;
 
 type DifficultyParams = { attackStartTick: number; strengthRatio: number; buildMultiplier: number; opsFrequency: number };
 
-function getDifficultyParams(state: GameState): DifficultyParams {
-  switch (state.difficulty ?? 'hard') {
+function getDifficultyParams(state: GameState, empireId: number): DifficultyParams {
+  const aiDiff = state.aiControllers[empireId]?.difficulty ?? state.difficulty ?? 'hard';
+  switch (aiDiff) {
     case 'easy': return { attackStartTick: 150, strengthRatio: 3.5, buildMultiplier: 0.4, opsFrequency: 10 };
     case 'normal': return { attackStartTick: 110, strengthRatio: 2.4, buildMultiplier: 0.8, opsFrequency: 7 };
     case 'hard': return { attackStartTick: 100, strengthRatio: 2.0, buildMultiplier: 1.0, opsFrequency: 5 };
@@ -68,7 +69,7 @@ export function processAiTurn(state: GameState, empireId: number, tickNumber: nu
     return;
   }
 
-  const diff = getDifficultyParams(state);
+  const diff = getDifficultyParams(state, empireId);
   getAiControllerState(state, empire.id);
   doBuilding(state, empire, planets);
   doColonization(state, empire, planets);
@@ -328,7 +329,7 @@ function doOperations(state: GameState, empire: Empire): void {
 function getAiControllerState(state: GameState, empireId: number): GameState['aiControllers'][number] {
   let controller = state.aiControllers[empireId];
   if (controller === undefined) {
-    controller = { empireId, recentAttacks: {} };
+    controller = { empireId, difficulty: state.difficulty ?? 'normal', recentAttacks: {} };
     state.aiControllers[empireId] = controller;
   }
   controller.recentAttacks ??= {};

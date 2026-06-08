@@ -121,6 +121,7 @@ export class Room {
           if (!this.state.aiControllers[removed.empireId]) {
             this.state.aiControllers[removed.empireId] = {
               empireId: removed.empireId,
+              difficulty: this.state.difficulty ?? 'normal',
               recentAttacks: {},
             };
           }

@@ -984,6 +984,40 @@ input[type="number"] {
   gap: 10px;
 }
 
+.start-btn-col {
+  flex-direction: column;
+}
+
+/* Single Player Setup */
+
+.sp-setup-panel {
+  width: min(480px, calc(100vw - 32px));
+}
+
+.sp-ai-section {
+  margin-bottom: 16px;
+}
+
+.sp-ai-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.sp-ai-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: #c7d5ee;
+}
+
+.sp-ai-name {
+  flex: 1;
+}
+
 .notice {
   padding: 6px 0;
   border-top: 1px solid rgba(160, 181, 218, 0.14);
