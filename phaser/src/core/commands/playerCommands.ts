@@ -375,10 +375,10 @@ export function sendExplorer(
     id: state.nextFleetId,
     ownerId: input.empireId,
     units: {},
-    originSystemId: resolved.planet.systemId,
+    originSystemId: explorerDonor.systemId,
     targetSystemId: target.systemId,
     targetPlanetId: target.id,
-    ticksRemaining: calcTravelTicks(state, resolved.planet.systemId, target.systemId),
+    ticksRemaining: calcTravelTicks(state, explorerDonor.systemId, target.systemId),
     isExploration: true,
   };
   state.nextFleetId += 1;
