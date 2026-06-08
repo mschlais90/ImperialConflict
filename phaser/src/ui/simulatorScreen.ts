@@ -2,6 +2,7 @@ import { resolveBattle } from '../core/engines/combatEngine';
 import { createEmptyGameState } from '../core/galaxy/galaxyData';
 import { createEmpire, createPlanet, type CombatUnitKey } from '../core/models/types';
 import { createSeededRng } from '../core/random/rng';
+import { calcEmpireNetworth } from '../core/selectors/selectors';
 import { renderBattleReportContent } from './battleReport';
 import { button } from './dom';
 
@@ -96,16 +97,14 @@ export function renderSimulatorScreen(root: HTMLElement, onBack: () => void): vo
     state.nextPlanetId = 10;
     state.nextFleetId = 2;
 
-    // Create empires with military research points
+    // Create empires (RP set after state is fully built so networth is accurate)
     const atkSciencePct = clamp(Number(atkScience.input.value) || 0, 0, 99);
     const defSciencePct = clamp(Number(defScience.input.value) || 0, 0, 99);
 
     const attacker = createEmpire({ id: 1, empireName: 'Attacker', controllerType: 'human', color: '#3380ff' });
-    attacker.researchPoints.military = sciencePercentToRp(atkSciencePct);
     state.empires.push(attacker);
 
     const defender = createEmpire({ id: 2, empireName: 'Defender', controllerType: 'human', color: '#ff4d4d' });
-    defender.researchPoints.military = sciencePercentToRp(defSciencePct);
     state.empires.push(defender);
 
     // Defender planet
@@ -164,6 +163,10 @@ export function renderSimulatorScreen(root: HTMLElement, onBack: () => void): vo
     }
     state.fleets.push(fleet);
 
+    // Set military RP using actual networth so the desired % is accurate
+    attacker.researchPoints.military = sciencePercentToRp(atkSciencePct, calcEmpireNetworth(state, attacker.id));
+    defender.researchPoints.military = sciencePercentToRp(defSciencePct, calcEmpireNetworth(state, defender.id));
+
     // Run battle
     const report = resolveBattle(state, fleet, defPlanet);
 
@@ -203,11 +206,12 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-/** Convert a desired military science % to research points (assuming networth = 1). */
-function sciencePercentToRp(pct: number): number {
+/** Convert a desired military science % to the research points needed for a given networth. */
+function sciencePercentToRp(pct: number, networth: number): number {
   if (pct <= 0) return 0;
   if (pct >= 100) pct = 99;
   // getSciencePercent: pct = 100 * (1 - exp(-rp / (100 * networth)))
-  // With networth = 1: rp = -100 * ln(1 - pct/100)
-  return -100 * Math.log(1 - pct / 100);
+  // Solving for rp: rp = -100 * networth * ln(1 - pct/100)
+  const nw = Math.max(networth, 1);
+  return -100 * nw * Math.log(1 - pct / 100);
 }
