@@ -90,25 +90,30 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
     return panel;
   }
 
-  // Find best source planet for travel tick calculation.
-  // Always show ticks based on nearest owned planet (portal planets first, then any).
-  // The source is picked by who has an idle explorer; if nobody does, still show
-  // distance from the closest owned planet so the player can plan ahead.
+  // Find the best source planet that has an explorer, and compute travel ticks from it.
+  // Portal planets can pool explorers from any other portal planet, so if any portal
+  // planet has an explorer the source is the nearest portal to the target.
   function bestTravelTicks(target: Planet): { ticks: number; source: Planet | null } {
+    const anyPortalHasExplorer = portalPlanets.some((p) => (p.units.explorer ?? 0) > 0);
+
+    // Best portal source: nearest portal planet to target (explorer can come from any portal)
     let bestPortal: Planet | null = null;
     let bestPortalTicks = Infinity;
-    for (const p of portalPlanets) {
-      const t = calcTravelTicks(state!, p.systemId, target.systemId);
-      if (t < bestPortalTicks) {
-        bestPortalTicks = t;
-        bestPortal = p;
+    if (anyPortalHasExplorer) {
+      for (const p of portalPlanets) {
+        const t = calcTravelTicks(state!, p.systemId, target.systemId);
+        if (t < bestPortalTicks) {
+          bestPortalTicks = t;
+          bestPortal = p;
+        }
       }
     }
 
+    // Best direct source: nearest non-portal planet that actually has an explorer
     let bestDirect: Planet | null = null;
     let bestDirectTicks = Infinity;
     for (const p of playerPlanets) {
-      if (p.hasPortal) continue;
+      if (p.hasPortal || (p.units.explorer ?? 0) <= 0) continue;
       const t = calcTravelTicks(state!, p.systemId, target.systemId);
       if (t < bestDirectTicks) {
         bestDirectTicks = t;
@@ -116,26 +121,21 @@ export function renderExplorationPanel(context: UiContext): HTMLElement {
       }
     }
 
-    // Prefer portal route if it's equal or shorter
-    const usePortal = bestPortal && (!bestDirect || bestPortalTicks <= bestDirectTicks);
-    const ticks = usePortal ? bestPortalTicks : bestDirect ? bestDirectTicks : Infinity;
-
-    // For the actual source (who donates the explorer), prefer planets with idle explorers
-    let source: Planet | null = null;
-    if (usePortal && portalPlanets.some((p) => (p.units.explorer ?? 0) > 0)) {
-      source = bestPortal;
-    } else {
-      const directWithExplorer = playerPlanets
-        .filter((p) => !p.hasPortal && (p.units.explorer ?? 0) > 0)
-        .sort((a, b) => calcTravelTicks(state!, a.systemId, target.systemId) - calcTravelTicks(state!, b.systemId, target.systemId));
-      if (directWithExplorer.length > 0) {
-        source = directWithExplorer[0];
-      } else if (portalPlanets.some((p) => (p.units.explorer ?? 0) > 0)) {
-        source = portalPlanets.find((p) => (p.units.explorer ?? 0) > 0)!;
-      }
+    // Pick whichever route is shorter
+    if (bestPortal && (!bestDirect || bestPortalTicks <= bestDirectTicks)) {
+      return { ticks: bestPortalTicks, source: bestPortal };
+    }
+    if (bestDirect) {
+      return { ticks: bestDirectTicks, source: bestDirect };
     }
 
-    return { ticks, source };
+    // No explorers available — show distance from nearest owned planet for planning
+    let nearestTicks = Infinity;
+    for (const p of playerPlanets) {
+      const t = calcTravelTicks(state!, p.systemId, target.systemId);
+      if (t < nearestTicks) nearestTicks = t;
+    }
+    return { ticks: nearestTicks, source: null };
   }
 
   // Build list with travel info and bonus

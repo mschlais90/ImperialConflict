@@ -371,14 +371,17 @@ export function sendExplorer(
   }
 
   explorerDonor.units.explorer = (explorerDonor.units.explorer ?? 0) - 1;
+  // When portal pooling, the explorer teleports to the source planet first,
+  // so travel time is from the source (nearest portal), not the donor.
+  const departureSystemId = resolved.planet.systemId;
   const fleet = {
     id: state.nextFleetId,
     ownerId: input.empireId,
     units: {},
-    originSystemId: explorerDonor.systemId,
+    originSystemId: departureSystemId,
     targetSystemId: target.systemId,
     targetPlanetId: target.id,
-    ticksRemaining: calcTravelTicks(state, explorerDonor.systemId, target.systemId),
+    ticksRemaining: calcTravelTicks(state, departureSystemId, target.systemId),
     isExploration: true,
   };
   state.nextFleetId += 1;
