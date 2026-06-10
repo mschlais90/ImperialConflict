@@ -28,7 +28,7 @@ export type GameEvent =
   | { type: 'unit_completed'; tick: number; empireId: number; counts: Partial<Record<UnitKey, number>> }
   | { type: 'empire_eliminated'; tick: number; empireId: number }
   | { type: 'planet_colonized'; tick: number; planetId: number; empireId: number }
-  | { type: 'notification'; tick: number; message: string; category?: string }
+  | { type: 'notification'; tick: number; message: string; category?: string; empireId?: number }
   | { type: 'game_over'; tick: number; playerWon: boolean };
 
 export type GameSpeed = 0 | 1 | 2 | 4 | 8;

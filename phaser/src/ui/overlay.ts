@@ -787,6 +787,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           break;
         }
         case 'notification':
+          if (event.empireId !== undefined && event.empireId !== player.id) break;
           toasts.push({ message: event.message, isError: false });
           break;
       }

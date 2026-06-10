@@ -301,6 +301,7 @@ function starvePopulation(state: GameState, empire: Empire, empirePlanets: Plane
       tick: state.currentTick,
       message: `Starvation! ${totalDeaths} population died. Income halved.`,
       category: 'warning',
+      empireId: empire.id,
     });
   }
 }

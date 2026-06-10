@@ -145,7 +145,7 @@ export function performAgentOp(
     const lost = loseAgentsOnFailure(state, attacker);
     const msg = `${agentOpName(opType)} failed against ${targetEmpire.empireName}! (${Math.trunc(chance * 100)}% chance) Lost ${lost} agent${lost === 1 ? '' : 's'}.`;
     if (attacker.controllerType === 'human') {
-      appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: msg });
+      appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: msg, empireId: attacker.id });
     }
     return { success: false, message: msg };
   }
@@ -154,7 +154,7 @@ export function performAgentOp(
     case 'spy': {
       const result = spy(state, targetEmpire, 'SPY');
       if (result.success && attacker.controllerType === 'human') {
-        appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: result.message });
+        appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: result.message, empireId: attacker.id });
       }
       return result;
     }
@@ -210,7 +210,7 @@ export function performWizardSpell(
     const lost = loseWizardsOnFailure(state, attacker);
     const msg = `${spellName(spellType)} failed against ${targetEmpire.empireName}! (${Math.trunc(chance * 100)}% chance) Lost ${lost} wizard${lost === 1 ? '' : 's'}.`;
     if (attacker.controllerType === 'human') {
-      appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: msg });
+      appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: msg, empireId: attacker.id });
     }
     return { success: false, message: msg };
   }
@@ -219,7 +219,7 @@ export function performWizardSpell(
     case 'vision': {
       const result = spy(state, targetEmpire, 'VISION');
       if (result.success && attacker.controllerType === 'human') {
-        appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: result.message });
+        appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: result.message, empireId: attacker.id });
       }
       return result;
     }
@@ -307,7 +307,7 @@ function destroyIron(state: GameState, target: Empire): OperationResult {
 
 function notifyDefender(state: GameState, defender: Empire, message: string): void {
   if (defender.controllerType === 'human') {
-    appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message });
+    appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message, empireId: defender.id });
   }
 }
 
