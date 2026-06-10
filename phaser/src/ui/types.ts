@@ -9,6 +9,8 @@ export interface UiContext {
   commands: CommandProxy;
   runCommand: (command: () => CommandResult) => void;
   setNotice: (message: string, isError?: boolean, rerender?: boolean) => void;
+  /** Suppress per-command toast messages (for batch operations like mass build). */
+  suppressCommandToasts: (suppress: boolean) => void;
   /** Empire IDs of players currently disconnected (multiplayer only). */
   disconnectedPlayers: ReadonlySet<number>;
 }

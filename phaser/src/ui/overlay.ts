@@ -84,6 +84,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   let speedBeforeBattle: number | null = null;
   let viewMode: 'normal' | 'economy' | 'standings' | 'history' | 'massBuild' | 'ops' | 'fleet' | 'settings' | 'research' | 'notifications' | 'exploration' = 'normal';
   let menuOpen = false;
+  let suppressCommandToasts = false;
 
   /** Find this client's empire using clientState.empireId (multiplayer-safe). */
   function getLocalPlayer() {
@@ -309,6 +310,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
               commands: undefined as never,
               runCommand: () => {},
               setNotice: (msg, isError) => showToast(msg, isError ?? false),
+              suppressCommandToasts: () => {},
               disconnectedPlayers,
             });
           } else {
@@ -318,6 +320,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
               commands: undefined as never,
               runCommand: () => {},
               setNotice: (msg, isError) => showToast(msg, isError ?? false),
+              suppressCommandToasts: () => {},
               disconnectedPlayers,
             });
           }
@@ -420,7 +423,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         applyServerState(state);
       },
       onCommandResult(ok, message) {
-        showToast(message, !ok);
+        if (!suppressCommandToasts) showToast(message, !ok);
       },
       onReconnected(empireId, state) {
         controller.clientState = {
@@ -1031,6 +1034,9 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       setNotice(message, isError = false, rerender = false) {
         showToast(message, isError);
         if (rerender) render();
+      },
+      suppressCommandToasts(suppress) {
+        suppressCommandToasts = suppress;
       },
       disconnectedPlayers,
     };

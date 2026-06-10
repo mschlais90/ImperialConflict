@@ -417,7 +417,9 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
     }
 
     let successCount = 0;
+    let totalQueued = 0;
     let lastError = '';
+    context.suppressCommandToasts(true);
     for (const planet of selectedPlanets) {
       const result = context.commands.queueBuilding({
         empireId: context.player.id,
@@ -427,13 +429,15 @@ export function renderMassBuildPanel(context: UiContext): HTMLElement {
       });
       if (result.ok) {
         successCount++;
+        totalQueued += count;
       } else {
         lastError = result.message;
       }
     }
+    context.suppressCommandToasts(false);
 
     if (successCount > 0) {
-      const msg = `Queued ${count} ${BUILDINGS[buildingType].name} on ${successCount} planet${successCount > 1 ? 's' : ''}`;
+      const msg = `Queued ${totalQueued} ${BUILDINGS[buildingType].name} across ${successCount} planet${successCount > 1 ? 's' : ''}`;
       if (lastError) {
         context.setNotice(`${msg} (${selectedPlanets.length - successCount} failed: ${lastError})`, false, true);
       } else {
