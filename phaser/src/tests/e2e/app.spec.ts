@@ -2,20 +2,15 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import type Phaser from 'phaser';
 
 test('starts a game and renders the management overlay with canvas', async ({ page }) => {
-  await page.goto('/');
+  await startGame(page);
 
-  await expect(page.getByRole('heading', { name: 'Imperial Conflict' })).toBeVisible();
-  await page.getByLabel('Empire name').fill('Smoke Empire');
-  await page.getByRole('button', { name: 'Start' }).click();
-
-  await expect(page.getByText('GC').first()).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Credits' }).first()).toBeVisible();
   await expect(page.getByText('Net worth')).toBeVisible();
-  await expect(page.getByRole('button', { name: '1x' })).toHaveAttribute('aria-pressed', 'true');
+  // Game starts paused
+  await expect(page.getByRole('button', { name: 'Pause' })).toHaveAttribute('aria-pressed', 'true');
   const initialTick = await readHudTick(page);
   await page.getByRole('button', { name: '4x' }).click();
-  await expect.poll(() => readHudTick(page), { timeout: 1_500 }).toBeGreaterThan(initialTick);
-  await expect(page.getByRole('heading', { name: 'Planet' })).toBeVisible();
-  await expect(page.getByText('Select a planet in a system.')).toBeVisible();
+  await expect.poll(() => readHudTick(page), { timeout: 6_000 }).toBeGreaterThan(initialTick);
 
   const canvas = page.locator('#game canvas');
 
@@ -47,8 +42,7 @@ test('starts a game and renders the management overlay with canvas', async ({ pa
 
 test('keeps the Phaser canvas visible after resize', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 667 });
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Start' }).click();
+  await startGame(page);
 
   const canvas = page.locator('#game canvas');
 
@@ -65,22 +59,28 @@ test('keeps the Phaser canvas visible after resize', async ({ page }) => {
 });
 
 test('shows validation notice instead of coercing invalid train counts', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Start' }).click();
+  await startGame(page);
 
-  const trainCount = page.getByLabel('Count').first();
-  await trainCount.fill('2.5');
-  await page.getByRole('button', { name: 'Train' }).click();
+  await clickPlayerHomeSystem(page);
+  await expect.poll(() => getActiveSceneKeys(page)).toContain('SystemScene');
+  await clickPlayerHomePlanet(page);
 
-  await expect(page.getByText('Train count must be a whole number.')).toBeVisible();
+  // Units & Training section is collapsed by default
+  await page.locator('summary', { hasText: 'Units & Training' }).click();
+  const unitsSection = page.locator('details.collapsible', { hasText: 'Units & Training' });
+  await unitsSection.locator('input').first().fill('2.5');
+  await page.getByRole('button', { name: 'Train All' }).click();
+
+  await expect(page.getByText('Fighter must be a whole number.')).toBeVisible();
 });
 
 test('rejects fractional research allocation before total validation', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Start' }).click();
+  await startGame(page);
+  await openResearchView(page);
 
-  await page.getByLabel('military').fill('20.5');
-  await page.getByLabel('welfare').fill('20.5');
+  const allocations = page.getByLabel('Allocation');
+  await allocations.nth(0).fill('20.5');
+  await allocations.nth(1).fill('20.5');
   await page.getByRole('button', { name: 'Apply research' }).click();
 
   await expect(page.getByText('Military allocation must be a whole number.')).toBeVisible();
@@ -88,33 +88,58 @@ test('rejects fractional research allocation before total validation', async ({ 
 });
 
 test('keeps active form edits while ticks refresh the HUD', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Start' }).click();
+  await startGame(page);
 
   const initialTick = await readHudTick(page);
   await page.getByRole('button', { name: '4x' }).click();
-  const military = page.getByLabel('military');
+  await openResearchView(page);
+
+  const military = page.getByLabel('Allocation').first();
   await military.fill('33');
 
-  await expect.poll(() => readHudTick(page), { timeout: 1_500 }).toBeGreaterThan(initialTick);
+  await expect.poll(() => readHudTick(page), { timeout: 6_000 }).toBeGreaterThan(initialTick);
   await expect(military).toHaveValue('33');
   await expect(military).toBeFocused();
 });
 
 test('enters a system, selects a home planet, and queues a building', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Start' }).click();
+  await startGame(page);
+
+  // The game starts paused, and the left panel only refreshes on ticks — run at 4x (2s/tick)
+  await page.getByRole('button', { name: '4x' }).click();
 
   await clickPlayerHomeSystem(page);
   await expect.poll(() => getActiveSceneKeys(page)).toContain('SystemScene');
+  // Left panel refreshes on the next tick after entering the system
+  await expect(page.getByText('Select a planet in a system.')).toBeVisible({ timeout: 15_000 });
 
   const homePlanetName = await clickPlayerHomePlanet(page);
   await expect(page.getByRole('heading', { name: homePlanetName })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Queue', exact: true }).click();
-  await expect(page.getByText('Queued 1 mine')).toBeVisible();
-  await expect(page.getByText('mine', { exact: true })).toBeVisible();
+  // Buildings section is open by default; first row is Mine
+  const buildingsSection = page.locator('details.collapsible', { hasText: 'Buildings' });
+  await buildingsSection.locator('input').first().fill('1');
+  await page.getByRole('button', { name: 'Build', exact: true }).click();
+
+  await expect(page.getByText('Buildings queued.')).toBeVisible();
 });
+
+async function startGame(page: Page): Promise<void> {
+  await page.goto('/');
+
+  await expect(page.getByRole('heading', { name: 'Imperial Conflict' })).toBeVisible();
+  await page.getByRole('button', { name: 'Single Player' }).click();
+  await page.getByLabel('Empire name').fill('Smoke Empire');
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+
+  await expect(page.getByText('Net worth')).toBeVisible();
+}
+
+async function openResearchView(page: Page): Promise<void> {
+  await page.getByTitle('Menu').click();
+  await page.getByRole('button', { name: 'Research' }).click();
+  await expect(page.getByRole('button', { name: 'Apply research' })).toBeVisible();
+}
 
 async function readHudTick(page: Page): Promise<number> {
   const text = await page.locator('.hud-stat').filter({ hasText: 'Tick' }).innerText();
