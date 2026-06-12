@@ -87,6 +87,7 @@ export function renderTutorialScreen(root: HTMLElement, onBack: () => void): voi
         <li><strong>Ground vs Ground</strong> — Soldiers and droids fight for the planet</li>
       </ol>
       <p>The winner captures the planet. Military research increases combat strength.</p>
+      <p>Every battle involving your empire appears in the <strong>Attack Log</strong> in the upper right. Use the To/From checkboxes to filter incoming and outgoing attacks, click a system name to jump to the battle site, or click the result to view the full battle report.</p>
     </section>
 
     <section>

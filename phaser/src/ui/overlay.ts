@@ -7,6 +7,7 @@ import type { GameSpeed } from '../core/events/eventLog';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { UNITS } from '../core/data/units';
 import { getEmpire, getPlanet } from '../core/selectors/selectors';
+import { createAttackLog } from './attackLog';
 import { renderBattleReport } from './battleReport';
 import { renderBattleHistoryPanel } from './battleHistory';
 import { clearElement } from './dom';
@@ -18,7 +19,7 @@ import { renderNotificationsContent, type NotificationCallbacks } from './notifi
 import { renderOpsPanel } from './opsPanel';
 import { renderPlanetPanel } from './planetPanel';
 import { renderResearchContent } from './researchPanel';
-import { renderSettingsPanel, shouldShowCombatPopups } from './settingsPanel';
+import { renderSettingsPanel } from './settingsPanel';
 import { renderStandingsPanel } from './standingsPanel';
 import { renderExplorationPanel } from './explorationPanel';
 import { renderStartScreen } from './startScreen';
@@ -78,10 +79,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   let leftPanel: HTMLElement | null = null;
   let gameOverScreen: HTMLElement | null = null;
   let battleReportScreen: HTMLElement | null = null;
-  let battleReportQueue: BattleReport[] = [];
-  let lastSeenBattleEventId = -1;
   let lastSeenEventId = -1;
-  let speedBeforeBattle: number | null = null;
   let viewMode: 'normal' | 'economy' | 'standings' | 'history' | 'massBuild' | 'ops' | 'fleet' | 'settings' | 'research' | 'notifications' | 'exploration' = 'normal';
   let menuOpen = false;
   let suppressCommandToasts = false;
@@ -105,6 +103,55 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     showStartScreen,
     showGameOver,
   };
+
+  // Persistent attack log window — lives outside the render cycle so its
+  // checkboxes and collapse state survive per-tick refreshes.
+  const attackLog = createAttackLog({
+    onNavigate: (systemId, planetId) => {
+      viewMode = 'normal';
+      if (controller.navigateToSystem) {
+        controller.navigateToSystem(systemId);
+        // navigateToSystem clears selectedPlanetId — set it after
+        controller.clientState!.selectedPlanetId = planetId;
+        controller.overlay.render();
+      } else {
+        controller.clientState!.selectedSystemId = systemId;
+        controller.clientState!.selectedPlanetId = planetId;
+        render();
+      }
+    },
+    onViewReport: (report) => {
+      showBattleReportPopup(report);
+    },
+  });
+
+  function showBattleReportPopup(report: BattleReport): void {
+    const state = controller.state;
+    if (!state) return;
+    const player = getLocalPlayer();
+    const attackerName = getEmpire(state, report.attackerId)?.empireName ?? 'Unknown';
+    const defenderName = getEmpire(state, report.defenderId)?.empireName ?? 'Unknown';
+    const isPlayerAttacker = player !== undefined && report.attackerId === player.id;
+
+    const reportEl = renderBattleReport(report, attackerName, defenderName, isPlayerAttacker, () => {
+      battleReportScreen?.remove();
+      battleReportScreen = null;
+    });
+
+    if (battleReportScreen) {
+      battleReportScreen.replaceWith(reportEl);
+    } else {
+      root.append(reportEl);
+    }
+    battleReportScreen = reportEl;
+  }
+
+  function updateAttackLog(): void {
+    const state = controller.state;
+    const player = getLocalPlayer();
+    if (!state || !player) return;
+    attackLog.update(state, player.id);
+  }
 
   function changeSpeed(state: NonNullable<typeof controller.state>, speed: GameSpeed): void {
     if (controller.isMultiplayer && !controller.isHost) return;
@@ -282,11 +329,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
   function syncLastSeenEventIds(): void {
     const state = controller.state;
     if (state && state.events.length > 0) {
-      const lastId = state.events[state.events.length - 1].id;
-      lastSeenBattleEventId = lastId;
-      lastSeenEventId = lastId;
+      lastSeenEventId = state.events[state.events.length - 1].id;
     } else {
-      lastSeenBattleEventId = -1;
       lastSeenEventId = -1;
     }
   }
@@ -335,8 +379,6 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     renderSinglePlayerSetup(root, (options) => {
       forcedGameOver = null;
       viewMode = 'normal';
-      battleReportQueue = [];
-      speedBeforeBattle = null;
       battleReportScreen?.remove();
       battleReportScreen = null;
       const empireCount = 1 + options.aiCount;
@@ -523,8 +565,6 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     forcedGameOver = null;
     viewMode = 'normal';
-    battleReportQueue = [];
-    speedBeforeBattle = null;
     battleReportScreen?.remove();
     battleReportScreen = null;
 
@@ -645,7 +685,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     if (selectFocused) {
       // Leave the left panel untouched so the native dropdown stays open.
       syncGameOverPanel();
-      checkForNewBattles();
+      updateAttackLog();
       checkForNewEvents();
       return;
     }
@@ -705,34 +745,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     }
 
     syncGameOverPanel();
-    checkForNewBattles();
+    updateAttackLog();
     checkForNewEvents();
-  }
-
-  function checkForNewBattles(): void {
-    const state = controller.state;
-    if (!state) return;
-    const player = getLocalPlayer();
-    if (!player) return;
-
-    const newBattles = state.events.filter(
-      (e) => e.type === 'battle_resolved' && e.id > lastSeenBattleEventId
-        && (e.attackerId === player.id || e.defenderId === player.id),
-    );
-
-    if (newBattles.length > 0) {
-      lastSeenBattleEventId = newBattles[newBattles.length - 1].id;
-      if (shouldShowCombatPopups()) {
-        for (const event of newBattles) {
-          if (event.type === 'battle_resolved') {
-            battleReportQueue.push(event.report);
-          }
-        }
-        if (!battleReportScreen) {
-          showNextBattleReport();
-        }
-      }
-    }
   }
 
   function checkForNewEvents(): void {
@@ -802,49 +816,6 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     }
   }
 
-  function showNextBattleReport(): void {
-    const state = controller.state;
-    if (!state || battleReportQueue.length === 0) {
-      battleReportScreen?.remove();
-      battleReportScreen = null;
-      if (speedBeforeBattle !== null && state) {
-        changeSpeed(state, speedBeforeBattle as 0 | 1 | 2 | 4);
-        speedBeforeBattle = null;
-        render();
-      }
-      return;
-    }
-
-    if (speedBeforeBattle === null) {
-      speedBeforeBattle = state.currentSpeed;
-      changeSpeed(state, SPEEDS.PAUSED);
-    }
-
-    const report = battleReportQueue.shift()!;
-    const player = getLocalPlayer();
-    const isPlayerAttacker = player !== undefined && report.attackerId === player.id;
-    const attackerEmpire = getEmpire(state, report.attackerId);
-    const defenderEmpire = getEmpire(state, report.defenderId);
-    const attackerName = attackerEmpire?.empireName ?? 'Unknown';
-    const defenderName = defenderEmpire?.empireName ?? 'Unknown';
-
-    const skipAll = battleReportQueue.length > 0 ? () => {
-      battleReportQueue.length = 0;
-      showNextBattleReport();
-    } : undefined;
-
-    const reportEl = renderBattleReport(report, attackerName, defenderName, isPlayerAttacker, () => {
-      showNextBattleReport();
-    }, skipAll);
-
-    if (battleReportScreen) {
-      battleReportScreen.replaceWith(reportEl);
-    } else {
-      root.append(reportEl);
-    }
-    battleReportScreen = reportEl;
-  }
-
   function render(): void {
     hudPanel = null;
     leftPanel = null;
@@ -884,7 +855,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
 
     body.append(leftPanel);
     shell.append(body);
-    root.append(shell, toastContainer);
+    root.append(shell, toastContainer, attackLog.element);
+    updateAttackLog();
     syncGameOverPanel();
 
     // Re-attach battle report popup if one was showing before render cleared root
@@ -956,7 +928,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     return panel;
   }
 
-  function createNotificationCallbacks(context: UiContext): NotificationCallbacks {
+  function createNotificationCallbacks(): NotificationCallbacks {
     return {
       onNavigateToPlanet: (systemId, planetId) => {
         viewMode = 'normal';
@@ -971,25 +943,8 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           render();
         }
       },
-      onViewBattle: (report, attackerId, defenderId) => {
-        const state = controller.state!;
-        const attackerEmpire = getEmpire(state, attackerId);
-        const defenderEmpire = getEmpire(state, defenderId);
-        const attackerName = attackerEmpire?.empireName ?? 'Unknown';
-        const defenderName = defenderEmpire?.empireName ?? 'Unknown';
-        const isPlayerAttacker = context.player.id === attackerId;
-
-        const reportEl = renderBattleReport(report, attackerName, defenderName, isPlayerAttacker, () => {
-          battleReportScreen?.remove();
-          battleReportScreen = null;
-        });
-
-        if (battleReportScreen) {
-          battleReportScreen.replaceWith(reportEl);
-        } else {
-          root.append(reportEl);
-        }
-        battleReportScreen = reportEl;
+      onViewBattle: (report) => {
+        showBattleReportPopup(report);
       },
     };
   }
@@ -1000,7 +955,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     panel.className = 'main-panel interactive';
     const title = document.createElement('h2');
     title.textContent = 'Notifications';
-    const callbacks = createNotificationCallbacks(context);
+    const callbacks = createNotificationCallbacks();
     panel.append(title, renderNotificationsContent(state, context.player.id, callbacks));
     return panel;
   }
