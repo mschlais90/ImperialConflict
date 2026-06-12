@@ -98,6 +98,7 @@ export function createAttackLog(callbacks: AttackLogCallbacks): AttackLog {
       gridHeader('System'),
       gridHeader('Result'),
       gridHeader('Lost'),
+      gridHeader('Report'),
     );
 
     // Newest first
@@ -120,20 +121,24 @@ export function createAttackLog(callbacks: AttackLogCallbacks): AttackLog {
         systemBtn.addEventListener('click', () => callbacks.onNavigate(system.id, planet.id));
       }
 
-      const resultBtn = document.createElement('button');
-      resultBtn.type = 'button';
-      resultBtn.className = playerWon
-        ? 'attack-log-cell attack-log-link attack-log-win'
-        : 'attack-log-cell attack-log-link attack-log-lost';
-      resultBtn.textContent = playerWon ? 'Win' : 'Lost';
-      resultBtn.title = 'View battle report';
-      resultBtn.addEventListener('click', () => callbacks.onViewReport(report));
+      const result = document.createElement('span');
+      result.className = playerWon
+        ? 'attack-log-cell attack-log-win'
+        : 'attack-log-cell attack-log-lost';
+      result.textContent = playerWon ? 'Win' : 'Lost';
 
       const lost = document.createElement('span');
       lost.className = 'attack-log-cell';
       lost.textContent = formatNumber(calcBattleLosses(report, isPlayerAttacker));
 
-      grid.append(systemBtn, resultBtn, lost);
+      const reportBtn = document.createElement('button');
+      reportBtn.type = 'button';
+      reportBtn.className = 'attack-log-cell attack-log-link';
+      reportBtn.textContent = 'View';
+      reportBtn.title = 'View battle report';
+      reportBtn.addEventListener('click', () => callbacks.onViewReport(report));
+
+      grid.append(systemBtn, result, lost, reportBtn);
     }
 
     list.append(grid);

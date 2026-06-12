@@ -1900,7 +1900,8 @@ details.collapsible[open] > summary::before {
 /* Attack log (persistent window, upper-right below HUD) */
 .attack-log-panel {
   position: fixed;
-  top: 72px;
+  /* Below the HUD and clear of the close (X) button on full-page panels */
+  top: 140px;
   right: 12px;
   width: 280px;
   background: rgba(8, 13, 27, 0.86);
@@ -1973,7 +1974,7 @@ details.collapsible[open] > summary::before {
 
 .attack-log-grid {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 2px 12px;
   align-items: center;
 }
