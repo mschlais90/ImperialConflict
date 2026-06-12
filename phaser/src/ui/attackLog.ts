@@ -14,11 +14,22 @@ export interface AttackLog {
   update(state: GameState, playerId: number): void;
 }
 
+interface BattleEntry {
+  id: number;
+  planetId: number;
+  attackerId: number;
+  defenderId: number;
+  report: BattleReport;
+}
+
 /**
  * Persistent attack log window (upper-right, below the HUD).
  * The outer element is created once and survives overlay re-renders, so the
  * To/From checkboxes and collapse state are never reset by the tick cycle.
  * Only the row list is rebuilt, and only when its contents actually change.
+ *
+ * Battles are accumulated into a local history because the core event log is
+ * capped (eventLog.ts MAX_EVENTS) and prunes old battle_resolved events.
  */
 export function createAttackLog(callbacks: AttackLogCallbacks): AttackLog {
   let collapsed = false;
@@ -27,6 +38,8 @@ export function createAttackLog(callbacks: AttackLogCallbacks): AttackLog {
   let lastSignature = '';
   let currentState: GameState | null = null;
   let currentPlayerId = -1;
+  let history: BattleEntry[] = [];
+  let lastIngestedEventId = -1;
 
   const element = document.createElement('div');
   element.className = 'attack-log-panel interactive';
@@ -76,9 +89,8 @@ export function createAttackLog(callbacks: AttackLogCallbacks): AttackLog {
     const state = currentState;
     if (!state) return;
 
-    const battles = state.events.filter(
-      (e) => e.type === 'battle_resolved'
-        && ((showFrom && e.attackerId === currentPlayerId) || (showTo && e.defenderId === currentPlayerId)),
+    const battles = history.filter(
+      (b) => (showFrom && b.attackerId === currentPlayerId) || (showTo && b.defenderId === currentPlayerId),
     );
 
     const scrollTop = list.scrollTop;
@@ -104,7 +116,6 @@ export function createAttackLog(callbacks: AttackLogCallbacks): AttackLog {
     // Newest first
     for (let i = battles.length - 1; i >= 0; i--) {
       const event = battles[i];
-      if (event.type !== 'battle_resolved') continue;
       const report = event.report;
       const isPlayerAttacker = event.attackerId === currentPlayerId;
       const playerWon = report.attackerWon === isPlayerAttacker;
@@ -146,12 +157,31 @@ export function createAttackLog(callbacks: AttackLogCallbacks): AttackLog {
   }
 
   function update(state: GameState, playerId: number): void {
+    if (state !== currentState) {
+      // New game or loaded save — restart history from this state's event log
+      history = [];
+      lastIngestedEventId = -1;
+    }
     currentState = state;
     currentPlayerId = playerId;
 
-    const battleEvents = state.events.filter((e) => e.type === 'battle_resolved');
-    const lastId = battleEvents.length > 0 ? battleEvents[battleEvents.length - 1].id : -1;
-    const signature = `${playerId}:${battleEvents.length}:${lastId}:${showTo}:${showFrom}`;
+    for (const event of state.events) {
+      if (event.id <= lastIngestedEventId) continue;
+      if (event.type === 'battle_resolved') {
+        history.push({
+          id: event.id,
+          planetId: event.planetId,
+          attackerId: event.attackerId,
+          defenderId: event.defenderId,
+          report: event.report,
+        });
+      }
+    }
+    if (state.events.length > 0) {
+      lastIngestedEventId = state.events[state.events.length - 1].id;
+    }
+
+    const signature = `${playerId}:${history.length}:${showTo}:${showFrom}`;
     if (signature === lastSignature) return;
     lastSignature = signature;
     rebuildList();

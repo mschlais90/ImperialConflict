@@ -34,7 +34,6 @@ function isRelevantToPlayer(event: EventLogEntry, state: GameState, playerId: nu
     // Always hidden
     case 'building_completed':
     case 'speed_changed':
-    case 'tick_processed':
       return false;
 
     // Always shown
@@ -198,9 +197,6 @@ function buildEventContent(
       return;
     case 'game_over':
       container.textContent = `Tick ${event.tick}: ${event.playerWon ? 'Victory' : 'Defeat'}.`;
-      return;
-    case 'tick_processed':
-      container.textContent = `Tick ${event.tick}: Economy processed.`;
       return;
   }
 }

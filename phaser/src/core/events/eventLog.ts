@@ -4,7 +4,6 @@ import type { BuildingKey, UnitKey } from '../models/types';
 
 export type GameEvent =
   | { type: 'game_started'; tick: number; empireName: string }
-  | { type: 'tick_processed'; tick: number }
   | { type: 'speed_changed'; tick: number; speed: GameSpeed }
   | {
       type: 'fleet_launched';
