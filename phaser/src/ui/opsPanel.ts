@@ -15,6 +15,10 @@ import { button, formatNumber, select } from './dom';
 import { resourceIcon } from './resourceIcons';
 import type { UiContext } from './types';
 
+// Persist last selected targets across re-renders
+let persistedEmpireId: number | null = null;
+let persistedPlanetId: number | null = null;
+
 const AGENT_OPS: { type: AgentOperationType; name: string; description: string; needsPlanet: boolean }[] = [
   { type: 'spy', name: 'Spy', description: 'Reveal enemy resources and planet count.', needsPlanet: false },
   { type: 'destroy_cash', name: 'Destroy Cash', description: 'Destroy 3-10% of enemy GC.', needsPlanet: false },
@@ -67,9 +71,13 @@ export function renderOpsPanel(context: UiContext): HTMLElement {
   const targetRow = document.createElement('div');
   targetRow.className = 'ops-target-row';
 
+  // Use persisted empire if still valid, otherwise first enemy
+  const defaultEmpire = persistedEmpireId !== null && enemies.some((e) => e.id === persistedEmpireId)
+    ? persistedEmpireId
+    : enemies[0].id;
   const empireSelect = select(
     enemies.map((e) => ({ label: e.empireName, value: e.id })),
-    enemies[0].id,
+    defaultEmpire,
   );
   const empireLabel = document.createElement('label');
   empireLabel.className = 'form-row';
@@ -82,13 +90,21 @@ export function renderOpsPanel(context: UiContext): HTMLElement {
   function rebuildPlanetSelect(): void {
     const empireId = Number(empireSelect.value);
     const planets = getPlanetsForEmpire(state!, empireId);
+    // Use persisted planet if still owned by the selected empire
+    const defaultPlanet = persistedPlanetId !== null && planets.some((p) => p.id === persistedPlanetId)
+      ? persistedPlanetId
+      : planets.length > 0 ? planets[0].id : -1;
     const newPlanetSelect = select(
       planets.map((p) => ({ label: p.planetName, value: p.id })),
-      planets.length > 0 ? planets[0].id : -1,
+      defaultPlanet,
     );
     const newLabel = document.createElement('label');
     newLabel.className = 'form-row';
     newLabel.append(document.createTextNode('Target Planet'), newPlanetSelect);
+
+    newPlanetSelect.addEventListener('change', () => {
+      persistedPlanetId = Number(newPlanetSelect.value);
+    });
 
     if (planetSelectLabel) {
       planetSelectLabel.replaceWith(newLabel);
@@ -97,10 +113,16 @@ export function renderOpsPanel(context: UiContext): HTMLElement {
     }
     planetSelectLabel = newLabel;
     planetSelect = newPlanetSelect;
+    persistedPlanetId = Number(newPlanetSelect.value);
   }
 
   rebuildPlanetSelect();
-  empireSelect.addEventListener('change', rebuildPlanetSelect);
+  empireSelect.addEventListener('change', () => {
+    persistedEmpireId = Number(empireSelect.value);
+    rebuildPlanetSelect();
+  });
+  // Initialize persisted values from current selections (rebuildPlanetSelect sets planetSelect)
+  persistedEmpireId = Number(empireSelect.value);
   panel.append(targetRow);
 
   // Success chance info
