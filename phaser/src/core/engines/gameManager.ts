@@ -123,7 +123,7 @@ function generateGalaxy(state: GameState, rng: Rng, playerEmpireName: string, em
       state.nextPlanetId += 1;
       const planet = createPlanet({
         id: planetId,
-        planetName: `${systemName} ${romanNumeral(planetIndex + 1)}`,
+        planetName: `${systemName} ${planetIndex + 1}`,
         systemId,
         size: rng.intRange(MIN_PLANET_SIZE, MAX_PLANET_SIZE),
       });
@@ -244,7 +244,7 @@ function assignHomePlanet(state: GameState, empire: Empire, homeSystemIndex: num
     state.nextPlanetId += 1;
     const planet = createPlanet({
       id: planetId,
-      planetName: `${homeSystem.systemName} ${romanNumeral(i + 1)}`,
+      planetName: `${homeSystem.systemName} ${i + 1}`,
       systemId: homeSystem.id,
       size: HOME_PLANET_SIZES[i],
     });
@@ -306,39 +306,3 @@ function invariant(condition: boolean, message: string): asserts condition {
   }
 }
 
-function romanNumeral(n: number): string {
-  switch (n) {
-    case 1:
-      return 'I';
-    case 2:
-      return 'II';
-    case 3:
-      return 'III';
-    case 4:
-      return 'IV';
-    case 5:
-      return 'V';
-    case 6:
-      return 'VI';
-    case 7:
-      return 'VII';
-    case 8:
-      return 'VIII';
-    case 9:
-      return 'IX';
-    case 10:
-      return 'X';
-    case 11:
-      return 'XI';
-    case 12:
-      return 'XII';
-    case 13:
-      return 'XIII';
-    case 14:
-      return 'XIV';
-    case 15:
-      return 'XV';
-    default:
-      return String(n);
-  }
-}

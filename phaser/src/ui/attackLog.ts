@@ -123,10 +123,13 @@ export function createAttackLog(callbacks: AttackLogCallbacks): AttackLog {
       const planet = getPlanet(state, event.planetId);
       const system = planet ? getSystem(state, planet.systemId) : undefined;
 
+      const planetIndex = system ? system.planetIds.indexOf(event.planetId) + 1 : 0;
+      const locationLabel = system ? `${system.systemName}:${planetIndex}` : 'Unknown';
+
       const systemBtn = document.createElement('button');
       systemBtn.type = 'button';
       systemBtn.className = 'attack-log-cell attack-log-link';
-      systemBtn.textContent = system?.systemName ?? 'Unknown';
+      systemBtn.textContent = locationLabel;
       systemBtn.title = `Go to ${planet?.planetName ?? 'planet'}`;
       if (planet && system) {
         systemBtn.addEventListener('click', () => callbacks.onNavigate(system.id, planet.id));

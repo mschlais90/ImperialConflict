@@ -6,7 +6,7 @@ import { downloadSave, uploadSave, getSavedDirHandle, saveToDirectory, listSaves
 import type { GameSpeed } from '../core/events/eventLog';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { UNITS } from '../core/data/units';
-import { getEmpire, getPlanet } from '../core/selectors/selectors';
+import { getEmpire, getPlanet, getSystem } from '../core/selectors/selectors';
 import { createAttackLog } from './attackLog';
 import { renderBattleReport } from './battleReport';
 import { renderBattleHistoryPanel } from './battleHistory';
@@ -779,6 +779,15 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           if (isLocalPlayer && controller.isMultiplayer) {
             showEliminatedOverlay();
           }
+          break;
+        }
+        case 'battle_resolved': {
+          if (event.defenderId !== player.id) break;
+          const battlePlanet = getPlanet(state, event.planetId);
+          const battleSystem = battlePlanet ? getSystem(state, battlePlanet.systemId) : undefined;
+          const planetIdx = battleSystem ? battleSystem.planetIds.indexOf(event.planetId) + 1 : 0;
+          const loc = battleSystem ? `${battleSystem.systemName}:${planetIdx}` : (battlePlanet?.planetName ?? 'Unknown');
+          toasts.push({ message: `You are under attack at ${loc}!`, isError: true });
           break;
         }
         case 'fleet_arrived': {
