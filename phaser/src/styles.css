@@ -1609,6 +1609,8 @@ details.collapsible[open] > summary::before {
 .exploration-btn {
   font-size: 11px;
   padding: 3px 8px;
+  min-width: 110px;
+  white-space: nowrap;
 }
 
 .exploration-cell-center {
