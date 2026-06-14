@@ -20,6 +20,14 @@ export function renderBattleReport(
   const panel = document.createElement('div');
   panel.className = 'battle-report-panel';
 
+  const xBtn = document.createElement('button');
+  xBtn.type = 'button';
+  xBtn.className = 'panel-close-btn';
+  xBtn.textContent = '\u00D7';
+  xBtn.title = 'Close (Escape)';
+  xBtn.addEventListener('click', onClose);
+  panel.append(xBtn);
+
   panel.append(renderBattleReportContent(report, attackerName, defenderName, isPlayerAttacker));
 
   const btnRow = document.createElement('div');
@@ -72,29 +80,28 @@ export function renderBattleReportContent(
   subtitle.textContent = `${attackerName} attacked ${defenderName} at ${report.planetName}`;
   frag.append(subtitle);
 
-  // Initial Forces
-  frag.append(separator(), sectionHeader('Initial Forces'));
+  // Initial Forces — only show the player's own units
+  frag.append(separator(), sectionHeader('Your Forces'));
 
   const forcesGrid = document.createElement('div');
   forcesGrid.className = 'battle-forces-grid';
 
-  forcesGrid.append(headerCell(''), headerCell('Attacker'), headerCell('Defender'));
+  forcesGrid.append(headerCell(''), headerCell('Count'));
 
   for (const unit of COMBAT_DISPLAY) {
-    const atkCount = report.attackerInitial[unit] ?? 0;
-    const defCount = (report.defenderInitial as Partial<Record<PlanetUnitKey, number>>)[unit] ?? 0;
-    if (atkCount === 0 && defCount === 0) continue;
+    const count = isPlayerAttacker
+      ? (report.attackerInitial[unit] ?? 0)
+      : ((report.defenderInitial as Partial<Record<PlanetUnitKey, number>>)[unit] ?? 0);
+    if (count === 0) continue;
     forcesGrid.append(
       labelCell(UNITS[unit].name),
-      valueCell(formatNumber(atkCount)),
-      valueCell(formatNumber(defCount)),
+      valueCell(formatNumber(count)),
     );
   }
 
-  if (report.defenderLasers > 0) {
+  if (!isPlayerAttacker && report.defenderLasers > 0) {
     forcesGrid.append(
       labelCell('Lasers'),
-      valueCell('-'),
       valueCell(formatNumber(report.defenderLasers)),
     );
   }
@@ -103,55 +110,37 @@ export function renderBattleReportContent(
 
   // Phase details
   for (const phase of report.phases) {
-    frag.append(separator(), renderPhase(phase));
+    frag.append(separator(), renderPhase(phase, isPlayerAttacker));
   }
 
   // Casualty summary
-  const atkLosses = calcBattleLosses(report, true);
-  const defLosses = calcBattleLosses(report, false);
-  if (atkLosses > 0 || defLosses > 0) {
+  const playerLosses = calcBattleLosses(report, isPlayerAttacker);
+  const enemyLosses = calcBattleLosses(report, !isPlayerAttacker);
+  if (playerLosses > 0 || enemyLosses > 0) {
     frag.append(separator(), sectionHeader('Casualties'));
-    const atkRow = detailRow('Attacker lost', `${formatNumber(atkLosses)} units`);
-    const defRow = detailRow('Defender lost', `${formatNumber(defLosses)} units`);
-    if (isPlayerAttacker) {
-      atkRow.querySelector('.battle-detail-value')!.classList.add('loss');
-      defRow.querySelector('.battle-detail-value')!.classList.add('battle-kills');
-    } else {
-      defRow.querySelector('.battle-detail-value')!.classList.add('loss');
-      atkRow.querySelector('.battle-detail-value')!.classList.add('battle-kills');
+    if (enemyLosses > 0) {
+      const killRow = detailRow('Enemy units destroyed', `${formatNumber(enemyLosses)}`);
+      killRow.querySelector('.battle-detail-value')!.classList.add('battle-kills');
+      frag.append(killRow);
     }
-    frag.append(atkRow, defRow);
-    if (atkLosses > 0 && defLosses > 0) {
-      const ratio = atkLosses >= defLosses
-        ? `1:${(atkLosses / defLosses).toFixed(1)}`
-        : `${(defLosses / atkLosses).toFixed(1)}:1`;
-      frag.append(detailRow('Kill ratio (def:atk)', ratio));
+    if (playerLosses > 0) {
+      const lossRow = detailRow('Your units lost', `${formatNumber(playerLosses)}`);
+      lossRow.querySelector('.battle-detail-value')!.classList.add('loss');
+      frag.append(lossRow);
     }
   }
 
-  // Retreat summary
+  // Retreat summary — only show the player's own retreats
   {
-    const retreatLines: Array<[string, string]> = [];
-    if (report.attackerWon && report.defenderRetreated) {
+    const playerRetreated = isPlayerAttacker ? report.attackerRetreated : report.defenderRetreated;
+    const playerLost = isPlayerAttacker ? !report.attackerWon : report.attackerWon;
+    if (playerLost && playerRetreated) {
       const retreated = COMBAT_DISPLAY
-        .filter((unit) => (report.defenderRetreated![unit] ?? 0) > 0)
-        .map((unit) => `${formatNumber(report.defenderRetreated![unit]!)} ${UNITS[unit].name}`);
+        .filter((unit) => (playerRetreated[unit] ?? 0) > 0)
+        .map((unit) => `${formatNumber(playerRetreated[unit]!)} ${UNITS[unit].name}`);
       if (retreated.length > 0) {
-        retreatLines.push(['Defender retreated via portal', retreated.join(', ')]);
-      }
-    }
-    if (!report.attackerWon && report.attackerRetreated) {
-      const retreated = COMBAT_DISPLAY
-        .filter((unit) => (report.attackerRetreated![unit] ?? 0) > 0)
-        .map((unit) => `${formatNumber(report.attackerRetreated![unit]!)} ${UNITS[unit].name}`);
-      if (retreated.length > 0) {
-        retreatLines.push(['Attacker retreated via portal', retreated.join(', ')]);
-      }
-    }
-    if (retreatLines.length > 0) {
-      frag.append(separator(), sectionHeader('Retreat'));
-      for (const [label, value] of retreatLines) {
-        frag.append(detailRow(label, value));
+        frag.append(separator(), sectionHeader('Retreat'));
+        frag.append(detailRow('Retreated via portal', retreated.join(', ')));
       }
     }
   }
@@ -170,7 +159,8 @@ export function renderBattleReportContent(
   return frag;
 }
 
-function renderPhase(phase: BattlePhaseReport): HTMLElement {
+
+function renderPhase(phase: BattlePhaseReport, isPlayerAttacker: boolean): HTMLElement {
   const frag = document.createElement('div');
   frag.append(sectionHeader(phase.phase));
 
@@ -178,7 +168,11 @@ function renderPhase(phase: BattlePhaseReport): HTMLElement {
     case 'Air vs Ground': {
       frag.append(
         detailRow('Lasers destroyed', formatNumber(phase.lasersDestroyed)),
-        detailRow('Lasers remaining', formatNumber(phase.remainingLasers)),
+      );
+      if (!isPlayerAttacker) {
+        frag.append(detailRow('Lasers remaining', formatNumber(phase.remainingLasers)));
+      }
+      frag.append(
         detailRow('Bombers lost', formatNumber(phase.bombersLost), true),
         detailRow('Transports lost', formatNumber(phase.transportsLost), true),
       );
@@ -210,8 +204,6 @@ function renderPhase(phase: BattlePhaseReport): HTMLElement {
     }
     case 'Ground vs Ground': {
       frag.append(
-        detailRow('Attacker ground power', formatNumber(phase.atkPower)),
-        detailRow('Defender ground power', formatNumber(phase.defPower)),
         detailRow('Attacker soldiers lost', formatNumber(phase.atkSoldiersLost), true),
         detailRow('Attacker droids lost', formatNumber(phase.atkDroidsLost), true),
         detailRow('Defender soldiers lost', formatNumber(phase.defSoldiersLost), true),

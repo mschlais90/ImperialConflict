@@ -173,6 +173,13 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     const state = controller.state;
     if (!state || state.currentState === 'main_menu') return;
 
+    // Close battle report on any hotkey press
+    if (battleReportScreen) {
+      battleReportScreen.remove();
+      battleReportScreen = null;
+      if (event.key.toLowerCase() === 'escape') return;
+    }
+
     switch (event.key.toLowerCase()) {
       case 'g':
         viewMode = 'normal';
