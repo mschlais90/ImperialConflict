@@ -811,6 +811,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         }
         case 'notification':
           if (event.empireId !== undefined && event.empireId !== player.id) break;
+          if (event.category === 'combat') break;
           toasts.push({ message: event.message, isError: false });
           break;
       }
