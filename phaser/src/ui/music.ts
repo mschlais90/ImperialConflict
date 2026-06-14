@@ -1,7 +1,10 @@
 const MUSIC_ENABLED_KEY = 'ic_music_enabled';
 
+const TRACKS = ['orbit-wardens.mp3', 'starlit-drift.mp3'];
+
 let audio: HTMLAudioElement | null = null;
 let started = false;
+let trackIndex = 0;
 
 function isEnabled(): boolean {
   try {
@@ -29,16 +32,24 @@ export function setMusicEnabled(enabled: boolean): void {
   }
 }
 
+function playTrack(): void {
+  if (!audio) {
+    audio = new Audio(TRACKS[trackIndex]);
+    audio.volume = 0.3;
+    audio.addEventListener('ended', () => {
+      trackIndex = (trackIndex + 1) % TRACKS.length;
+      audio!.src = TRACKS[trackIndex];
+      audio!.play().catch(() => {});
+    });
+  }
+}
+
 export function startMusic(): void {
   if (!isEnabled()) return;
   if (!audio) {
-    audio = new Audio('orbit-wardens.mp3');
-    audio.loop = true;
-    audio.volume = 0.3;
+    playTrack();
   }
   if (!started) {
-    // Browsers block autoplay — attempt to play, and if it fails,
-    // wait for the next user interaction to retry.
     const tryPlay = () => {
       audio!.play().then(() => {
         started = true;

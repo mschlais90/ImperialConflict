@@ -35,6 +35,7 @@ const MENU_ITEMS: Array<{ label: string; key: string; mode: string | null; separ
   { label: '', key: '', mode: null, separator: true },
   { label: 'Save', key: '', mode: null },
   { label: 'Load', key: '', mode: null },
+  { label: 'Settings', key: 'S', mode: 'settings' },
 ];
 
 export function renderHud(context: UiContext, menu?: MenuCallbacks): HTMLElement {
