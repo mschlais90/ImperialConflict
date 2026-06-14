@@ -1251,6 +1251,15 @@ function gameOverScreenPanel(playerWon: boolean, state?: GameState | null): HTML
   shell.className = 'game-over-screen interactive';
   const panel = document.createElement('div');
   panel.className = 'game-over-panel';
+
+  const xBtn = document.createElement('button');
+  xBtn.type = 'button';
+  xBtn.className = 'panel-close-btn';
+  xBtn.textContent = '\u00D7';
+  xBtn.title = 'Close';
+  xBtn.addEventListener('click', () => shell.remove());
+  panel.append(xBtn);
+
   const title = document.createElement('h2');
   title.textContent = playerWon ? 'Victory' : 'Defeat';
   const message = document.createElement('p');
