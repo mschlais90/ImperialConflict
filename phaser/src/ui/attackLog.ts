@@ -69,11 +69,11 @@ export function createAttackLog(callbacks: AttackLogCallbacks): AttackLog {
 
   const filters = document.createElement('div');
   filters.className = 'attack-log-filters';
-  const toCheckbox = filterCheckbox('To', 'Attacks against your empire', true, (checked) => {
+  const toCheckbox = filterCheckbox('Defending', 'Attacks against your empire', true, (checked) => {
     showTo = checked;
     rebuildList();
   });
-  const fromCheckbox = filterCheckbox('From', 'Attacks launched by your empire', true, (checked) => {
+  const fromCheckbox = filterCheckbox('Attacking', 'Attacks launched by your empire', true, (checked) => {
     showFrom = checked;
     rebuildList();
   });
