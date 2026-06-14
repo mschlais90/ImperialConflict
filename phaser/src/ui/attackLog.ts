@@ -56,7 +56,45 @@ export function createAttackLog(callbacks: AttackLogCallbacks): AttackLog {
   collapseBtn.textContent = '\u25BE';
   collapseBtn.title = 'Collapse';
   header.append(title, collapseBtn);
+
+  // Drag-to-move support: distinguish drag from click (collapse toggle)
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let dragOffsetX = 0;
+  let dragOffsetY = 0;
+  let dragging = false;
+  let didDrag = false;
+
+  header.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    dragging = true;
+    didDrag = false;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    const rect = element.getBoundingClientRect();
+    dragOffsetX = e.clientX - rect.left;
+    dragOffsetY = e.clientY - rect.top;
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    if (!didDrag && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+    didDrag = true;
+    element.style.left = `${e.clientX - dragOffsetX}px`;
+    element.style.top = `${e.clientY - dragOffsetY}px`;
+    element.style.right = 'auto';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+  });
+
   header.addEventListener('click', () => {
+    if (didDrag) return;
     collapsed = !collapsed;
     collapseBtn.textContent = collapsed ? '\u25B8' : '\u25BE';
     collapseBtn.title = collapsed ? 'Expand' : 'Collapse';

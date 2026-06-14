@@ -1921,8 +1921,12 @@ details.collapsible[open] > summary::before {
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  cursor: pointer;
+  cursor: grab;
   user-select: none;
+}
+
+.attack-log-header:active {
+  cursor: grabbing;
 }
 
 .attack-log-title {
