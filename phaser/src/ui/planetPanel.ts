@@ -9,6 +9,10 @@ import type { UiContext } from './types';
 
 const BUILDING_KEYS = Object.keys(BUILDINGS) as BuildingKey[];
 
+/** Persisted fleet source selection across re-renders, keyed by target planet ID. */
+let persistedFleetSource: number | null = null;
+let persistedFleetSourceTarget: number | null = null;
+
 const BONUS_DISPLAY_LABELS: Record<BonusKey, string> = {
   gc: 'Cash', food: 'Food', iron: 'Iron', endurium: 'Endurium', octarine: 'Octarine',
   research: 'Research', population_growth: 'Population Growth', defense: 'Defense',
@@ -637,9 +641,20 @@ export function fleetForm(context: UiContext, target: Planet, sources: Planet[],
     sourceOptions.push({ label: `${planet.planetName} (${ticks} ticks)`, value: planet.id });
   }
 
-  const defaultValue = hasPortalOption ? PORTAL_NETWORK_VALUE : sourcesWithTicks[0].planet.id;
-  const sourceSelect = select(sourceOptions, defaultValue);
+  const fallbackValue = hasPortalOption ? PORTAL_NETWORK_VALUE : sourcesWithTicks[0].planet.id;
+  const restoredValue = persistedFleetSourceTarget === target.id
+    && persistedFleetSource !== null
+    && sourceOptions.some((o) => o.value === persistedFleetSource)
+    ? persistedFleetSource
+    : fallbackValue;
+  const sourceSelect = select(sourceOptions, restoredValue);
   sourceSelect.className = 'fleet-source-select';
+  sourceSelect.addEventListener('change', () => {
+    persistedFleetSource = Number(sourceSelect.value);
+    persistedFleetSourceTarget = target.id;
+  });
+  persistedFleetSource = Number(sourceSelect.value);
+  persistedFleetSourceTarget = target.id;
   const sourceRow = document.createElement('label');
   sourceRow.className = 'fleet-source-row';
   sourceRow.append(document.createTextNode('Source'), sourceSelect);
