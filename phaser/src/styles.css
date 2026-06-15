@@ -702,9 +702,12 @@ input[type="number"] {
 
 .battle-forces-grid {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 2px 12px;
+  grid-template-columns: 1fr auto;
+  gap: 4px 20px;
   margin-bottom: 4px;
+  padding: 6px 8px;
+  background: rgba(20, 30, 50, 0.4);
+  border-radius: 4px;
 }
 
 .battle-forces-header {
@@ -712,6 +715,8 @@ input[type="number"] {
   color: #8694ab;
   font-weight: bold;
   text-align: right;
+  padding-bottom: 2px;
+  border-bottom: 1px solid rgba(130, 154, 196, 0.15);
 }
 .battle-forces-header:first-child { text-align: left; }
 
@@ -722,12 +727,13 @@ input[type="number"] {
 .battle-forces-value {
   text-align: right;
   color: #e0e8f0;
+  font-weight: bold;
 }
 
 .battle-detail-row {
   display: flex;
   justify-content: space-between;
-  padding: 1px 0;
+  padding: 2px 8px;
 }
 
 .battle-detail-label {
@@ -736,6 +742,7 @@ input[type="number"] {
 
 .battle-detail-value {
   color: #e0e8f0;
+  font-weight: bold;
 }
 .battle-detail-value.loss {
   color: #ff8080;
