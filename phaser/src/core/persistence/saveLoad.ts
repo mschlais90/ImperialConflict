@@ -30,7 +30,7 @@ function deserialize(json: string): GameState {
   if (save.version !== SAVE_VERSION) {
     throw new Error(`Unsupported save version: ${save.version}`);
   }
-  return { ...save.gameState, rng: createRngFromState(save.rngState) };
+  return { ...save.gameState, tickSnapshots: save.gameState.tickSnapshots ?? [], rng: createRngFromState(save.rngState) };
 }
 
 function migrateV1toV2(save: SaveData): void {

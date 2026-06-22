@@ -1,6 +1,6 @@
 import type { AgentOperationType, SpellType } from '../engines/opsEngine';
 import type { EventLogEntry, GameSpeed } from '../events/eventLog';
-import type { AiControllerState, GameLifecycleState, GameState } from '../galaxy/galaxyData';
+import type { AiControllerState, GameLifecycleState, GameState, TickSnapshot } from '../galaxy/galaxyData';
 import type { BuildingKey, CombatUnitKey, Empire, Fleet, Planet, ScienceKey, SolarSystem, UnitKey } from '../models/types';
 
 // ---------------------------------------------------------------------------
@@ -69,6 +69,7 @@ export interface TickDelta {
   fleets?: Fleet[];
   aiControllers?: Record<number, AiControllerState>;
   newEvents?: EventLogEntry[];
+  newSnapshots?: TickSnapshot[];
 }
 
 // ---------------------------------------------------------------------------

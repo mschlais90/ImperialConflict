@@ -4,6 +4,20 @@ import { createSeededRng, type Rng } from '../random/rng';
 
 export type GameLifecycleState = 'main_menu' | 'playing' | 'game_over';
 
+/** Per-empire metrics captured once per tick for the post-game history chart. */
+export interface EmpireSnapshot {
+  empireId: number;
+  planets: number;
+  networth: number;
+  buildings: number;
+  military: number;
+}
+
+export interface TickSnapshot {
+  tick: number;
+  empires: EmpireSnapshot[];
+}
+
 export interface AiControllerState {
   empireId: number;
   difficulty: 'easy' | 'normal' | 'hard';
@@ -31,6 +45,7 @@ export interface GameState {
   nextFleetId: number;
   nextEventId: number;
   rng?: Rng;
+  tickSnapshots: TickSnapshot[];
 }
 
 export function createEmptyGameState(): GameState {
@@ -54,5 +69,6 @@ export function createEmptyGameState(): GameState {
     nextFleetId: 0,
     nextEventId: 0,
     rng: createSeededRng(0),
+    tickSnapshots: [],
   };
 }

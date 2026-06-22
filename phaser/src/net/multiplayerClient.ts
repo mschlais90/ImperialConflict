@@ -16,6 +16,7 @@ function cloneStateView(state: SerializedGameState): SerializedGameState {
     planets: [...state.planets],
     fleets: [...state.fleets],
     events: [...state.events],
+    tickSnapshots: [...(state.tickSnapshots ?? [])],
   };
 }
 

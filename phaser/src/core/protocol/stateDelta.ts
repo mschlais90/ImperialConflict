@@ -13,6 +13,7 @@ export interface DeltaSnapshot {
   fleets: string;
   aiControllers: string;
   lastEventId: number;
+  lastSnapshotTick: number;
 }
 
 /** Mirror the event-log cap on the client so its history can't grow unbounded. */
@@ -34,6 +35,7 @@ function highestEventId(state: GameState | SerializedGameState): number {
 }
 
 export function createDeltaSnapshot(state: GameState): DeltaSnapshot {
+  const snaps = state.tickSnapshots ?? [];
   return {
     empires: snapshotById(state.empires),
     planets: snapshotById(state.planets),
@@ -41,6 +43,7 @@ export function createDeltaSnapshot(state: GameState): DeltaSnapshot {
     fleets: JSON.stringify(state.fleets),
     aiControllers: JSON.stringify(state.aiControllers),
     lastEventId: highestEventId(state),
+    lastSnapshotTick: snaps.length > 0 ? snaps[snaps.length - 1].tick : -1,
   };
 }
 
@@ -106,6 +109,13 @@ export function computeTickDelta(state: GameState, snapshot: DeltaSnapshot): Tic
     snapshot.lastEventId = highestEventId(state);
   }
 
+  const snaps = state.tickSnapshots ?? [];
+  const newSnapshots = snaps.filter((s) => s.tick > snapshot.lastSnapshotTick);
+  if (newSnapshots.length > 0) {
+    delta.newSnapshots = newSnapshots;
+    snapshot.lastSnapshotTick = snaps[snaps.length - 1].tick;
+  }
+
   return delta;
 }
 
@@ -139,5 +149,11 @@ export function applyTickDelta(state: SerializedGameState, delta: TickDelta): vo
     if (state.events.length > MAX_CLIENT_EVENTS) {
       state.events.splice(0, state.events.length - MAX_CLIENT_EVENTS);
     }
+  }
+
+  if (delta.newSnapshots) {
+    const target = state.tickSnapshots ?? [];
+    target.push(...delta.newSnapshots);
+    state.tickSnapshots = target;
   }
 }

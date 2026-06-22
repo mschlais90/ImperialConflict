@@ -23,6 +23,7 @@ import { renderSettingsPanel } from './settingsPanel';
 import { renderStandingsPanel } from './standingsPanel';
 import { getDisplayColor } from './displayColor';
 import { renderExplorationPanel } from './explorationPanel';
+import { createHistoryChart } from './historyChart';
 import { renderStartScreen } from './startScreen';
 import type { UiContext } from './types';
 import { createLocalCommandProxy } from '../net/commandProxy';
@@ -1302,6 +1303,13 @@ function gameOverScreenPanel(playerWon: boolean, state: GameState | null | undef
       results.append(rowEl);
     }
     panel.append(results);
+
+    // History chart
+    const snaps = state.tickSnapshots ?? [];
+    if (snaps.length > 1) {
+      const chart = createHistoryChart(snaps, state.empires, localEmpireId);
+      panel.append(chart);
+    }
   }
 
   shell.append(panel);
