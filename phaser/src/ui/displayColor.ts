@@ -7,14 +7,17 @@ import type { Empire } from '../core/models/types';
  */
 const PLAYER_COLOR = '#3380ff';
 
+/** Orange — used exclusively for systems contested between the local player and an enemy. */
+export const PLAYER_CONTESTED_COLOR = 0xff8c00;
+
 const OTHER_COLORS = [
   '#ff4d4d',  // red
   '#4de64d',  // green
   '#ffcc33',  // yellow
   '#cc66ff',  // purple
-  '#ff8833',  // orange
   '#33cccc',  // teal
   '#ff66b2',  // pink
+  '#b366ff',  // violet
 ];
 
 export function getDisplayColor(empire: Empire, localEmpireId: number): string {

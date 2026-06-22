@@ -3,13 +3,13 @@ import { APP_CONTROLLER_KEY, type AppController } from '../app/appController';
 import { UNITS } from '../core/data/units';
 import { getEmpire, getPlanetsInSystem, getSystem, getSystemOwner, isSystemContested } from '../core/selectors/selectors';
 import type { CombatUnitKey } from '../core/models/types';
-import { displayColorNumber } from '../ui/displayColor';
+import type { GameState } from '../core/galaxy/galaxyData';
+import { displayColorNumber, PLAYER_CONTESTED_COLOR } from '../ui/displayColor';
 
 const GODOT_SCALE = 20;
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 3;
 const NEUTRAL_COLOR = 0x70798a;
-const CONTESTED_COLOR = 0xff8c00;
 const HOME_MARKER_COLOR = 0xffffff;
 
 export class GalaxyScene extends Phaser.Scene {
@@ -130,11 +130,8 @@ export class GalaxyScene extends Phaser.Scene {
     for (const system of state.systems) {
       const x = system.position.x * GODOT_SCALE;
       const y = system.position.y * GODOT_SCALE;
-      const ownerId = getSystemOwner(state, system.id);
-      const owner = ownerId >= 0 ? getEmpire(state, ownerId) : undefined;
-      const contested = isSystemContested(state, system.id);
       const playerEmpireId = controller.clientState?.empireId ?? 0;
-      const color = contested ? CONTESTED_COLOR : owner ? displayColorNumber(owner, playerEmpireId) : NEUTRAL_COLOR;
+      const color = this.systemColor(state, system.id, playerEmpireId);
       const isHomeSystem = state.empires.some((empire) => empire.homeSystemId === system.id);
 
       const marker = this.add.graphics({ x, y });
@@ -360,6 +357,29 @@ export class GalaxyScene extends Phaser.Scene {
     }
 
     return controller.state;
+  }
+
+  /** Determine the display color for a system dot on the galaxy map. */
+  private systemColor(state: GameState, systemId: number, localEmpireId: number): number {
+    const contested = isSystemContested(state, systemId);
+    const ownerId = getSystemOwner(state, systemId);
+    const owner = ownerId >= 0 ? getEmpire(state, ownerId) : undefined;
+
+    if (!contested) {
+      return owner ? displayColorNumber(owner, localEmpireId) : NEUTRAL_COLOR;
+    }
+
+    // Contested: does the local player own any planets here?
+    const planets = getPlanetsInSystem(state, systemId);
+    const playerOwns = planets.some((p) => p.ownerId === localEmpireId);
+
+    if (playerOwns) {
+      // Player is contesting this system — always orange
+      return PLAYER_CONTESTED_COLOR;
+    }
+
+    // Contested between other empires only — show the majority owner's color
+    return owner ? displayColorNumber(owner, localEmpireId) : NEUTRAL_COLOR;
   }
 
 }
