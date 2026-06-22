@@ -1,5 +1,6 @@
 import type { CombatUnitKey } from '../core/models/types';
 import { calcEmpireNetworth, getPlanetsForEmpire } from '../core/selectors/selectors';
+import { getDisplayColor } from './displayColor';
 import { formatNumber } from './dom';
 import type { UiContext } from './types';
 
@@ -123,7 +124,8 @@ export function renderStandingsPanel(context: UiContext): HTMLElement {
 
     const name = document.createElement('span');
     name.textContent = row.empire.empireName;
-    name.style.color = row.empire.color;
+    const playerEmpireId = context.controller.clientState?.empireId ?? 0;
+    name.style.color = getDisplayColor(row.empire, playerEmpireId);
 
     const nw = document.createElement('span');
     nw.textContent = formatNumber(Math.floor(row.nw));

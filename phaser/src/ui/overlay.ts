@@ -21,6 +21,7 @@ import { renderPlanetPanel } from './planetPanel';
 import { renderResearchContent } from './researchPanel';
 import { renderSettingsPanel } from './settingsPanel';
 import { renderStandingsPanel } from './standingsPanel';
+import { getDisplayColor } from './displayColor';
 import { renderExplorationPanel } from './explorationPanel';
 import { renderStartScreen } from './startScreen';
 import type { UiContext } from './types';
@@ -1026,7 +1027,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       return;
     }
 
-    const nextGameOverScreen = gameOverScreenPanel(playerWon ?? false, state);
+    const nextGameOverScreen = gameOverScreenPanel(playerWon ?? false, state, controller.clientState?.empireId ?? 0);
     if (gameOverScreen) {
       gameOverScreen.replaceWith(nextGameOverScreen);
     } else {
@@ -1246,7 +1247,7 @@ function errorPanel(message: string): HTMLElement {
   return panel;
 }
 
-function gameOverScreenPanel(playerWon: boolean, state?: GameState | null): HTMLElement {
+function gameOverScreenPanel(playerWon: boolean, state: GameState | null | undefined, localEmpireId: number): HTMLElement {
   const shell = document.createElement('div');
   shell.className = 'game-over-screen interactive';
   const panel = document.createElement('div');
@@ -1292,7 +1293,7 @@ function gameOverScreenPanel(playerWon: boolean, state?: GameState | null): HTML
       rowEl.className = 'game-over-results-row';
       const name = document.createElement('span');
       name.textContent = row.empire.empireName;
-      name.style.color = row.empire.color;
+      name.style.color = getDisplayColor(row.empire, localEmpireId);
       const planets = document.createElement('span');
       planets.textContent = String(row.planets);
       const nw = document.createElement('span');

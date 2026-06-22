@@ -4,6 +4,7 @@ import { UNITS } from '../core/data/units';
 import { getEmpire, getPlanetsInSystem, getSystem } from '../core/selectors/selectors';
 import type { GameState } from '../core/galaxy/galaxyData';
 import type { CombatUnitKey, Planet } from '../core/models/types';
+import { displayColorNumber } from '../ui/displayColor';
 import { ensurePlanetTexture } from './planetRenderer';
 
 const NEUTRAL_RING = 0x7d8796;
@@ -140,7 +141,8 @@ export class SystemScene extends Phaser.Scene {
   ): void {
     const owner = planet.ownerId >= 0 ? getEmpire(state, planet.ownerId) : undefined;
     const ownerName = owner?.empireName ?? 'Neutral';
-    const ownerColor = owner ? this.toColorNumber(owner.color) : NEUTRAL_RING;
+    const playerEmpireId = controller.clientState?.empireId ?? 0;
+    const ownerColor = owner ? displayColorNumber(owner, playerEmpireId) : NEUTRAL_RING;
     const radius = Phaser.Math.Clamp(Math.sqrt(planet.size) * 2.1, 8, layout.maxPlanetRadius);
     const selected = controller.clientState?.selectedPlanetId === planet.id;
 
@@ -206,14 +208,13 @@ export class SystemScene extends Phaser.Scene {
       .setResolution(2);
 
     // Fleet indicator: show ship icon if player has stationed units here
-    const playerEmpireId = controller.clientState?.empireId ?? 0;
     if (planet.ownerId === playerEmpireId) {
       const hasUnits = COMBAT_KEYS.some((k) => (planet.units[k] ?? 0) > 0);
       if (hasUnits) {
         const iconX = x + radius + 18;
         const iconY = y - radius + 2;
         const empire = getEmpire(state, playerEmpireId);
-        const color = empire ? this.toColorNumber(empire.color) : 0x4488ff;
+        const color = empire ? displayColorNumber(empire, playerEmpireId) : 0x4488ff;
 
         const icon = this.add.graphics({ x: iconX, y: iconY });
         icon.fillStyle(color, 0.9);
@@ -303,7 +304,7 @@ export class SystemScene extends Phaser.Scene {
     const playerEmpireId = controller.clientState?.empireId ?? 0;
     const empire = getEmpire(state, playerEmpireId);
     if (!empire) return;
-    const color = this.toColorNumber(empire.color);
+    const color = displayColorNumber(empire, playerEmpireId);
 
     const width = this.scale.width;
     const height = this.scale.height;
@@ -360,7 +361,4 @@ export class SystemScene extends Phaser.Scene {
     return controller.state;
   }
 
-  private toColorNumber(color: string): number {
-    return Number.parseInt(color.replace('#', ''), 16);
-  }
 }

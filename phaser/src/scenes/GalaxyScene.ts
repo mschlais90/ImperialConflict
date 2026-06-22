@@ -3,6 +3,7 @@ import { APP_CONTROLLER_KEY, type AppController } from '../app/appController';
 import { UNITS } from '../core/data/units';
 import { getEmpire, getPlanetsInSystem, getSystem, getSystemOwner, isSystemContested } from '../core/selectors/selectors';
 import type { CombatUnitKey } from '../core/models/types';
+import { displayColorNumber } from '../ui/displayColor';
 
 const GODOT_SCALE = 20;
 const MIN_ZOOM = 0.3;
@@ -132,7 +133,8 @@ export class GalaxyScene extends Phaser.Scene {
       const ownerId = getSystemOwner(state, system.id);
       const owner = ownerId >= 0 ? getEmpire(state, ownerId) : undefined;
       const contested = isSystemContested(state, system.id);
-      const color = contested ? CONTESTED_COLOR : owner ? this.toColorNumber(owner.color) : NEUTRAL_COLOR;
+      const playerEmpireId = controller.clientState?.empireId ?? 0;
+      const color = contested ? CONTESTED_COLOR : owner ? displayColorNumber(owner, playerEmpireId) : NEUTRAL_COLOR;
       const isHomeSystem = state.empires.some((empire) => empire.homeSystemId === system.id);
 
       const marker = this.add.graphics({ x, y });
@@ -192,7 +194,7 @@ export class GalaxyScene extends Phaser.Scene {
     const playerEmpireId = controller.clientState?.empireId ?? 0;
     const empire = getEmpire(state, playerEmpireId);
     if (!empire) return;
-    const color = this.toColorNumber(empire.color);
+    const color = displayColorNumber(empire, playerEmpireId);
     const fleetKeys: CombatUnitKey[] = ['fighter', 'bomber', 'transport', 'soldier', 'droid'];
 
     for (const fleet of state.fleets) {
@@ -360,7 +362,4 @@ export class GalaxyScene extends Phaser.Scene {
     return controller.state;
   }
 
-  private toColorNumber(color: string): number {
-    return Number.parseInt(color.replace('#', ''), 16);
-  }
 }
