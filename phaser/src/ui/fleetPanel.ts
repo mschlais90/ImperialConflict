@@ -198,6 +198,7 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
   const portalPlanets = ownedPlanets.filter((p) => p.hasPortal);
   const nonPortalPlanets = ownedPlanets.filter((p) => !p.hasPortal);
   const hasPortals = portalPlanets.length > 0;
+  if (hasPortals) table.classList.add('has-recall');
 
   const headerCols = hasPortals
     ? ['', 'Planet', '', 'F', 'B', 'T', 'S', 'D', 'A', 'W', 'Has', 'Can Train', 'Recall']
