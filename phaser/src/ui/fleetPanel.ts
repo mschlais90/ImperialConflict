@@ -249,7 +249,8 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     cbCell.append(cb);
 
     const nameCell = document.createElement('span');
-    nameCell.textContent = `Portaled Planets (${portalPlanets.length})`;
+    nameCell.textContent = `Portal (${portalPlanets.length})`;
+    nameCell.title = `${portalPlanets.length} portaled planets (units shared)`;
 
     const portalCell = document.createElement('span');
     portalCell.className = 'mass-train-cell-portal';

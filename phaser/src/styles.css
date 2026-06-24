@@ -991,7 +991,7 @@ input[type="number"] {
 /* Mass Train table */
 .mass-train-table {
   display: grid;
-  grid-template-columns: 24px auto 20px 22px 22px 22px 22px 22px 22px 22px 44px 60px;
+  grid-template-columns: 24px minmax(60px, 120px) 20px 22px 22px 22px 22px 22px 22px 22px 44px 60px;
   gap: 0 4px;
   font-size: 12px;
   margin-bottom: 10px;
@@ -999,7 +999,7 @@ input[type="number"] {
 }
 
 .mass-train-table.has-recall {
-  grid-template-columns: 24px auto 20px 22px 22px 22px 22px 22px 22px 22px 44px 60px auto;
+  grid-template-columns: 24px minmax(60px, 120px) 20px 22px 22px 22px 22px 22px 22px 22px 44px 60px 80px;
 }
 
 .mass-train-row {
@@ -1024,6 +1024,9 @@ input[type="number"] {
   align-items: center;
   padding: 2px 2px;
   color: #c7d5ee;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mass-train-cell-num {
