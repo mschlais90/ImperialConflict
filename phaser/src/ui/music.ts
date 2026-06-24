@@ -1,6 +1,6 @@
 const MUSIC_ENABLED_KEY = 'ic_music_enabled';
 
-const TRACKS = ['orbit-wardens.mp3', 'starlit-drift.mp3'];
+const TRACKS = ['starlit-drift.mp3', 'nebula-drift.mp3'];
 
 let audio: HTMLAudioElement | null = null;
 let started = false;
