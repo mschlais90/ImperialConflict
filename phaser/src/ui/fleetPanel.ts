@@ -1,6 +1,6 @@
 import { UNITS } from '../core/data/units';
 import type { CombatUnitKey, Fleet, Planet, ResourceKey, UnitKey } from '../core/models/types';
-import { calcTravelTicks, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
+import { calcTravelTicks, getPlanet, getPlanetsForEmpire } from '../core/selectors/selectors';
 import { button, formatNumber, maxAffordable, numberInput, parseIntegerInput, resourceCostHtml } from './dom';
 import { fleetForm } from './planetPanel';
 import type { UiContext } from './types';
@@ -31,79 +31,10 @@ export function renderFleetManagementPanel(context: UiContext): HTMLElement {
   // Fleet summary totals
   panel.append(subtitle('Fleet Summary'), fleetSummary(ownedPlanets, active));
 
-  // Stationed units by planet, grouped by system
-  panel.append(subtitle('Stationed Units'), stationedByPlanet(context, ownedPlanets));
-
   // Active fleets with recall
   panel.append(subtitle(`Fleets in Transit (${active.length})`), active.length > 0 ? fleetList(active, state) : emptyText('No fleets in transit.'));
 
-  const portalPlanets = ownedPlanets.filter((p) => p.hasPortal);
-  if (active.length > 0 && portalPlanets.length > 0) {
-    panel.append(subtitle('Recall to Portal'), recallControls(context, active, portalPlanets));
-  }
-
   return panel;
-}
-
-function stationedByPlanet(context: UiContext, planets: Planet[]): HTMLElement {
-  const state = context.controller.state!;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'stationed-list';
-
-  const COMBAT_KEYS: CombatUnitKey[] = ['fighter', 'bomber', 'transport', 'soldier', 'droid'];
-  const planetsWithUnits = planets.filter((p) =>
-    COMBAT_KEYS.some((k) => (p.units[k] ?? 0) > 0),
-  );
-
-  if (planetsWithUnits.length === 0) {
-    return emptyText('No stationed combat units.');
-  }
-
-  const hasPortals = planets.some((p) => p.hasPortal);
-
-  // Group by system
-  const bySystem = new Map<number, Planet[]>();
-  for (const p of planetsWithUnits) {
-    const list = bySystem.get(p.systemId) ?? [];
-    list.push(p);
-    bySystem.set(p.systemId, list);
-  }
-
-  for (const [systemId, systemPlanets] of bySystem) {
-    const sys = getSystem(state, systemId);
-    const sysName = sys?.systemName ?? `System ${systemId}`;
-    const sysHeader = document.createElement('div');
-    sysHeader.className = 'stationed-system';
-    sysHeader.textContent = sysName;
-    wrapper.append(sysHeader);
-
-    for (const planet of systemPlanets) {
-      const row = document.createElement('div');
-      row.className = 'stationed-row';
-      const name = document.createElement('span');
-      name.className = 'stationed-planet';
-      name.textContent = planet.planetName;
-      const units = document.createElement('span');
-      units.className = 'stationed-units';
-      units.textContent = formatUnitsFromPlanet(planet, COMBAT_KEYS);
-      row.append(name, units);
-
-      if (hasPortals && !planet.hasPortal) {
-        const nearestTicks = getNearestPortalTicks(state, planet, planets);
-        const recallBtn = button(`Recall (${nearestTicks}t)`, () => {
-          context.runCommand(() =>
-            context.commands.recallToPortal({ empireId: context.player.id, sourcePlanetId: planet.id }),
-          );
-        });
-        recallBtn.className = 'ui-button recall-btn';
-        row.append(recallBtn);
-      }
-
-      wrapper.append(row);
-    }
-  }
-
-  return wrapper;
 }
 
 function getNearestPortalTicks(state: Parameters<typeof calcTravelTicks>[0], planet: Planet, ownedPlanets: Planet[]): number {
@@ -114,15 +45,6 @@ function getNearestPortalTicks(state: Parameters<typeof calcTravelTicks>[0], pla
     if (ticks < nearest) nearest = ticks;
   }
   return nearest;
-}
-
-function formatUnitsFromPlanet(planet: Planet, keys: CombatUnitKey[]): string {
-  const parts: string[] = [];
-  for (const key of keys) {
-    const count = planet.units[key] ?? 0;
-    if (count > 0) parts.push(`${count}${UNIT_ABBREV[key]}`);
-  }
-  return parts.join(', ');
 }
 
 export function renderFleetContent(context: UiContext): HTMLElement {
@@ -158,12 +80,6 @@ export function renderFleetContent(context: UiContext): HTMLElement {
 
   // Fleet summary
   frag.append(subtitle('Fleet Summary'), fleetSummary(ownedPlanets, active));
-
-  // Recall section
-  const portalPlanets = ownedPlanets.filter((p) => p.hasPortal);
-  if (active.length > 0 && portalPlanets.length > 0) {
-    frag.append(subtitle('Recall to Portal'), recallControls(context, active, portalPlanets));
-  }
 
   return frag;
 }
@@ -227,52 +143,6 @@ function fleetSummary(planets: Planet[], fleets: Fleet[]): HTMLElement {
   return list;
 }
 
-function recallControls(context: UiContext, fleets: Fleet[], portalPlanets: Planet[]): HTMLElement {
-  const state = context.controller.state;
-  if (!state) {
-    throw new Error('Recall controls require game state.');
-  }
-
-  const list = document.createElement('div');
-  list.className = 'key-value-list';
-  const nonExplore = fleets.filter((f) => !f.isExploration);
-  if (nonExplore.length === 0) {
-    return emptyText('No recallable fleets.');
-  }
-
-  for (const fleet of nonExplore) {
-    const target = state.planets.find((p) => p.id === fleet.targetPlanetId);
-    const targetName = target?.planetName ?? `Planet ${fleet.targetPlanetId}`;
-
-    let nearestPortal: Planet | null = null;
-    let nearestTicks = Infinity;
-    for (const p of portalPlanets) {
-      const ticks = calcTravelTicks(state, fleet.targetSystemId, p.systemId);
-      if (ticks < nearestTicks) {
-        nearestTicks = ticks;
-        nearestPortal = p;
-      }
-    }
-
-    if (!nearestPortal) continue;
-
-    const totalTicks = fleet.ticksRemaining + nearestTicks;
-    const row = document.createElement('div');
-    row.className = 'recall-row';
-    const label = document.createElement('span');
-    label.textContent = `Fleet -> ${targetName} (${fleet.ticksRemaining}t)`;
-    const recallBtn = button(`Recall (${totalTicks}t)`, () => {
-      fleet.targetSystemId = nearestPortal!.systemId;
-      fleet.targetPlanetId = nearestPortal!.id;
-      fleet.ticksRemaining = calcTravelTicks(state, fleet.originSystemId, nearestPortal!.systemId);
-      context.setNotice(`Fleet recalled to ${nearestPortal!.planetName}`);
-    });
-    row.append(label, recallBtn);
-    list.append(row);
-  }
-  return list;
-}
-
 let massTrainPersistedSelection: Set<number> | null = null;
 let persistedMassTrainUnitKey: CombatUnitKey | 'agent' | 'wizard' = 'fighter';
 
@@ -325,9 +195,17 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
   const table = document.createElement('div');
   table.className = 'mass-train-table';
 
+  const portalPlanets = ownedPlanets.filter((p) => p.hasPortal);
+  const nonPortalPlanets = ownedPlanets.filter((p) => !p.hasPortal);
+  const hasPortals = portalPlanets.length > 0;
+
+  const headerCols = hasPortals
+    ? ['', 'Planet', '', 'F', 'B', 'T', 'S', 'D', 'A', 'W', 'Has', 'Can Train', 'Recall']
+    : ['', 'Planet', '', 'F', 'B', 'T', 'S', 'D', 'A', 'W', 'Has', 'Can Train'];
+
   const headerRow = document.createElement('div');
   headerRow.className = 'mass-train-row mass-train-row-header';
-  for (const text of ['', 'Planet', '', 'F', 'B', 'T', 'S', 'D', 'A', 'W', 'Has', 'Can Train']) {
+  for (const text of headerCols) {
     const cell = document.createElement('span');
     cell.textContent = text;
     headerRow.append(cell);
@@ -337,6 +215,71 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
   const checkboxes = new Map<number, HTMLInputElement>();
   const rowElements = new Map<number, HTMLElement>();
   let selectedUnitType: CombatUnitKey | 'agent' | 'wizard' = persistedMassTrainUnitKey;
+
+  const UNIT_COL_KEYS = ['fighter', 'bomber', 'transport', 'soldier', 'droid', 'agent', 'wizard'] as const;
+
+  function buildPortalRow(): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'mass-train-row mass-train-row-portal';
+    const allSelected = portalPlanets.every((p) => selected.has(p.id));
+    if (allSelected && portalPlanets.length > 0) row.classList.add('mass-train-row-selected');
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = allSelected && portalPlanets.length > 0;
+    cb.addEventListener('change', () => {
+      for (const p of portalPlanets) {
+        if (cb.checked) {
+          selected.add(p.id);
+        } else {
+          selected.delete(p.id);
+        }
+      }
+      row.classList.toggle('mass-train-row-selected', cb.checked);
+      updatePreview();
+    });
+    // Store checkbox reference using first portal planet id (for refreshCheckboxes)
+    for (const p of portalPlanets) {
+      checkboxes.set(p.id, cb);
+      rowElements.set(p.id, row);
+    }
+
+    const cbCell = document.createElement('span');
+    cbCell.append(cb);
+
+    const nameCell = document.createElement('span');
+    nameCell.textContent = `Portaled Planets (${portalPlanets.length})`;
+
+    const portalCell = document.createElement('span');
+    portalCell.className = 'mass-train-cell-portal';
+    portalCell.textContent = '\u{1F310}';
+
+    // Sum units across all portal planets
+    const unitCountCells = UNIT_COL_KEYS.map((uk) => {
+      const cell = document.createElement('span');
+      cell.className = 'mass-train-cell-num';
+      let total = 0;
+      for (const p of portalPlanets) total += p.units[uk] ?? 0;
+      cell.textContent = String(total);
+      return cell;
+    });
+
+    const hasCell = document.createElement('span');
+    hasCell.className = 'mass-train-cell-num';
+    let hasTotal = 0;
+    for (const p of portalPlanets) hasTotal += p.units[selectedUnitType as keyof typeof p.units] ?? 0;
+    hasCell.textContent = String(hasTotal);
+
+    const affordCell = document.createElement('span');
+    affordCell.className = 'mass-train-cell-num';
+    affordCell.textContent = String(maxAffordable(player.resources, UNITS[selectedUnitType].cost));
+
+    // No recall for portal planets (empty cell for column alignment)
+    const recallCell = document.createElement('span');
+
+    row.append(cbCell, nameCell, portalCell, ...unitCountCells, hasCell, affordCell, recallCell);
+    return row;
+  }
 
   function buildRow(planet: Planet): HTMLElement {
     const row = document.createElement('div');
@@ -367,9 +310,8 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
 
     const portalCell = document.createElement('span');
     portalCell.className = 'mass-train-cell-portal';
-    portalCell.textContent = planet.hasPortal ? '\u{1F310}' : '';
+    portalCell.textContent = '';
 
-    const UNIT_COL_KEYS = ['fighter', 'bomber', 'transport', 'soldier', 'droid', 'agent', 'wizard'] as const;
     const unitCountCells = UNIT_COL_KEYS.map((uk) => {
       const cell = document.createElement('span');
       cell.className = 'mass-train-cell-num';
@@ -386,6 +328,23 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     affordCell.textContent = String(maxAffordable(player.resources, UNITS[selectedUnitType].cost));
 
     row.append(cbCell, nameCell, portalCell, ...unitCountCells, hasCell, affordCell);
+
+    if (hasPortals) {
+      const recallCell = document.createElement('span');
+      const hasCombatUnits = TRAINABLE_COMBAT.some((k) => (planet.units[k] ?? 0) > 0);
+      if (hasCombatUnits) {
+        const nearestTicks = getNearestPortalTicks(context.controller.state!, planet, portalPlanets);
+        const recallBtn = button(`Recall (${nearestTicks}t)`, () => {
+          context.runCommand(() =>
+            context.commands.recallToPortal({ empireId: context.player.id, sourcePlanetId: planet.id }),
+          );
+        });
+        recallBtn.className = 'ui-button recall-btn';
+        recallCell.append(recallBtn);
+      }
+      row.append(recallCell);
+    }
+
     return row;
   }
 
@@ -393,7 +352,10 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     while (table.children.length > 1) table.removeChild(table.lastChild!);
     checkboxes.clear();
     rowElements.clear();
-    for (const planet of ownedPlanets) {
+    if (portalPlanets.length > 0) {
+      table.append(buildPortalRow());
+    }
+    for (const planet of nonPortalPlanets) {
       table.append(buildRow(planet));
     }
   }
@@ -517,6 +479,32 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
   trainBtn.classList.add('primary');
 
   wrapper.append(unitRow, countRow, costPreview, trainBtn);
+
+  // Recall All button (only when portals exist and non-portal planets have units)
+  if (hasPortals && nonPortalPlanets.length > 0) {
+    const recallAllBtn = button('Recall All to Portal', () => {
+      let successCount = 0;
+      let lastError = '';
+      for (const planet of nonPortalPlanets) {
+        const hasCombatUnits = TRAINABLE_COMBAT.some((k) => (planet.units[k] ?? 0) > 0);
+        if (!hasCombatUnits) continue;
+        const result = context.commands.recallToPortal({ empireId: context.player.id, sourcePlanetId: planet.id });
+        if (result.ok) {
+          successCount++;
+        } else {
+          lastError = result.message;
+        }
+      }
+      if (successCount > 0) {
+        context.setNotice(`Recalled units from ${successCount} planet${successCount !== 1 ? 's' : ''} to portal`, false, true);
+        context.controller.refreshScene?.();
+      } else {
+        context.setNotice(lastError || 'No units to recall.', true);
+      }
+    });
+    recallAllBtn.className = 'ui-button';
+    wrapper.append(recallAllBtn);
+  }
 
   function refreshCheckboxes(): void {
     for (const [id, cb] of checkboxes) {
