@@ -5,6 +5,7 @@ const TRACKS = ['starlit-drift.mp3', 'nebula-drift.mp3'];
 let audio: HTMLAudioElement | null = null;
 let started = false;
 let trackIndex = 0;
+let activeInteractionListener: (() => void) | null = null;
 
 function isEnabled(): boolean {
   try {
@@ -32,7 +33,15 @@ export function setMusicEnabled(enabled: boolean): void {
   }
 }
 
-function playTrack(): void {
+function removeInteractionListeners(): void {
+  if (activeInteractionListener) {
+    document.removeEventListener('click', activeInteractionListener);
+    document.removeEventListener('keydown', activeInteractionListener);
+    activeInteractionListener = null;
+  }
+}
+
+function ensureAudio(): HTMLAudioElement {
   if (!audio) {
     audio = new Audio(TRACKS[trackIndex]);
     audio.volume = 0.3;
@@ -41,31 +50,38 @@ function playTrack(): void {
       audio!.src = TRACKS[trackIndex];
       audio!.play().catch(() => {});
     });
+    audio.addEventListener('error', () => {
+      console.warn('[music] Failed to load track:', TRACKS[trackIndex]);
+    });
   }
+  return audio;
 }
 
 export function startMusic(): void {
   if (!isEnabled()) return;
-  if (!audio) {
-    playTrack();
-  }
+  const el = ensureAudio();
+
+  // Clean up any stale listeners from a previous start/stop cycle
+  removeInteractionListeners();
+
   if (!started) {
     const tryPlay = () => {
-      audio!.play().then(() => {
+      el.play().then(() => {
         started = true;
-        document.removeEventListener('click', tryPlay);
-        document.removeEventListener('keydown', tryPlay);
+        removeInteractionListeners();
       }).catch(() => {
-        // Autoplay blocked — listeners will retry on interaction
+        // Autoplay blocked — listeners will retry on next user interaction
       });
     };
     tryPlay();
-    document.addEventListener('click', tryPlay, { once: false });
-    document.addEventListener('keydown', tryPlay, { once: false });
+    activeInteractionListener = tryPlay;
+    document.addEventListener('click', tryPlay);
+    document.addEventListener('keydown', tryPlay);
   }
 }
 
 export function stopMusic(): void {
+  removeInteractionListeners();
   if (audio) {
     audio.pause();
     audio.currentTime = 0;
