@@ -2103,3 +2103,202 @@ details.collapsible[open] > summary::before {
 .attack-log-lost {
   color: #ff8c8c;
 }
+
+/* Fleet filter/sort toolbar */
+.fleet-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.fleet-toolbar-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.fleet-toolbar-label {
+  color: #6a7fa8;
+  font-size: 11px;
+  margin-right: 2px;
+}
+
+.fleet-filter-btn {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: Inter, system-ui, sans-serif;
+  background: rgba(20, 30, 50, 0.5);
+  border: 1px solid rgba(130, 154, 196, 0.26);
+  border-radius: 4px;
+  color: #8694ab;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.fleet-filter-btn:hover {
+  background: rgba(40, 60, 100, 0.6);
+  color: #c7d5ee;
+}
+
+.fleet-filter-btn.active {
+  background: rgba(51, 128, 255, 0.25);
+  border-color: rgba(51, 128, 255, 0.5);
+  color: #ffffff;
+}
+
+.fleet-sort-btn {
+  cursor: pointer;
+  user-select: none;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: #8694ab;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.fleet-sort-btn:hover {
+  color: #eef4ff;
+}
+
+.fleet-sort-btn.active {
+  color: #c7d5ee;
+  border-color: rgba(130, 154, 196, 0.26);
+}
+
+/* Fleet cards */
+.fleet-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.fleet-card {
+  background: rgba(20, 30, 50, 0.5);
+  border: 1px solid rgba(130, 154, 196, 0.2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.fleet-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.fleet-type-badge {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 1px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.fleet-type-combat {
+  background: rgba(255, 100, 68, 0.2);
+  color: #ff8c6b;
+  border: 1px solid rgba(255, 100, 68, 0.3);
+}
+
+.fleet-type-exploration {
+  background: rgba(111, 207, 111, 0.2);
+  color: #6fcf6f;
+  border: 1px solid rgba(111, 207, 111, 0.3);
+}
+
+.fleet-route {
+  color: #c7d5ee;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fleet-route-arrow {
+  color: #6a7fa8;
+  margin: 0 4px;
+}
+
+/* Fleet progress bar */
+.fleet-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fleet-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(30, 42, 68, 0.6);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fleet-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3380ff, #5599ff);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.fleet-progress-fill.exploration {
+  background: linear-gradient(90deg, #4caf50, #6fcf6f);
+}
+
+.fleet-progress-label {
+  color: #8694ab;
+  font-size: 11px;
+  white-space: nowrap;
+  min-width: 60px;
+  text-align: right;
+}
+
+/* Unit badges */
+.fleet-unit-badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.unit-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(30, 42, 68, 0.5);
+  border: 1px solid rgba(130, 154, 196, 0.2);
+  color: #c7d5ee;
+}
+
+/* Mass train table polish */
+.mass-train-scroll {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.mass-train-row-header > span {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(8, 13, 27, 0.95);
+}
+
+.mass-train-row-even > span {
+  background: rgba(30, 42, 68, 0.2);
+}
+
+.mass-train-row-even.mass-train-row-selected > span {
+  background: rgba(100, 140, 220, 0.15);
+}
+
+.mass-train-cell-hover {
+  background: rgba(40, 60, 100, 0.25) !important;
+}

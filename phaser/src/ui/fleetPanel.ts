@@ -1,12 +1,19 @@
 import { UNITS } from '../core/data/units';
+import type { GameState } from '../core/galaxy/galaxyData';
 import type { CombatUnitKey, Fleet, Planet, ResourceKey, UnitKey } from '../core/models/types';
-import { calcTravelTicks, getPlanet, getPlanetsForEmpire } from '../core/selectors/selectors';
+import { calcTravelTicks, getPlanet, getPlanetsForEmpire, getSystem } from '../core/selectors/selectors';
 import { button, formatNumber, maxAffordable, numberInput, parseIntegerInput, resourceCostHtml } from './dom';
 import { fleetForm } from './planetPanel';
 import type { UiContext } from './types';
 
 const TRAINABLE_COMBAT: CombatUnitKey[] = ['fighter', 'bomber', 'transport', 'soldier', 'droid'];
 const TRAINABLE_SPECIAL: Array<Exclude<UnitKey, 'explorer' | CombatUnitKey>> = ['agent', 'wizard'];
+
+type FleetFilter = 'all' | 'combat' | 'exploration';
+type FleetSortKey = 'eta' | 'destination' | 'size';
+let persistedFleetFilter: FleetFilter = 'all';
+let persistedFleetSortKey: FleetSortKey = 'eta';
+let persistedFleetSortAsc = true;
 
 export function renderFleetManagementPanel(context: UiContext): HTMLElement {
   const state = context.controller.state;
@@ -31,8 +38,9 @@ export function renderFleetManagementPanel(context: UiContext): HTMLElement {
   // Fleet summary totals
   panel.append(subtitle('Fleet Summary'), fleetSummary(ownedPlanets, active));
 
-  // Active fleets with recall
-  panel.append(subtitle(`Fleets in Transit (${active.length})`), active.length > 0 ? fleetList(active, state) : emptyText('No fleets in transit.'));
+  // Active fleets with filter/sort
+  const refreshPanel = () => context.controller.overlay.render();
+  panel.append(subtitle(`Fleets in Transit (${active.length})`), active.length > 0 ? fleetCardList(active, state, refreshPanel) : emptyText('No fleets in transit.'));
 
   return panel;
 }
@@ -76,7 +84,8 @@ export function renderFleetContent(context: UiContext): HTMLElement {
 
   // Active fleets
   const active = state.fleets.filter((fleet) => fleet.ownerId === context.player.id);
-  frag.append(subtitle('Active'), active.length > 0 ? fleetList(active, state) : emptyText('No fleets in transit.'));
+  const refreshPanel = () => context.controller.overlay.render();
+  frag.append(subtitle('Active'), active.length > 0 ? fleetCardList(active, state, refreshPanel) : emptyText('No fleets in transit.'));
 
   // Fleet summary
   frag.append(subtitle('Fleet Summary'), fleetSummary(ownedPlanets, active));
@@ -84,30 +93,176 @@ export function renderFleetContent(context: UiContext): HTMLElement {
   return frag;
 }
 
-function fleetList(fleets: Fleet[], state: { planets: Planet[] }): HTMLElement {
-  const list = document.createElement('div');
-  list.className = 'key-value-list';
-  const sorted = [...fleets].sort((a, b) => a.ticksRemaining - b.ticksRemaining);
-  for (const fleet of sorted) {
-    const target = state.planets.find((p) => p.id === fleet.targetPlanetId);
-    const targetName = target?.planetName ?? `Planet ${fleet.targetPlanetId}`;
-    const label = fleet.isExploration ? `Exploring -> ${targetName}` : `Fleet -> ${targetName} (${formatUnits(fleet.units)})`;
-    const row = document.createElement('div');
-    row.innerHTML = `<span>${label}</span><strong>${fleet.ticksRemaining} ticks</strong>`;
-    list.append(row);
+function fleetCardList(fleets: Fleet[], state: GameState, refreshPanel: () => void): HTMLElement {
+  const wrapper = document.createElement('div');
+
+  // Filter toolbar
+  const toolbar = document.createElement('div');
+  toolbar.className = 'fleet-toolbar';
+
+  const filterGroup = document.createElement('div');
+  filterGroup.className = 'fleet-toolbar-group';
+  const filterLabel = document.createElement('span');
+  filterLabel.className = 'fleet-toolbar-label';
+  filterLabel.textContent = 'Filter:';
+  filterGroup.append(filterLabel);
+
+  const FILTERS: { key: FleetFilter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'combat', label: 'Combat' },
+    { key: 'exploration', label: 'Exploration' },
+  ];
+  for (const f of FILTERS) {
+    const btn = document.createElement('button');
+    btn.className = 'fleet-filter-btn' + (persistedFleetFilter === f.key ? ' active' : '');
+    btn.textContent = f.label;
+    btn.addEventListener('click', () => {
+      persistedFleetFilter = f.key;
+      refreshPanel();
+    });
+    filterGroup.append(btn);
   }
-  return list;
+
+  const sortGroup = document.createElement('div');
+  sortGroup.className = 'fleet-toolbar-group';
+  const sortLabel = document.createElement('span');
+  sortLabel.className = 'fleet-toolbar-label';
+  sortLabel.textContent = 'Sort:';
+  sortGroup.append(sortLabel);
+
+  const SORTS: { key: FleetSortKey; label: string }[] = [
+    { key: 'eta', label: 'ETA' },
+    { key: 'destination', label: 'Destination' },
+    { key: 'size', label: 'Size' },
+  ];
+  for (const s of SORTS) {
+    const btn = document.createElement('button');
+    const isActive = persistedFleetSortKey === s.key;
+    btn.className = 'fleet-sort-btn' + (isActive ? ' active' : '');
+    btn.textContent = s.label + (isActive ? (persistedFleetSortAsc ? ' \u25B2' : ' \u25BC') : '');
+    btn.addEventListener('click', () => {
+      if (persistedFleetSortKey === s.key) {
+        persistedFleetSortAsc = !persistedFleetSortAsc;
+      } else {
+        persistedFleetSortKey = s.key;
+        persistedFleetSortAsc = true;
+      }
+      refreshPanel();
+    });
+    sortGroup.append(btn);
+  }
+
+  toolbar.append(filterGroup, sortGroup);
+  wrapper.append(toolbar);
+
+  // Filter
+  let filtered = [...fleets];
+  if (persistedFleetFilter === 'combat') filtered = filtered.filter((f) => !f.isExploration);
+  if (persistedFleetFilter === 'exploration') filtered = filtered.filter((f) => f.isExploration);
+
+  // Sort
+  filtered.sort((a, b) => {
+    let cmp = 0;
+    switch (persistedFleetSortKey) {
+      case 'eta':
+        cmp = a.ticksRemaining - b.ticksRemaining;
+        break;
+      case 'destination': {
+        const nameA = getPlanet(state, a.targetPlanetId)?.planetName ?? '';
+        const nameB = getPlanet(state, b.targetPlanetId)?.planetName ?? '';
+        cmp = nameA.localeCompare(nameB);
+        break;
+      }
+      case 'size': {
+        const sizeA = Object.values(a.units).reduce((s, n) => s + (n ?? 0), 0);
+        const sizeB = Object.values(b.units).reduce((s, n) => s + (n ?? 0), 0);
+        cmp = sizeA - sizeB;
+        break;
+      }
+    }
+    return persistedFleetSortAsc ? cmp : -cmp;
+  });
+
+  if (filtered.length === 0) {
+    wrapper.append(emptyText('No matching fleets.'));
+    return wrapper;
+  }
+
+  // Card list
+  const cardList = document.createElement('div');
+  cardList.className = 'fleet-card-list';
+
+  for (const fleet of filtered) {
+    const card = document.createElement('div');
+    card.className = 'fleet-card';
+
+    // Header: type badge + route
+    const header = document.createElement('div');
+    header.className = 'fleet-card-header';
+
+    const badge = document.createElement('span');
+    badge.className = 'fleet-type-badge ' + (fleet.isExploration ? 'fleet-type-exploration' : 'fleet-type-combat');
+    badge.textContent = fleet.isExploration ? 'Explore' : 'Combat';
+
+    const route = document.createElement('span');
+    route.className = 'fleet-route';
+    const originSystem = getSystem(state, fleet.originSystemId);
+    const target = getPlanet(state, fleet.targetPlanetId);
+    const originName = originSystem?.systemName ?? `System ${fleet.originSystemId}`;
+    const targetName = target?.planetName ?? `Planet ${fleet.targetPlanetId}`;
+    route.innerHTML = `${originName}<span class="fleet-route-arrow">\u2192</span>${targetName}`;
+
+    header.append(badge, route);
+    card.append(header);
+
+    // Progress bar
+    const totalTicks = calcTravelTicks(state, fleet.originSystemId, fleet.targetSystemId);
+    const elapsed = totalTicks - fleet.ticksRemaining;
+    const pct = totalTicks > 0 ? Math.round((elapsed / totalTicks) * 100) : 100;
+
+    const progressRow = document.createElement('div');
+    progressRow.className = 'fleet-progress-row';
+
+    const progressBar = document.createElement('div');
+    progressBar.className = 'fleet-progress-bar';
+    const progressFill = document.createElement('div');
+    progressFill.className = 'fleet-progress-fill' + (fleet.isExploration ? ' exploration' : '');
+    progressFill.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+    progressBar.append(progressFill);
+
+    const progressLabel = document.createElement('span');
+    progressLabel.className = 'fleet-progress-label';
+    progressLabel.textContent = `${fleet.ticksRemaining} / ${totalTicks} ticks`;
+
+    progressRow.append(progressBar, progressLabel);
+    card.append(progressRow);
+
+    // Unit badges (combat only)
+    if (!fleet.isExploration) {
+      const badges = renderUnitBadges(fleet.units);
+      if (badges.children.length > 0) card.append(badges);
+    }
+
+    cardList.append(card);
+  }
+
+  wrapper.append(cardList);
+  return wrapper;
 }
 
-const UNIT_ABBREV: Record<string, string> = { fighter: 'F', bomber: 'B', soldier: 'S', droid: 'D', transport: 'T' };
-
-function formatUnits(units: Partial<Record<string, number>>): string {
-  const parts: string[] = [];
+function renderUnitBadges(units: Partial<Record<string, number>>): HTMLElement {
+  const container = document.createElement('div');
+  container.className = 'fleet-unit-badges';
   for (const key of ['fighter', 'bomber', 'transport', 'soldier', 'droid'] as CombatUnitKey[]) {
     const count = units[key] ?? 0;
-    if (count > 0) parts.push(`${count}${UNIT_ABBREV[key]}`);
+    if (count > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'unit-badge';
+      badge.textContent = `${UNITS[key].name} x${formatNumber(count)}`;
+      container.append(badge);
+    }
   }
-  return parts.length > 0 ? parts.join(', ') : 'empty';
+  return container;
 }
 
 function fleetSummary(planets: Planet[], fleets: Fleet[]): HTMLElement {
@@ -200,6 +355,9 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
   const hasPortals = portalPlanets.length > 0;
   if (hasPortals) table.classList.add('has-recall');
 
+  const UNIT_COL_TOOLTIPS: Record<string, string> = {
+    F: 'Fighters', B: 'Bombers', T: 'Transports', S: 'Soldiers', D: 'Droids', A: 'Agents', W: 'Wizards',
+  };
   const headerCols = hasPortals
     ? ['', 'Planet', '', 'F', 'B', 'T', 'S', 'D', 'A', 'W', 'Has', 'Can Train', 'Recall']
     : ['', 'Planet', '', 'F', 'B', 'T', 'S', 'D', 'A', 'W', 'Has', 'Can Train'];
@@ -209,6 +367,7 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
   for (const text of headerCols) {
     const cell = document.createElement('span');
     cell.textContent = text;
+    if (UNIT_COL_TOOLTIPS[text]) cell.title = UNIT_COL_TOOLTIPS[text];
     headerRow.append(cell);
   }
   table.append(headerRow);
@@ -280,6 +439,7 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
     const recallCell = document.createElement('span');
 
     row.append(cbCell, nameCell, portalCell, ...unitCountCells, hasCell, affordCell, recallCell);
+    addRowHover(row);
     return row;
   }
 
@@ -347,23 +507,40 @@ function renderMassTrainPanel(context: UiContext, ownedPlanets: Planet[]): HTMLE
       row.append(recallCell);
     }
 
+    addRowHover(row);
     return row;
+  }
+
+  function addRowHover(row: HTMLElement): void {
+    const cells = () => Array.from(row.children) as HTMLElement[];
+    row.addEventListener('mouseenter', () => cells().forEach((c) => c.classList.add('mass-train-cell-hover')));
+    row.addEventListener('mouseleave', () => cells().forEach((c) => c.classList.remove('mass-train-cell-hover')));
   }
 
   function rebuildRows(): void {
     while (table.children.length > 1) table.removeChild(table.lastChild!);
     checkboxes.clear();
     rowElements.clear();
+    let rowIndex = 0;
     if (portalPlanets.length > 0) {
-      table.append(buildPortalRow());
+      const portalRow = buildPortalRow();
+      if (rowIndex % 2 === 1) portalRow.classList.add('mass-train-row-even');
+      table.append(portalRow);
+      rowIndex++;
     }
     for (const planet of nonPortalPlanets) {
-      table.append(buildRow(planet));
+      const row = buildRow(planet);
+      if (rowIndex % 2 === 1) row.classList.add('mass-train-row-even');
+      table.append(row);
+      rowIndex++;
     }
   }
 
   rebuildRows();
-  wrapper.append(table);
+  const scrollWrapper = document.createElement('div');
+  scrollWrapper.className = 'mass-train-scroll';
+  scrollWrapper.append(table);
+  wrapper.append(scrollWrapper);
 
   // Unit type selector
   const allTrainable = [...TRAINABLE_COMBAT, ...TRAINABLE_SPECIAL] as Array<CombatUnitKey | 'agent' | 'wizard'>;
