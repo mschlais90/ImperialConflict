@@ -35,9 +35,6 @@ export function renderFleetManagementPanel(context: UiContext): HTMLElement {
   // Mass Train section
   panel.append(subtitle('Mass Train Units'), renderMassTrainPanel(context, ownedPlanets));
 
-  // Fleet summary totals
-  panel.append(subtitle('Fleet Summary'), fleetSummary(ownedPlanets, active));
-
   // Active fleets with filter/sort
   const refreshPanel = () => context.controller.overlay.render();
   panel.append(subtitle(`Fleets in Transit (${active.length})`), active.length > 0 ? fleetCardList(active, state, refreshPanel) : emptyText('No fleets in transit.'));
