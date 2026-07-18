@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MultiplayerClient, type MultiplayerCallbacks } from '../../net/multiplayerClient';
 import { startServer } from '../../server/gameServer';
 import type { SerializedGameState } from '../../core/protocol/messages';
+import { createNewGame } from '../../core/engines/gameManager';
+import { advanceTick } from '../../core/engines/tickEngine';
 
 // ---------------------------------------------------------------------------
 // These are end-to-end network tests: a real server on an ephemeral localhost
@@ -42,7 +44,7 @@ function createHarness(): Harness {
 
   const callbacks: MultiplayerCallbacks = {
     onRoomCreated: (roomCode) => emit('roomCreated', roomCode),
-    onJoined: (empireId, players) => emit('joined', { empireId, players }),
+    onJoined: (empireId, players, openEmpires) => emit('joined', { empireId, players, openEmpires }),
     onPlayerJoined: (player) => emit('playerJoined', player),
     onPlayerLeft: (empireId) => emit('playerLeft', empireId),
     onPlayerReconnected: (empireId) => emit('playerReconnected', empireId),
@@ -264,4 +266,111 @@ describe('multiplayer server (two clients over localhost WebSocket)', () => {
     const chat = await a.once('chat');
     expect(chat.text).toMatch(/disconnected/i);
   }, 15000);
+
+  // -------------------------------------------------------------------------
+  // Resuming a saved multiplayer game: the host creates a room seeded with the
+  // save, joiners reclaim their empires by name, unclaimed humans go to the AI.
+  // -------------------------------------------------------------------------
+
+  /** A 3-empire save: humans "Alice Empire" (0) and "Bob Empire" (1), AI empire 2, advanced 5 ticks. */
+  function buildMultiplayerSave(): { state: SerializedGameState; rngState: number; tick: number } {
+    const state = createNewGame({ empireName: 'Alice Empire', seed: 42, empireCount: 3 });
+    state.empires[0].controllerType = 'human';
+    state.empires[1].controllerType = 'human';
+    state.empires[1].empireName = 'Bob Empire';
+    for (let i = 0; i < 5; i++) advanceTick(state);
+    state.selectedEmpireId = 0;
+    const rngState = state.rng?.getState() ?? 0;
+    const { rng: _rng, ...serializable } = state;
+    return { state: serializable, rngState, tick: state.currentTick };
+  }
+
+  it('resumes a saved game: name-matched claims, preserved tick, paused start', async () => {
+    const save = buildMultiplayerSave();
+
+    const a = spawn();
+    await connect(a);
+    a.client.createRoom('Alice Empire', { empireName: 'Alice Empire' }, { state: save.state, rngState: save.rngState });
+
+    const roomCode: string = await a.once('roomCreated');
+    const aJoined = await a.once('joined');
+    // Host's name matches empire 0, so they reclaim it; Bob's empire is still open.
+    expect(aJoined.empireId).toBe(0);
+    expect(aJoined.openEmpires).toEqual([{ empireId: 1, name: 'Bob Empire' }]);
+
+    const b = spawn();
+    await connect(b);
+    b.client.joinRoom(roomCode, 'Bob Empire');
+    const bJoined = await b.once('joined');
+    expect(bJoined.empireId).toBe(1);
+    expect(bJoined.openEmpires).toEqual([]);
+
+    await a.once('playerJoined');
+    a.client.startGame();
+    const aState: SerializedGameState = await a.once('gameStarted');
+    const bState: SerializedGameState = await b.once('gameStarted');
+
+    // The world resumes where the save left off, paused, with saved names intact.
+    expect(aState.currentTick).toBe(save.tick);
+    expect(aState.currentSpeed).toBe(0);
+    expect(aState.empires[0].empireName).toBe('Alice Empire');
+    expect(aState.empires[0].controllerType).toBe('human');
+    expect(aState.empires[1].empireName).toBe('Bob Empire');
+    expect(aState.empires[1].controllerType).toBe('human');
+    expect(aState.empires[2].controllerType).toBe('ai');
+    expect(bState.currentTick).toBe(aState.currentTick);
+  });
+
+  it('assigns an unmatched joiner name the first open empire', async () => {
+    const save = buildMultiplayerSave();
+
+    const a = spawn();
+    await connect(a);
+    a.client.createRoom('Alice Empire', { empireName: 'Alice Empire' }, { state: save.state, rngState: save.rngState });
+    const roomCode: string = await a.once('roomCreated');
+    await a.once('joined');
+
+    const b = spawn();
+    await connect(b);
+    b.client.joinRoom(roomCode, 'Someone Else');
+    const bJoined = await b.once('joined');
+    expect(bJoined.empireId).toBe(1);
+  });
+
+  it('hands unclaimed saved human empires to the AI when the host starts alone', async () => {
+    const save = buildMultiplayerSave();
+
+    const a = spawn();
+    await connect(a);
+    a.client.createRoom('Alice Empire', { empireName: 'Alice Empire' }, { state: save.state, rngState: save.rngState });
+    await a.once('roomCreated');
+    await a.once('joined');
+
+    a.client.startGame();
+    const aState: SerializedGameState = await a.once('gameStarted');
+    expect(aState.empires[0].controllerType).toBe('human');
+    expect(aState.empires[1].controllerType).toBe('ai');
+    expect(aState.aiControllers[1]).toBeDefined();
+  });
+
+  it('rejects joining a loaded room once every saved empire is claimed', async () => {
+    const save = buildMultiplayerSave();
+
+    const a = spawn();
+    await connect(a);
+    a.client.createRoom('Alice Empire', { empireName: 'Alice Empire' }, { state: save.state, rngState: save.rngState });
+    const roomCode: string = await a.once('roomCreated');
+    await a.once('joined');
+
+    const b = spawn();
+    await connect(b);
+    b.client.joinRoom(roomCode, 'Bob Empire');
+    await b.once('joined');
+
+    const c = spawn();
+    await connect(c);
+    c.client.joinRoom(roomCode, 'Third Wheel');
+    const error = await c.once('error');
+    expect(error).toMatch(/full/i);
+  });
 });

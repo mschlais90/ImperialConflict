@@ -3,7 +3,8 @@ import { createNewGame } from '../core/engines/gameManager';
 import { advanceTick, setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import type { GameSpeed } from '../core/events/eventLog';
 import type { GameState } from '../core/galaxy/galaxyData';
-import type { ClientMessage, PlayerInfo, SerializedCommand, ServerMessage } from '../core/protocol/messages';
+import { demoteEmpireToAi, listHumanEmpires } from '../core/persistence/multiplayerSave';
+import type { ClientMessage, OpenEmpireInfo, PlayerInfo, SerializedCommand, ServerMessage } from '../core/protocol/messages';
 import { computeTickDelta, createDeltaSnapshot, type DeltaSnapshot } from '../core/protocol/stateDelta';
 import { executeCommand } from './commandHandler';
 import { serializeState } from './stateSerializer';
@@ -37,9 +38,12 @@ export class Room {
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private started = false;
   private autoPauseOnDisconnect = true;
+  /** When set, the room resumes this saved game instead of generating a new one. */
+  private loadedState: GameState | null = null;
 
-  constructor(roomCode: string) {
+  constructor(roomCode: string, loadedState: GameState | null = null) {
     this.roomCode = roomCode;
+    this.loadedState = loadedState;
   }
 
   get playerCount(): number {
@@ -62,11 +66,34 @@ export class Room {
     if (this.clients.length >= MAX_PLAYERS) return null;
     if (this.started) return null;
 
-    const empireId = this.clients.length;
+    const empireId = this.loadedState ? this.claimLoadedEmpire(playerName) : this.clients.length;
+    if (empireId === null) return null;
+
     const client: ConnectedClient = { ws, empireId, playerName, isHost };
     this.clients.push(client);
     this.empireSlots.push({ empireId, playerName, isHost, connected: true });
     return client;
+  }
+
+  /**
+   * Assign a joining player one of the saved game's human empires: their own
+   * if the name matches (case-insensitive), otherwise the first unclaimed one.
+   */
+  private claimLoadedEmpire(playerName: string): number | null {
+    const open = this.getOpenEmpires();
+    if (open.length === 0) return null;
+    const wanted = playerName.trim().toLowerCase();
+    const match = open.find((e) => e.name.toLowerCase() === wanted);
+    return (match ?? open[0]).empireId;
+  }
+
+  /** Saved human empires not yet claimed by a connected player. Empty for fresh rooms. */
+  getOpenEmpires(): OpenEmpireInfo[] {
+    if (!this.loadedState || this.started) return [];
+    const claimed = new Set(this.empireSlots.map((s) => s.empireId));
+    return listHumanEmpires(this.loadedState)
+      .filter((e) => !claimed.has(e.id))
+      .map((e) => ({ empireId: e.id, name: e.empireName }));
   }
 
   /** Find a disconnected empire slot by player name (for rejoining via the Join field). */
@@ -114,18 +141,7 @@ export class Room {
       }
 
       if (this.state) {
-        const empire = this.state.empires[removed.empireId];
-        if (empire) {
-          empire.controllerType = 'ai';
-          // Ensure AI controller state exists
-          if (!this.state.aiControllers[removed.empireId]) {
-            this.state.aiControllers[removed.empireId] = {
-              empireId: removed.empireId,
-              difficulty: this.state.difficulty ?? 'normal',
-              recentAttacks: {},
-            };
-          }
-        }
+        demoteEmpireToAi(this.state, removed.empireId);
       }
 
       this.broadcast({ type: 'playerLeft', empireId: removed.empireId });
@@ -222,7 +238,9 @@ export class Room {
       return;
     }
 
-    this.state = createMultiplayerGame(this.empireSlots);
+    this.state = this.loadedState
+      ? prepareLoadedGame(this.loadedState, this.empireSlots)
+      : createMultiplayerGame(this.empireSlots);
     this.started = true;
 
     // Baseline for per-tick deltas: the full state every client receives now.
@@ -332,6 +350,20 @@ export class Room {
       }
     }
   }
+}
+
+/**
+ * Resume a loaded save as a multiplayer game. Claimed empires keep their saved
+ * names and stay human; saved human empires nobody claimed go to the AI. The
+ * game starts paused so the host can resume once everyone is ready.
+ */
+function prepareLoadedGame(state: GameState, slots: EmpireSlot[]): GameState {
+  const claimed = new Set(slots.map((s) => s.empireId));
+  for (const empire of listHumanEmpires(state)) {
+    if (!claimed.has(empire.id)) demoteEmpireToAi(state, empire.id);
+  }
+  setSpeed(state, SPEEDS.PAUSED);
+  return state;
 }
 
 function createMultiplayerGame(slots: EmpireSlot[]): GameState {

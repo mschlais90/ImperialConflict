@@ -3,6 +3,7 @@ import type { BattleReport } from '../core/engines/combatEngine';
 import { createNewGame } from '../core/engines/gameManager';
 import type { GameState } from '../core/galaxy/galaxyData';
 import { downloadSave, uploadSave, getSavedDirHandle, saveToDirectory, listSavesInDirectory, loadFromDirectory } from '../core/persistence/saveLoad';
+import { convertToSinglePlayer, isMultiplayerSave, listHumanEmpires } from '../core/persistence/multiplayerSave';
 import type { GameSpeed } from '../core/events/eventLog';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';
 import { UNITS } from '../core/data/units';
@@ -10,7 +11,7 @@ import { getEmpire, getPlanet, getSystem } from '../core/selectors/selectors';
 import { createAttackLog } from './attackLog';
 import { renderBattleReport } from './battleReport';
 import { renderBattleHistoryPanel } from './battleHistory';
-import { clearElement } from './dom';
+import { button, clearElement } from './dom';
 import { renderEconomyPanel } from './economyPanel';
 import { renderFleetManagementPanel } from './fleetPanel';
 import { renderHud, type MenuCallbacks } from './hud';
@@ -427,7 +428,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     });
   }
 
-  function showMultiplayerLobby(): void {
+  function showMultiplayerLobby(loadedSave: GameState | null = null): void {
     clearElement(root);
     root.append(toastContainer);
 
@@ -441,7 +442,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         roomCode = code;
         mpClient.roomCode = code;
       },
-      onJoined(empireId, joinedPlayers) {
+      onJoined(empireId, joinedPlayers, openEmpires) {
         players = joinedPlayers;
         isHost = joinedPlayers.find((p) => p.empireId === empireId)?.isHost ?? false;
         controller.isHost = isHost;
@@ -452,6 +453,9 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           selectedFleetId: null,
         };
         lobbyCtrl?.showLobby(roomCode, players, isHost);
+        if (openEmpires && openEmpires.length > 0) {
+          lobbyCtrl?.setStatus(`Waiting for: ${openEmpires.map((e) => e.name).join(', ')}`);
+        }
       },
       onPlayerJoined(player) {
         players = [...players, player];
@@ -517,14 +521,26 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       ? `ws://${window.location.hostname || 'localhost'}:3001`
       : `${wsProtocol}//${window.location.host}`;
 
+    // When hosting a loaded save, default the host to the empire they saved as.
+    const savedHumans = loadedSave ? listHumanEmpires(loadedSave) : [];
+    const hostEmpire = savedHumans.find((e) => e.id === loadedSave?.selectedEmpireId) ?? savedHumans[0];
+
     lobbyCtrl = renderLobbyScreen(root, {
-      savedSession: loadMpSession(),
+      savedSession: loadedSave ? null : loadMpSession(),
+      loadedGame: loadedSave
+        ? { hostEmpireName: hostEmpire?.empireName ?? 'Player Empire', empireNames: savedHumans.map((e) => e.empireName) }
+        : null,
       onCreateRoom(playerName) {
         mpClient.connect(serverUrl);
         const waitForOpen = setInterval(() => {
           if (mpClient.isConnected) {
             clearInterval(waitForOpen);
-            mpClient.createRoom(playerName, { empireName: playerName });
+            if (loadedSave) {
+              const { rng, ...serializable } = loadedSave;
+              mpClient.createRoom(playerName, { empireName: playerName }, { state: serializable, rngState: rng?.getState() ?? 0 });
+            } else {
+              mpClient.createRoom(playerName, { empireName: playerName });
+            }
           }
         }, 100);
         setTimeout(() => clearInterval(waitForOpen), 5000);
@@ -1148,6 +1164,61 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
     input?.focus();
   }
 
+  function finishLoad(loaded: GameState, sourceName: string): void {
+    if (controller.loadGame) {
+      controller.loadGame(loaded);
+    } else {
+      controller.state = loaded;
+      controller.overlay.render();
+    }
+    syncLastSeenEventIds();
+    startMusic();
+    showToast(`Loaded: ${sourceName}`, false);
+  }
+
+  /** Route a freshly loaded save: multiplayer saves offer host/solo, others load directly. */
+  function applyLoadedSave(loaded: GameState, sourceName: string): void {
+    if (isMultiplayerSave(loaded)) {
+      showMultiplayerSaveChoice(loaded, sourceName);
+    } else {
+      finishLoad(loaded, sourceName);
+    }
+  }
+
+  function showMultiplayerSaveChoice(loaded: GameState, sourceName: string): void {
+    const choiceOverlay = document.createElement('div');
+    choiceOverlay.className = 'load-picker-overlay interactive';
+    const panel = document.createElement('div');
+    panel.className = 'load-picker-panel';
+
+    const title = document.createElement('h3');
+    title.textContent = 'Multiplayer Save';
+
+    const info = document.createElement('p');
+    info.className = 'empty-text';
+    const names = listHumanEmpires(loaded).map((e) => e.empireName).join(', ');
+    info.textContent = `This save is from a multiplayer game (${names}). `
+      + 'Host it so the other players can rejoin with their empire names, or continue solo with the other empires handed to the AI.';
+
+    const hostBtn = button('Host Multiplayer Game', () => {
+      choiceOverlay.remove();
+      showMultiplayerLobby(loaded);
+    }, 'ui-button primary lobby-action-btn');
+
+    const soloBtn = button('Continue Solo', () => {
+      choiceOverlay.remove();
+      convertToSinglePlayer(loaded);
+      finishLoad(loaded, sourceName);
+    }, 'ui-button lobby-action-btn');
+
+    panel.append(title, info, hostBtn, soloBtn);
+    choiceOverlay.addEventListener('click', (e) => {
+      if (e.target === choiceOverlay) choiceOverlay.remove();
+    });
+    choiceOverlay.append(panel);
+    root.append(choiceOverlay);
+  }
+
   function openFilePicker(context: UiContext): void {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1156,15 +1227,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       const file = input.files?.[0];
       if (!file) return;
       uploadSave(file).then((loaded) => {
-        if (controller.loadGame) {
-          controller.loadGame(loaded);
-        } else {
-          controller.state = loaded;
-          controller.overlay.render();
-        }
-        syncLastSeenEventIds();
-        startMusic();
-        showToast(`Loaded: ${file.name}`, false);
+        applyLoadedSave(loaded, file.name);
       }).catch(() => {
         context.setNotice('Failed to load save file.', true);
       });
@@ -1200,15 +1263,7 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
         row.addEventListener('click', () => {
           loadFromDirectory(entry).then((loaded) => {
             overlay.remove();
-            if (controller.loadGame) {
-              controller.loadGame(loaded);
-            } else {
-              controller.state = loaded;
-              controller.overlay.render();
-            }
-            syncLastSeenEventIds();
-            startMusic();
-            showToast(`Loaded: ${entry.name}`, false);
+            applyLoadedSave(loaded, entry.name);
           }).catch(() => {
             context.setNotice('Failed to load save file.', true);
           });

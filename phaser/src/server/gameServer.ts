@@ -3,7 +3,10 @@ import { readFileSync, existsSync } from 'fs';
 import { join, extname } from 'path';
 import { AddressInfo } from 'net';
 import { WebSocketServer, type WebSocket } from 'ws';
+import type { GameState } from '../core/galaxy/galaxyData';
+import { listHumanEmpires } from '../core/persistence/multiplayerSave';
 import type { ClientMessage } from '../core/protocol/messages';
+import { createRngFromState } from '../core/random/rng';
 import { Room, generateRoomCode } from './room';
 import { serializeState } from './stateSerializer';
 
@@ -89,12 +92,21 @@ export function startServer(options: StartServerOptions = {}): Promise<RunningSe
   const wss = new WebSocketServer({ server, perMessageDeflate: true });
 
   function handleCreate(ws: TaggedSocket, message: Extract<ClientMessage, { type: 'create' }>): void {
+    let loadedState: GameState | null = null;
+    if (message.savedState) {
+      loadedState = { ...message.savedState, rng: createRngFromState(message.savedRngState ?? 0) };
+      if (listHumanEmpires(loadedState).length === 0) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Save file has no human empires to resume.' }));
+        return;
+      }
+    }
+
     let roomCode = generateRoomCode();
     while (rooms.has(roomCode)) {
       roomCode = generateRoomCode();
     }
 
-    const room = new Room(roomCode);
+    const room = new Room(roomCode, loadedState);
     rooms.set(roomCode, room);
 
     const client = room.addClient(ws, message.playerName, true);
@@ -104,9 +116,9 @@ export function startServer(options: StartServerOptions = {}): Promise<RunningSe
     }
 
     ws.roomCode = roomCode;
-    console.log(`[ROOM] Room ${roomCode} created by "${message.playerName}"`);
+    console.log(`[ROOM] Room ${roomCode} created by "${message.playerName}"${loadedState ? ' (from save)' : ''}`);
     ws.send(JSON.stringify({ type: 'roomCreated', roomCode }));
-    ws.send(JSON.stringify({ type: 'joined', empireId: client.empireId, players: room.getPlayerInfoList() }));
+    ws.send(JSON.stringify({ type: 'joined', empireId: client.empireId, players: room.getPlayerInfoList(), openEmpires: room.getOpenEmpires() }));
   }
 
   function handleJoin(ws: TaggedSocket, message: Extract<ClientMessage, { type: 'join' }>): void {
@@ -134,7 +146,7 @@ export function startServer(options: StartServerOptions = {}): Promise<RunningSe
     }
 
     ws.roomCode = room.roomCode;
-    ws.send(JSON.stringify({ type: 'joined', empireId: client.empireId, players: room.getPlayerInfoList() }));
+    ws.send(JSON.stringify({ type: 'joined', empireId: client.empireId, players: room.getPlayerInfoList(), openEmpires: room.getOpenEmpires() }));
     room.broadcastMessage({ type: 'playerJoined', player: { empireId: client.empireId, name: client.playerName, isHost: false, color: room.getPlayerColor(client.empireId) } }, ws);
   }
 

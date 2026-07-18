@@ -1,4 +1,4 @@
-import type { ClientMessage, GameSettings, PlayerInfo, SerializedCommand, SerializedGameState, ServerMessage } from '../core/protocol/messages';
+import type { ClientMessage, GameSettings, OpenEmpireInfo, PlayerInfo, SerializedCommand, SerializedGameState, ServerMessage } from '../core/protocol/messages';
 import type { GameSpeed } from '../core/events/eventLog';
 import { applyTickDelta } from '../core/protocol/stateDelta';
 
@@ -22,7 +22,7 @@ function cloneStateView(state: SerializedGameState): SerializedGameState {
 
 export interface MultiplayerCallbacks {
   onRoomCreated: (roomCode: string) => void;
-  onJoined: (empireId: number, players: PlayerInfo[]) => void;
+  onJoined: (empireId: number, players: PlayerInfo[], openEmpires?: OpenEmpireInfo[]) => void;
   onPlayerJoined: (player: PlayerInfo) => void;
   onPlayerLeft: (empireId: number) => void;
   onPlayerReconnected: (empireId: number) => void;
@@ -132,8 +132,8 @@ export class MultiplayerClient {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 
-  createRoom(playerName: string, settings: GameSettings): void {
-    this.send({ type: 'create', playerName, settings });
+  createRoom(playerName: string, settings: GameSettings, savedGame?: { state: SerializedGameState; rngState: number }): void {
+    this.send({ type: 'create', playerName, settings, savedState: savedGame?.state, savedRngState: savedGame?.rngState });
   }
 
   joinRoom(roomCode: string, playerName: string): void {
@@ -190,7 +190,7 @@ export class MultiplayerClient {
         this.callbacks.onRoomCreated(message.roomCode);
         break;
       case 'joined':
-        this.callbacks.onJoined(message.empireId, message.players);
+        this.callbacks.onJoined(message.empireId, message.players, message.openEmpires);
         break;
       case 'playerJoined':
         this.callbacks.onPlayerJoined(message.player);

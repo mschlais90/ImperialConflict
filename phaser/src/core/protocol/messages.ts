@@ -19,6 +19,12 @@ export interface GameSettings {
   seed?: number;
 }
 
+/** A saved human empire in a loaded-save room that no player has claimed yet. */
+export interface OpenEmpireInfo {
+  empireId: number;
+  name: string;
+}
+
 // ---------------------------------------------------------------------------
 // Serialized commands — mirror CommandProxy methods without game state
 // ---------------------------------------------------------------------------
@@ -77,7 +83,7 @@ export interface TickDelta {
 // ---------------------------------------------------------------------------
 
 export type ClientMessage =
-  | { type: 'create'; playerName: string; settings: GameSettings }
+  | { type: 'create'; playerName: string; settings: GameSettings; savedState?: SerializedGameState; savedRngState?: number }
   | { type: 'join'; roomCode: string; playerName: string }
   | { type: 'reconnect'; roomCode: string; empireId: number }
   | { type: 'startGame' }
@@ -91,7 +97,7 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { type: 'roomCreated'; roomCode: string }
-  | { type: 'joined'; empireId: number; players: PlayerInfo[] }
+  | { type: 'joined'; empireId: number; players: PlayerInfo[]; openEmpires?: OpenEmpireInfo[] }
   | { type: 'playerJoined'; player: PlayerInfo }
   | { type: 'playerLeft'; empireId: number }
   | { type: 'playerReconnected'; empireId: number }

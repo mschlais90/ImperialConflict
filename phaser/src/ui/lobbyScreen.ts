@@ -8,6 +8,8 @@ export interface LobbyCallbacks {
   onStartGame: () => void;
   onLeave: () => void;
   savedSession: { roomCode: string; empireId: number } | null;
+  /** Set when hosting a loaded multiplayer save instead of a fresh game. */
+  loadedGame?: { hostEmpireName: string; empireNames: string[] } | null;
 }
 
 function orDivider(): HTMLElement {
@@ -31,14 +33,16 @@ export function renderLobbyScreen(root: HTMLElement, callbacks: LobbyCallbacks):
   const panel = document.createElement('div');
   panel.className = 'start-panel';
 
+  const loadedGame = callbacks.loadedGame ?? null;
+
   const title = document.createElement('h1');
-  title.textContent = 'Multiplayer';
+  title.textContent = loadedGame ? 'Host Saved Game' : 'Multiplayer';
 
   const nameLabel = document.createElement('label');
   nameLabel.textContent = 'Empire name';
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
-  nameInput.value = 'Player Empire';
+  nameInput.value = loadedGame ? loadedGame.hostEmpireName : 'Player Empire';
   nameInput.maxLength = 32;
   nameInput.autocomplete = 'off';
   nameInput.spellcheck = false;
@@ -47,7 +51,14 @@ export function renderLobbyScreen(root: HTMLElement, callbacks: LobbyCallbacks):
   // Create section
   const createSection = document.createElement('div');
   createSection.className = 'lobby-section';
-  const createBtn = button('Create New Game', () => {
+  if (loadedGame) {
+    const hint = document.createElement('p');
+    hint.className = 'empty-text';
+    hint.textContent = `Resuming saved game with empires: ${loadedGame.empireNames.join(', ')}. `
+      + 'Other players join with the room code and their empire name to reclaim their empire.';
+    createSection.append(hint);
+  }
+  const createBtn = button(loadedGame ? 'Host Loaded Game' : 'Create New Game', () => {
     const name = nameInput.value.trim() || 'Player Empire';
     callbacks.onCreateRoom(name);
   }, 'ui-button primary lobby-action-btn');
@@ -102,7 +113,10 @@ export function renderLobbyScreen(root: HTMLElement, callbacks: LobbyCallbacks):
   const joinView = document.createElement('div');
   joinView.className = 'lobby-join-view';
 
-  if (callbacks.savedSession) {
+  if (loadedGame) {
+    // Hosting a loaded save: only the create action applies.
+    joinView.append(nameLabel, createSection, backBtn);
+  } else if (callbacks.savedSession) {
     const session = callbacks.savedSession;
 
     const rejoinSection = document.createElement('div');
