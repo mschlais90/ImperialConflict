@@ -1,36 +1,55 @@
+import type { CommandResult } from '../core/commands/playerCommands';
 import {
   AGENT_OP_DIFFICULTY,
+  agentOpName,
+  getActiveMissionCount,
   getAgentOperationCost,
+  getMissionDuration,
   getSpellCost,
   getSuccessChance,
   getTotalAgents,
   getTotalWizards,
+  MAX_ACTIVE_MISSIONS,
+  REDUCE_FOOD_MAX_STACKS,
+  REDUCE_FOOD_PCT,
+  REDUCE_FOOD_TICKS,
   SPELL_DIFFICULTY,
+  spellName,
   type AgentOperationType,
+  type MissionKind,
+  type OpDifficulty,
   type SpellType,
 } from '../core/engines/opsEngine';
-import { calcEmpireNetworth, getPlanetsForEmpire } from '../core/selectors/selectors';
+import { calcEmpireNetworth, getEmpire, getPlanet, getPlanetsForEmpire } from '../core/selectors/selectors';
 import type { Empire } from '../core/models/types';
-import { button, formatNumber, select } from './dom';
+import { button, formatNumber, labeledControl, numberInput, select } from './dom';
 import { resourceIcon } from './resourceIcons';
 import type { UiContext } from './types';
 
-// Persist last selected targets across re-renders
+// Persist last selected targets and commitments across re-renders
 let persistedEmpireId: number | null = null;
 let persistedPlanetId: number | null = null;
+const persistedCommit: Record<MissionKind, number | null> = { agent: null, wizard: null };
 
-const AGENT_OPS: { type: AgentOperationType; name: string; description: string; needsPlanet: boolean }[] = [
+type OpEntry<T extends string> = { type: T; name: string; description: string; needsPlanet: boolean };
+
+const AGENT_OPS: OpEntry<AgentOperationType>[] = [
   { type: 'spy', name: 'Spy', description: 'Reveal enemy resources and planet count.', needsPlanet: false },
   { type: 'destroy_cash', name: 'Destroy Cash', description: 'Destroy 3-10% of enemy GC.', needsPlanet: false },
   { type: 'destroy_units', name: 'Destroy Units', description: 'Destroy 30% of a random unit type on a planet.', needsPlanet: true },
   { type: 'sabotage_portal', name: 'Sabotage Portal', description: 'Disable a portal for 20 ticks.', needsPlanet: true },
 ];
 
-const WIZARD_SPELLS: { type: SpellType; name: string; description: string; needsPlanet: boolean }[] = [
-  { type: 'vision', name: 'Vision', description: 'Reveal enemy resources and planet count.', needsPlanet: false },
+const WIZARD_SPELLS: OpEntry<SpellType>[] = [
+  { type: 'vision', name: 'Vision', description: 'Reveal resources, military totals and active ops missions.', needsPlanet: false },
   { type: 'hypnotize', name: 'Hypnotize', description: 'Kill 30% population on a planet.', needsPlanet: true },
-  { type: 'reduce_food', name: 'Reduce Food', description: 'Reduce food production by 10% for 8 ticks (max 3 stacks).', needsPlanet: false },
-  { type: 'destroy_iron', name: 'Destroy Iron', description: 'Destroy 3-10% of enemy iron.', needsPlanet: false },
+  {
+    type: 'reduce_food',
+    name: 'Reduce Food',
+    description: `Curse: -${REDUCE_FOOD_PCT * 100}% food production for ${REDUCE_FOOD_TICKS} ticks (max ${REDUCE_FOOD_MAX_STACKS} stacks).`,
+    needsPlanet: false,
+  },
+  { type: 'destroy_iron', name: 'Destroy Iron', description: 'Destroy 8-15% of enemy iron.', needsPlanet: false },
 ];
 
 export function renderOpsPanel(context: UiContext): HTMLElement {
@@ -125,126 +144,174 @@ export function renderOpsPanel(context: UiContext): HTMLElement {
   persistedEmpireId = Number(empireSelect.value);
   panel.append(targetRow);
 
-  // Success chance info
+  const agentCost = getAgentOperationCost(state, context.player);
+  const spellCost = getSpellCost(state, context.player);
+
   function getTargetEmpire(): Empire {
     return enemies.find((e) => e.id === Number(empireSelect.value)) ?? enemies[0];
   }
 
-  // Agent Operations section
-  const agentSection = document.createElement('div');
-  agentSection.className = 'ops-section';
-  const agentTitle = document.createElement('h3');
-  agentTitle.textContent = 'Agent Operations';
-  agentSection.append(agentTitle);
+  const playerNetworth = calcEmpireNetworth(state, context.player.id);
 
-  const agentCost = getAgentOperationCost(state, context.player);
-  const agentCostEl = document.createElement('p');
-  agentCostEl.className = 'ops-cost';
-  agentCostEl.innerHTML = `Cost: ${formatNumber(agentCost)} ${resourceIcon('gc')} per operation`;
-  agentSection.append(agentCostEl);
+  function renderSection<T extends string>(config: {
+    kind: MissionKind;
+    title: string;
+    unitLabel: string;
+    actionLabel: string;
+    available: number;
+    costHtml: string;
+    canAfford: boolean;
+    entries: OpEntry<T>[];
+    difficulty: Record<T, OpDifficulty>;
+    countDefenders: (target: Empire) => number;
+    launch: (type: T, targetPlanetId: number | undefined, units: number) => CommandResult;
+  }): HTMLElement {
+    const section = document.createElement('div');
+    section.className = 'ops-section';
+    const heading = document.createElement('h3');
+    heading.textContent = config.title;
+    section.append(heading);
 
-  for (const op of AGENT_OPS) {
-    const target = getTargetEmpire();
-    const chance = getSuccessChance(
-      totalAgents,
-      getTotalAgents(state, target),
-      calcEmpireNetworth(state, context.player.id),
-      calcEmpireNetworth(state, target.id),
-      AGENT_OP_DIFFICULTY[op.type],
-    );
+    const activeCount = getActiveMissionCount(context.player, config.kind);
+    const atCap = activeCount >= MAX_ACTIVE_MISSIONS;
+    const costEl = document.createElement('p');
+    costEl.className = 'ops-cost';
+    costEl.innerHTML = `${config.costHtml} · Missions ${activeCount}/${MAX_ACTIVE_MISSIONS}`;
+    section.append(costEl);
 
-    const row = document.createElement('div');
-    row.className = 'ops-row';
+    const persisted = persistedCommit[config.kind];
+    const initialCommit = persisted !== null && persisted <= config.available ? persisted : config.available;
+    const commitInput = numberInput(initialCommit, { min: 1, max: Math.max(config.available, 1) });
+    commitInput.className = 'ops-commit-input';
+    const commitRow = labeledControl(`Commit ${config.unitLabel} (of ${config.available})`, commitInput);
+    commitRow.classList.add('ops-commit-row');
+    const etaEl = document.createElement('span');
+    etaEl.className = 'ops-desc';
+    commitRow.append(etaEl);
+    section.append(commitRow);
 
-    const info = document.createElement('div');
-    info.className = 'ops-info';
-    const nameEl = document.createElement('span');
-    nameEl.className = 'ops-name';
-    nameEl.textContent = op.name;
-    const descEl = document.createElement('span');
-    descEl.className = 'ops-desc';
-    descEl.textContent = op.description;
-    const chanceEl = document.createElement('span');
-    chanceEl.className = 'ops-chance';
-    chanceEl.textContent = `${Math.trunc(chance * 100)}% chance`;
-    info.append(nameEl, descEl, chanceEl);
+    const chanceEls: Array<{ el: HTMLElement; type: T }> = [];
+    const updateEstimates = () => {
+      const target = getTargetEmpire();
+      const commit = Math.min(Math.max(Math.trunc(Number(commitInput.value) || 0), 0), config.available);
+      const defenders = config.countDefenders(target);
+      const targetNetworth = calcEmpireNetworth(state!, target.id);
+      for (const { el, type } of chanceEls) {
+        const chance = getSuccessChance(commit, defenders, playerNetworth, targetNetworth, config.difficulty[type]);
+        el.textContent = `${Math.trunc(chance * 100)}% chance`;
+      }
+      const eta = getMissionDuration(state!, config.kind, context.player, target);
+      etaEl.textContent = `Arrives in ~${eta} ticks`;
+    };
+    commitInput.addEventListener('input', () => {
+      const value = Math.trunc(Number(commitInput.value));
+      persistedCommit[config.kind] = Number.isFinite(value) && value > 0 ? value : null;
+      updateEstimates();
+    });
+    empireSelect.addEventListener('change', updateEstimates);
 
-    const btn = button('Execute', () => {
-      context.runCommand(() =>
+    for (const entry of config.entries) {
+      const row = document.createElement('div');
+      row.className = 'ops-row';
+
+      const info = document.createElement('div');
+      info.className = 'ops-info';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'ops-name';
+      nameEl.textContent = entry.name;
+      const descEl = document.createElement('span');
+      descEl.className = 'ops-desc';
+      descEl.textContent = entry.description;
+      const chanceEl = document.createElement('span');
+      chanceEl.className = 'ops-chance';
+      chanceEls.push({ el: chanceEl, type: entry.type });
+      info.append(nameEl, descEl, chanceEl);
+
+      const btn = button(config.actionLabel, () => {
+        context.runCommand(() =>
+          config.launch(
+            entry.type,
+            entry.needsPlanet && planetSelect ? Number(planetSelect.value) : undefined,
+            Math.trunc(Number(commitInput.value)),
+          ),
+        );
+      });
+      if (config.available <= 0 || !config.canAfford || atCap) {
+        btn.disabled = true;
+      }
+
+      row.append(info, btn);
+      section.append(row);
+    }
+
+    updateEstimates();
+    return section;
+  }
+
+  panel.append(
+    renderSection<AgentOperationType>({
+      kind: 'agent',
+      title: 'Agent Operations',
+      unitLabel: 'agents',
+      actionLabel: 'Launch',
+      available: totalAgents,
+      costHtml: `Cost: ${formatNumber(agentCost)} ${resourceIcon('gc')} per mission`,
+      canAfford: context.player.resources.gc >= agentCost,
+      entries: AGENT_OPS,
+      difficulty: AGENT_OP_DIFFICULTY,
+      countDefenders: (target) => getTotalAgents(state, target),
+      launch: (operationType, targetPlanetId, units) =>
         context.commands.performAgentOperation({
           empireId: context.player.id,
           targetEmpireId: Number(empireSelect.value),
-          operationType: op.type,
-          targetPlanetId: op.needsPlanet && planetSelect ? Number(planetSelect.value) : undefined,
+          operationType,
+          targetPlanetId,
+          units,
         }),
-      );
-    });
-    if (totalAgents <= 0 || context.player.resources.gc < agentCost) {
-      btn.disabled = true;
-    }
-
-    row.append(info, btn);
-    agentSection.append(row);
-  }
-  panel.append(agentSection);
-
-  // Wizard Spells section
-  const wizardSection = document.createElement('div');
-  wizardSection.className = 'ops-section';
-  const wizardTitle = document.createElement('h3');
-  wizardTitle.textContent = 'Wizard Spells';
-  wizardSection.append(wizardTitle);
-
-  const spellCost = getSpellCost(state, context.player);
-  const spellCostEl = document.createElement('p');
-  spellCostEl.className = 'ops-cost';
-  spellCostEl.innerHTML = `Cost: ${formatNumber(spellCost)} ${resourceIcon('octarine')} per spell`;
-  wizardSection.append(spellCostEl);
-
-  for (const spell of WIZARD_SPELLS) {
-    const target = getTargetEmpire();
-    const chance = getSuccessChance(
-      totalWizards,
-      getTotalWizards(state, target),
-      calcEmpireNetworth(state, context.player.id),
-      calcEmpireNetworth(state, target.id),
-      SPELL_DIFFICULTY[spell.type],
-    );
-
-    const row = document.createElement('div');
-    row.className = 'ops-row';
-
-    const info = document.createElement('div');
-    info.className = 'ops-info';
-    const nameEl = document.createElement('span');
-    nameEl.className = 'ops-name';
-    nameEl.textContent = spell.name;
-    const descEl = document.createElement('span');
-    descEl.className = 'ops-desc';
-    descEl.textContent = spell.description;
-    const chanceEl = document.createElement('span');
-    chanceEl.className = 'ops-chance';
-    chanceEl.textContent = `${Math.trunc(chance * 100)}% chance`;
-    info.append(nameEl, descEl, chanceEl);
-
-    const btn = button('Cast', () => {
-      context.runCommand(() =>
+    }),
+    renderSection<SpellType>({
+      kind: 'wizard',
+      title: 'Wizard Spells',
+      unitLabel: 'wizards',
+      actionLabel: 'Cast',
+      available: totalWizards,
+      costHtml: `Cost: ${formatNumber(spellCost)} ${resourceIcon('octarine')} per spell`,
+      canAfford: context.player.resources.octarine >= spellCost,
+      entries: WIZARD_SPELLS,
+      difficulty: SPELL_DIFFICULTY,
+      countDefenders: (target) => getTotalWizards(state, target),
+      launch: (spellType, targetPlanetId, units) =>
         context.commands.performSpell({
           empireId: context.player.id,
           targetEmpireId: Number(empireSelect.value),
-          spellType: spell.type,
-          targetPlanetId: spell.needsPlanet && planetSelect ? Number(planetSelect.value) : undefined,
+          spellType,
+          targetPlanetId,
+          units,
         }),
-      );
-    });
-    if (totalWizards <= 0 || context.player.resources.octarine < spellCost) {
-      btn.disabled = true;
-    }
+    }),
+  );
 
-    row.append(info, btn);
-    wizardSection.append(row);
+  // Active Missions section
+  if (context.player.missions.length > 0) {
+    const missionSection = document.createElement('div');
+    missionSection.className = 'ops-section';
+    const missionTitle = document.createElement('h3');
+    missionTitle.textContent = 'Active Missions';
+    missionSection.append(missionTitle);
+
+    for (const mission of context.player.missions) {
+      const row = document.createElement('div');
+      row.className = 'ops-mission';
+      const name = mission.kind === 'agent' ? agentOpName(mission.opType) : spellName(mission.opType);
+      const targetName = getEmpire(state, mission.targetEmpireId)?.empireName ?? 'Unknown';
+      const planet = mission.targetPlanetId === undefined ? undefined : getPlanet(state, mission.targetPlanetId);
+      const where = planet ? ` (${planet.planetName})` : '';
+      const unitLabel = mission.kind === 'agent' ? 'agent' : 'wizard';
+      row.textContent = `${name} → ${targetName}${where} · ${mission.units} ${unitLabel}${mission.units === 1 ? '' : 's'} · ${mission.ticksRemaining} tick${mission.ticksRemaining === 1 ? '' : 's'}`;
+      missionSection.append(row);
+    }
+    panel.append(missionSection);
   }
-  panel.append(wizardSection);
 
   // Active Debuffs section
   if (context.player.debuffs.length > 0) {
@@ -257,7 +324,7 @@ export function renderOpsPanel(context: UiContext): HTMLElement {
     for (const debuff of context.player.debuffs) {
       const row = document.createElement('div');
       row.className = 'ops-debuff';
-      const typeLabel = debuff.type === 'portal_disabled' ? 'Portal Disabled' : debuff.type === 'reduced_food' ? 'Reduced Food (-10%)' : debuff.type;
+      const typeLabel = debuff.type === 'portal_disabled' ? 'Portal Disabled' : debuff.type === 'reduced_food' ? `Reduced Food (-${Math.round(debuff.value * 100)}%)` : debuff.type;
       let text = `${typeLabel} - ${debuff.ticksRemaining} ticks remaining`;
       if (debuff.planetId !== undefined) {
         const planet = state.planets.find((p) => p.id === debuff.planetId);

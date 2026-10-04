@@ -165,9 +165,11 @@ function buildEventContent(
       );
       return;
     }
-    case 'building_completed':
-      container.textContent = `Tick ${event.tick}: ${event.buildingType} completed.`;
+    case 'building_completed': {
+      const parts = Object.entries(event.counts).map(([building, count]) => `${count} ${building}`);
+      container.textContent = `Tick ${event.tick}: Completed ${parts.join(', ')}.`;
       return;
+    }
     case 'unit_completed': {
       const parts = (Object.entries(event.counts) as Array<[UnitKey, number]>)
         .filter(([, count]) => count > 0)

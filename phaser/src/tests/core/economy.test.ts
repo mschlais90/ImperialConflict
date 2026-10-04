@@ -279,3 +279,21 @@ function createControlledState(): { state: GameState; empire: Empire; planet: Pl
 
   return { state, empire, planet };
 }
+
+describe('building completion events', () => {
+  it('aggregates all buildings an empire completes in a tick into one event', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const player = getPlayerEmpire(state)!;
+    const home = getPlanetsForEmpire(state, player.id)[0];
+    home.buildQueue.push(
+      { itemType: 'farm', ticksRemaining: 1, category: 'building' },
+      { itemType: 'farm', ticksRemaining: 1, category: 'building' },
+      { itemType: 'mine', ticksRemaining: 1, category: 'building' },
+    );
+    advanceTick(state);
+
+    const events = state.events.filter((e) => e.type === 'building_completed' && e.empireId === player.id);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ counts: { farm: 2, mine: 1 } });
+  });
+});

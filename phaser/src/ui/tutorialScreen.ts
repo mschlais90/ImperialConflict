@@ -104,10 +104,11 @@ export function renderTutorialScreen(root: HTMLElement, onBack: () => void): voi
 
     <section>
       <h2>Special Operations</h2>
-      <p>Agents and wizards perform covert operations against enemy empires:</p>
+      <p>Agents and wizards run timed covert missions against enemy empires:</p>
       <p><strong>Agent ops:</strong> Spy, Destroy Cash, Destroy Units, Sabotage Portals</p>
-      <p><strong>Wizard spells:</strong> Vision, Hypnotize, Reduce Food, Destroy Iron</p>
-      <p>Success chance depends on your unit count vs. the target's networth. Failed ops lose 5% of your agents/wizards.</p>
+      <p><strong>Wizard spells:</strong> Vision (also reveals military), Hypnotize, Reduce Food curse, Destroy Iron</p>
+      <p>Choose how many agents/wizards to commit. They leave your planets and the mission resolves 2–7 ticks later, depending on distance. You can run up to 3 agent and 3 wizard missions at a time.</p>
+      <p>Success depends on the units you committed versus the target's agents/wizards when the mission arrives. A failed mission loses 10% of the committed units; the rest return home. Targets may detect incoming missions, so watch for warnings and train defensive agents/wizards in time.</p>
     </section>
 
     <section>

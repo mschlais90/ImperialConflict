@@ -44,6 +44,7 @@ export interface GameState {
   nextPlanetId: number;
   nextFleetId: number;
   nextEventId: number;
+  nextMissionId: number;
   rng?: Rng;
   tickSnapshots: TickSnapshot[];
 }
@@ -68,6 +69,7 @@ export function createEmptyGameState(): GameState {
     nextPlanetId: 0,
     nextFleetId: 0,
     nextEventId: 0,
+    nextMissionId: 0,
     rng: createSeededRng(0),
     tickSnapshots: [],
   };

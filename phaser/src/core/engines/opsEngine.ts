@@ -1,21 +1,30 @@
 import { UNITS } from '../data/units';
 import { appendEvent } from '../events/eventLog';
 import type { GameState } from '../galaxy/galaxyData';
-import type { CombatUnitKey, Empire, Planet } from '../models/types';
-import { calcEmpireNetworth, getPlanetsForEmpire } from '../selectors/selectors';
+import type { AgentOperationType, CombatUnitKey, Empire, OpsMission, Planet, SpellType } from '../models/types';
+import { calcEmpireNetworth, calcTravelTicks, getEmpire, getPlanet, getPlanetsForEmpire } from '../selectors/selectors';
 
-export type AgentOperationType = 'spy' | 'destroy_cash' | 'destroy_units' | 'sabotage_portal';
-export type SpellType = 'vision' | 'hypnotize' | 'reduce_food' | 'destroy_iron';
+export type { AgentOperationType, SpellType } from '../models/types';
 export type OperationResult = { success: true; message: string } | { success: false; message: string };
+export type MissionKind = OpsMission['kind'];
 
 const COMBAT_UNIT_KEYS: CombatUnitKey[] = ['fighter', 'bomber', 'soldier', 'droid', 'transport'];
+
+/** Maximum concurrent missions per kind (agent / wizard) per empire. */
+export const MAX_ACTIVE_MISSIONS = 3;
+const MIN_MISSION_TICKS = 2;
+const MAX_MISSION_TICKS = 6;
+/** Galaxy distance units per tick of mission travel. */
+const MISSION_DISTANCE_PER_TICK = 8;
+/** Fraction of committed units lost when a mission fails. */
+const FAILURE_LOSS_RATE = 0.1;
 
 export function getAgentOperationCost(state: GameState, attacker: Empire): number {
   return Math.max(Math.trunc(calcEmpireNetworth(state, attacker.id) / 15), 10);
 }
 
 export function getSpellCost(state: GameState, attacker: Empire): number {
-  return Math.max(Math.trunc(calcEmpireNetworth(state, attacker.id) / 20), 5);
+  return Math.max(Math.trunc(calcEmpireNetworth(state, attacker.id) / 80), 5);
 }
 
 export type OpDifficulty = 'soft' | 'hard';
@@ -64,36 +73,10 @@ export function getSuccessChance(
   return Math.min(Math.max(chance, 0.05), 0.9);
 }
 
-function loseAgentsOnFailure(state: GameState, empire: Empire): number {
-  const total = getTotalAgents(state, empire);
-  const toLose = Math.max(Math.trunc(total * 0.05), 1);
-  let remaining = toLose;
-  for (const planet of getPlanetsForEmpire(state, empire.id)) {
-    if (remaining <= 0) break;
-    const onPlanet = planet.units.agent ?? 0;
-    if (onPlanet > 0) {
-      const kill = Math.min(onPlanet, remaining);
-      planet.units.agent = onPlanet - kill;
-      remaining -= kill;
-    }
-  }
-  return toLose - remaining;
-}
-
-function loseWizardsOnFailure(state: GameState, empire: Empire): number {
-  const total = getTotalWizards(state, empire);
-  const toLose = Math.max(Math.trunc(total * 0.05), 1);
-  let remaining = toLose;
-  for (const planet of getPlanetsForEmpire(state, empire.id)) {
-    if (remaining <= 0) break;
-    const onPlanet = planet.units.wizard ?? 0;
-    if (onPlanet > 0) {
-      const kill = Math.min(onPlanet, remaining);
-      planet.units.wizard = onPlanet - kill;
-      remaining -= kill;
-    }
-  }
-  return toLose - remaining;
+/** Chance that the defender spots an incoming mission at launch. */
+export function getDetectionChance(committed: number, defenderCount: number): number {
+  if (defenderCount <= 0) return 0.1;
+  return Math.min(Math.max(defenderCount / (defenderCount + committed), 0.1), 0.8);
 }
 
 export function getTotalAgents(state: GameState, empire: Empire): number {
@@ -104,11 +87,32 @@ export function getTotalWizards(state: GameState, empire: Empire): number {
   return getPlanetsForEmpire(state, empire.id).reduce((total, planet) => total + (planet.units.wizard ?? 0), 0);
 }
 
-export function performAgentOp(
+export function getActiveMissionCount(empire: Empire, kind: MissionKind): number {
+  return empire.missions.filter((mission) => mission.kind === kind).length;
+}
+
+/** Ticks until a mission from `attacker` reaches `targetEmpire` (or the given planet). */
+export function getMissionDuration(
+  state: GameState,
+  kind: MissionKind,
+  attacker: Empire,
+  targetEmpire: Empire,
+  targetPlanet?: Planet,
+): number {
+  const fromSystemId = getPlanet(state, attacker.homePlanetId)?.systemId ?? attacker.homeSystemId;
+  const toSystemId = targetPlanet?.systemId ?? getPlanet(state, targetEmpire.homePlanetId)?.systemId ?? targetEmpire.homeSystemId;
+  const distanceTicks = Math.ceil(calcTravelTicks(state, fromSystemId, toSystemId) / MISSION_DISTANCE_PER_TICK);
+  const base = Math.min(Math.max(distanceTicks, MIN_MISSION_TICKS), MAX_MISSION_TICKS);
+  return kind === 'wizard' ? base + 1 : base;
+}
+
+/** Launch an agent mission. Validates fully before spending GC or committing agents. */
+export function launchAgentMission(
   state: GameState,
   opType: AgentOperationType,
   attacker: Empire,
   targetEmpire: Empire,
+  units?: number,
   targetPlanet?: Planet,
 ): OperationResult {
   if (!isAgentOperationType(opType)) {
@@ -117,63 +121,16 @@ export function performAgentOp(
   if (requiresAgentTargetPlanet(opType) && targetPlanet === undefined) {
     return { success: false, message: 'No target planet selected' };
   }
-  if (targetPlanet !== undefined && targetPlanet.ownerId !== targetEmpire.id) {
-    return { success: false, message: 'Target planet is not owned by target empire' };
-  }
-
-  const cost = getAgentOperationCost(state, attacker);
-  if (attacker.resources.gc < cost) {
-    return { success: false, message: `Not enough GC (${cost} needed)` };
-  }
-
-  const attackerAgents = getTotalAgents(state, attacker);
-  if (attackerAgents <= 0) {
-    return { success: false, message: 'No agents available' };
-  }
-
-  attacker.resources.gc -= cost;
-  const difficulty = AGENT_OP_DIFFICULTY[opType];
-  const chance = getSuccessChance(
-    attackerAgents,
-    getTotalAgents(state, targetEmpire),
-    calcEmpireNetworth(state, attacker.id),
-    calcEmpireNetworth(state, targetEmpire.id),
-    difficulty,
-  );
-
-  if (rollFloat(state) > chance) {
-    const lost = loseAgentsOnFailure(state, attacker);
-    const msg = `${agentOpName(opType)} failed against ${targetEmpire.empireName}! (${Math.trunc(chance * 100)}% chance) Lost ${lost} agent${lost === 1 ? '' : 's'}.`;
-    if (attacker.controllerType === 'human') {
-      appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: msg, empireId: attacker.id });
-    }
-    return { success: false, message: msg };
-  }
-
-  switch (opType) {
-    case 'spy': {
-      const result = spy(state, targetEmpire, 'SPY');
-      if (result.success && attacker.controllerType === 'human') {
-        appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: result.message, empireId: attacker.id });
-      }
-      return result;
-    }
-    case 'destroy_cash':
-      return destroyCash(state, targetEmpire);
-    case 'destroy_units':
-      return targetPlanet === undefined ? { success: false, message: 'No target planet selected' } : destroyUnits(state, targetPlanet);
-    case 'sabotage_portal':
-      return targetPlanet === undefined
-        ? { success: false, message: 'No target planet selected' }
-        : sabotagePortal(state, targetEmpire, targetPlanet);
-  }
+  return launchMission(state, { kind: 'agent', opType }, attacker, targetEmpire, units, targetPlanet);
 }
 
-export function performWizardSpell(
+/** Launch a wizard mission. Validates fully before spending octarine or committing wizards. */
+export function launchWizardMission(
   state: GameState,
   spellType: SpellType,
   attacker: Empire,
   targetEmpire: Empire,
+  units?: number,
   targetPlanet?: Planet,
 ): OperationResult {
   if (!isSpellType(spellType)) {
@@ -182,61 +139,209 @@ export function performWizardSpell(
   if (requiresSpellTargetPlanet(spellType) && targetPlanet === undefined) {
     return { success: false, message: 'No target planet selected' };
   }
+  return launchMission(state, { kind: 'wizard', opType: spellType }, attacker, targetEmpire, units, targetPlanet);
+}
+
+type MissionOp = { kind: 'agent'; opType: AgentOperationType } | { kind: 'wizard'; opType: SpellType };
+
+function launchMission(
+  state: GameState,
+  op: MissionOp,
+  attacker: Empire,
+  targetEmpire: Empire,
+  requestedUnits: number | undefined,
+  targetPlanet: Planet | undefined,
+): OperationResult {
   if (targetPlanet !== undefined && targetPlanet.ownerId !== targetEmpire.id) {
     return { success: false, message: 'Target planet is not owned by target empire' };
   }
 
-  const cost = getSpellCost(state, attacker);
-  if (attacker.resources.octarine < cost) {
-    return { success: false, message: `Not enough Octarine (${cost} needed)` };
+  const isAgent = op.kind === 'agent';
+  const unitLabel = isAgent ? 'agents' : 'wizards';
+  const cost = isAgent ? getAgentOperationCost(state, attacker) : getSpellCost(state, attacker);
+  const available = isAgent ? getTotalAgents(state, attacker) : getTotalWizards(state, attacker);
+  if (isAgent ? attacker.resources.gc < cost : attacker.resources.octarine < cost) {
+    return { success: false, message: `Not enough ${isAgent ? 'GC' : 'Octarine'} (${cost} needed)` };
+  }
+  if (available <= 0) {
+    return { success: false, message: `No ${unitLabel} available` };
   }
 
-  const attackerWizards = getTotalWizards(state, attacker);
-  if (attackerWizards <= 0) {
-    return { success: false, message: 'No wizards available' };
+  const units = requestedUnits ?? available;
+  if (!Number.isInteger(units) || units < 1 || units > available) {
+    return { success: false, message: `Commit between 1 and ${available} ${unitLabel}` };
+  }
+  if (getActiveMissionCount(attacker, op.kind) >= MAX_ACTIVE_MISSIONS) {
+    return { success: false, message: `Already running ${MAX_ACTIVE_MISSIONS} ${isAgent ? 'agent' : 'wizard'} missions` };
   }
 
-  attacker.resources.octarine -= cost;
-  const difficulty = SPELL_DIFFICULTY[spellType];
-  const chance = getSuccessChance(
-    attackerWizards,
-    getTotalWizards(state, targetEmpire),
-    calcEmpireNetworth(state, attacker.id),
-    calcEmpireNetworth(state, targetEmpire.id),
-    difficulty,
-  );
+  // Validation complete — mutate.
+  if (isAgent) attacker.resources.gc -= cost;
+  else attacker.resources.octarine -= cost;
+  removeUnitsFromPlanets(state, attacker, isAgent ? 'agent' : 'wizard', units);
 
-  if (rollFloat(state) > chance) {
-    const lost = loseWizardsOnFailure(state, attacker);
-    const msg = `${spellName(spellType)} failed against ${targetEmpire.empireName}! (${Math.trunc(chance * 100)}% chance) Lost ${lost} wizard${lost === 1 ? '' : 's'}.`;
-    if (attacker.controllerType === 'human') {
-      appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: msg, empireId: attacker.id });
+  const ticks = getMissionDuration(state, op.kind, attacker, targetEmpire, targetPlanet);
+  const base = {
+    id: state.nextMissionId,
+    targetEmpireId: targetEmpire.id,
+    targetPlanetId: targetPlanet?.id,
+    units,
+    ticksRemaining: ticks,
+    launchedTick: state.currentTick,
+  };
+  attacker.missions.push(op.kind === 'agent' ? { ...base, kind: 'agent', opType: op.opType } : { ...base, kind: 'wizard', opType: op.opType });
+  state.nextMissionId += 1;
+
+  const defenderCount = isAgent ? getTotalAgents(state, targetEmpire) : getTotalWizards(state, targetEmpire);
+  if (rollFloat(state) < getDetectionChance(units, defenderCount)) {
+    notifyDefender(
+      state,
+      targetEmpire,
+      `Enemy ${unitLabel} from ${attacker.empireName} detected! Expected in ${ticks} tick${ticks === 1 ? '' : 's'}.`,
+    );
+  }
+
+  const name = isAgent ? agentOpName(op.opType as AgentOperationType) : spellName(op.opType as SpellType);
+  return {
+    success: true,
+    message: `${name} mission launched with ${units} ${unitLabel} against ${targetEmpire.empireName}. Arrives in ${ticks} tick${ticks === 1 ? '' : 's'}.`,
+  };
+}
+
+/** Advance all in-flight missions one tick and resolve the ones that arrive. Called from the tick loop. */
+export function advanceOpsMissions(state: GameState): void {
+  for (const attacker of state.empires) {
+    if (attacker.missions.length === 0) continue;
+    const pending: OpsMission[] = [];
+    const arrived: OpsMission[] = [];
+    for (const mission of attacker.missions) {
+      mission.ticksRemaining -= 1;
+      (mission.ticksRemaining <= 0 ? arrived : pending).push(mission);
     }
-    return { success: false, message: msg };
-  }
-
-  switch (spellType) {
-    case 'vision': {
-      const result = spy(state, targetEmpire, 'VISION');
-      if (result.success && attacker.controllerType === 'human') {
-        appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message: result.message, empireId: attacker.id });
-      }
-      return result;
+    attacker.missions = pending;
+    for (const mission of arrived) {
+      resolveMission(state, attacker, mission);
     }
-    case 'hypnotize':
-      return targetPlanet === undefined ? { success: false, message: 'No target planet selected' } : hypnotize(state, targetPlanet);
-    case 'reduce_food':
-      return reduceFood(state, targetEmpire);
-    case 'destroy_iron':
-      return destroyIron(state, targetEmpire);
   }
 }
 
-function spy(state: GameState, target: Empire, label: 'SPY' | 'VISION'): OperationResult {
+function resolveMission(state: GameState, attacker: Empire, mission: OpsMission): void {
+  const isAgent = mission.kind === 'agent';
+  const unitKey = isAgent ? 'agent' : 'wizard';
+  const name = isAgent ? agentOpName(mission.opType) : spellName(mission.opType);
+  const targetEmpire = getEmpire(state, mission.targetEmpireId);
+  const targetPlanet = mission.targetPlanetId === undefined ? undefined : getPlanet(state, mission.targetPlanetId);
+
+  if (
+    targetEmpire === undefined ||
+    targetEmpire.isEliminated ||
+    (mission.targetPlanetId !== undefined && (targetPlanet === undefined || targetPlanet.ownerId !== targetEmpire.id))
+  ) {
+    const returned = returnUnitsHome(state, attacker, unitKey, mission.units);
+    notifyAttacker(state, attacker, `${name} mission aborted — target no longer valid. ${returned} ${unitKey}${returned === 1 ? '' : 's'} returned.`);
+    return;
+  }
+
+  const defenderCount = isAgent ? getTotalAgents(state, targetEmpire) : getTotalWizards(state, targetEmpire);
+  const chance = getSuccessChance(
+    mission.units,
+    defenderCount,
+    calcEmpireNetworth(state, attacker.id),
+    calcEmpireNetworth(state, targetEmpire.id),
+    isAgent ? AGENT_OP_DIFFICULTY[mission.opType] : SPELL_DIFFICULTY[mission.opType],
+  );
+
+  if (rollFloat(state) > chance) {
+    const lost = Math.min(Math.max(Math.trunc(mission.units * FAILURE_LOSS_RATE), 1), mission.units);
+    returnUnitsHome(state, attacker, unitKey, mission.units - lost);
+    notifyAttacker(
+      state,
+      attacker,
+      `${name} failed against ${targetEmpire.empireName}! (${Math.trunc(chance * 100)}% chance) Lost ${lost} ${unitKey}${lost === 1 ? '' : 's'}.`,
+    );
+    return;
+  }
+
+  returnUnitsHome(state, attacker, unitKey, mission.units);
+  const result = mission.kind === 'agent'
+    ? applyAgentEffect(state, mission.opType, targetEmpire, targetPlanet)
+    : applySpellEffect(state, mission.opType, targetEmpire, targetPlanet);
+  notifyAttacker(state, attacker, result.message);
+}
+
+function applyAgentEffect(state: GameState, opType: AgentOperationType, target: Empire, targetPlanet?: Planet): OperationResult {
+  switch (opType) {
+    case 'spy':
+      return spy(state, target);
+    case 'destroy_cash':
+      return destroyCash(state, target);
+    case 'destroy_units':
+      return targetPlanet === undefined ? { success: false, message: 'No target planet selected' } : destroyUnits(state, targetPlanet);
+    case 'sabotage_portal':
+      return targetPlanet === undefined ? { success: false, message: 'No target planet selected' } : sabotagePortal(state, target, targetPlanet);
+  }
+}
+
+function applySpellEffect(state: GameState, spellType: SpellType, target: Empire, targetPlanet?: Planet): OperationResult {
+  switch (spellType) {
+    case 'vision':
+      return vision(state, target);
+    case 'hypnotize':
+      return targetPlanet === undefined ? { success: false, message: 'No target planet selected' } : hypnotize(state, targetPlanet);
+    case 'reduce_food':
+      return reduceFood(state, target);
+    case 'destroy_iron':
+      return destroyIron(state, target);
+  }
+}
+
+function removeUnitsFromPlanets(state: GameState, empire: Empire, unit: 'agent' | 'wizard', count: number): void {
+  let remaining = count;
+  for (const planet of getPlanetsForEmpire(state, empire.id)) {
+    if (remaining <= 0) break;
+    const onPlanet = planet.units[unit] ?? 0;
+    if (onPlanet > 0) {
+      const take = Math.min(onPlanet, remaining);
+      planet.units[unit] = onPlanet - take;
+      remaining -= take;
+    }
+  }
+}
+
+/** Return surviving mission units to the home planet (or any owned planet). Returns the count returned. */
+function returnUnitsHome(state: GameState, empire: Empire, unit: 'agent' | 'wizard', count: number): number {
+  if (count <= 0) return 0;
+  const home = getPlanet(state, empire.homePlanetId);
+  const destination = home !== undefined && home.ownerId === empire.id ? home : getPlanetsForEmpire(state, empire.id)[0];
+  if (destination === undefined) return 0;
+  destination.units[unit] = (destination.units[unit] ?? 0) + count;
+  return count;
+}
+
+function resourceSummary(target: Empire): string {
+  return `GC: ${target.resources.gc}, Food: ${target.resources.food}, Iron: ${target.resources.iron}, End: ${target.resources.endurium}, Oct: ${target.resources.octarine}`;
+}
+
+function spy(state: GameState, target: Empire): OperationResult {
   const planets = getPlanetsForEmpire(state, target.id);
+  return { success: true, message: `SPY on ${target.empireName}: ${planets.length} planets, ${resourceSummary(target)}` };
+}
+
+function vision(state: GameState, target: Empire): OperationResult {
+  const planets = getPlanetsForEmpire(state, target.id);
+  const military: Partial<Record<CombatUnitKey, number>> = {};
+  const add = (units: Partial<Record<CombatUnitKey, number>>) => {
+    for (const key of COMBAT_UNIT_KEYS) military[key] = (military[key] ?? 0) + (units[key] ?? 0);
+  };
+  for (const planet of planets) add(planet.units);
+  for (const fleet of state.fleets) {
+    if (fleet.ownerId === target.id && !fleet.isExploration) add(fleet.units);
+  }
+  const militaryText = COMBAT_UNIT_KEYS.map((key) => `${military[key] ?? 0} ${UNITS[key].name}`).join(', ');
+  const missions = target.missions.length;
   return {
     success: true,
-    message: `${label} on ${target.empireName}: ${planets.length} planets, GC: ${target.resources.gc}, Food: ${target.resources.food}, Iron: ${target.resources.iron}, End: ${target.resources.endurium}, Oct: ${target.resources.octarine}`,
+    message: `VISION on ${target.empireName}: ${planets.length} planets, ${resourceSummary(target)}. Military: ${militaryText}. Active ops missions: ${missions}.`,
   };
 }
 
@@ -286,19 +391,24 @@ function hypnotize(state: GameState, targetPlanet: Planet): OperationResult {
   return { success: true, message: `Hypnotized ${targetPlanet.planetName}! ${killed} population killed (30%)` };
 }
 
+export const REDUCE_FOOD_PCT = 0.2;
+export const REDUCE_FOOD_TICKS = 15;
+export const REDUCE_FOOD_MAX_STACKS = 2;
+
 function reduceFood(state: GameState, target: Empire): OperationResult {
   const existing = target.debuffs.filter((debuff) => debuff.type === 'reduced_food').length;
-  if (existing >= 3) {
+  if (existing >= REDUCE_FOOD_MAX_STACKS) {
     return { success: true, message: `Reduce Food on ${target.empireName} already at max stacks` };
   }
 
-  target.debuffs.push({ type: 'reduced_food', ticksRemaining: 8, value: 0.1 });
-  notifyDefender(state, target, 'Enemy wizards reduced your food production by 10% for 8 ticks!');
-  return { success: true, message: `Reduced food production on ${target.empireName} by 10% for 8 ticks` };
+  const pct = Math.trunc(REDUCE_FOOD_PCT * 100);
+  target.debuffs.push({ type: 'reduced_food', ticksRemaining: REDUCE_FOOD_TICKS, value: REDUCE_FOOD_PCT });
+  notifyDefender(state, target, `Enemy wizards reduced your food production by ${pct}% for ${REDUCE_FOOD_TICKS} ticks!`);
+  return { success: true, message: `Reduced food production on ${target.empireName} by ${pct}% for ${REDUCE_FOOD_TICKS} ticks` };
 }
 
 function destroyIron(state: GameState, target: Empire): OperationResult {
-  const pct = rollRange(state, 0.03, 0.1);
+  const pct = rollRange(state, 0.08, 0.15);
   const destroyed = Math.trunc(target.resources.iron * pct);
   target.resources.iron -= destroyed;
   notifyDefender(state, target, `Enemy wizards destroyed ${destroyed} of your iron!`);
@@ -311,11 +421,17 @@ function notifyDefender(state: GameState, defender: Empire, message: string): vo
   }
 }
 
-function agentOpName(opType: AgentOperationType): string {
+function notifyAttacker(state: GameState, attacker: Empire, message: string): void {
+  if (attacker.controllerType === 'human') {
+    appendEvent(state, { type: 'notification', tick: state.currentTick, category: 'ops', message, empireId: attacker.id });
+  }
+}
+
+export function agentOpName(opType: AgentOperationType): string {
   return opType === 'spy' ? 'Spy' : opType === 'destroy_cash' ? 'Destroy Cash' : opType === 'destroy_units' ? 'Destroy Units' : 'Sabotage Portal';
 }
 
-function spellName(spellType: SpellType): string {
+export function spellName(spellType: SpellType): string {
   return spellType === 'vision' ? 'Vision' : spellType === 'hypnotize' ? 'Hypnotize' : spellType === 'reduce_food' ? 'Reduce Food' : 'Destroy Iron';
 }
 
@@ -327,11 +443,11 @@ function isSpellType(spellType: string): spellType is SpellType {
   return spellType === 'vision' || spellType === 'hypnotize' || spellType === 'reduce_food' || spellType === 'destroy_iron';
 }
 
-function requiresAgentTargetPlanet(opType: AgentOperationType): boolean {
+export function requiresAgentTargetPlanet(opType: AgentOperationType): boolean {
   return opType === 'destroy_units' || opType === 'sabotage_portal';
 }
 
-function requiresSpellTargetPlanet(spellType: SpellType): boolean {
+export function requiresSpellTargetPlanet(spellType: SpellType): boolean {
   return spellType === 'hypnotize';
 }
 

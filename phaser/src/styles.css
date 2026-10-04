@@ -402,6 +402,20 @@ h3 {
   color: #6fcf6f;
 }
 
+.ops-commit-row {
+  grid-template-columns: 25% 80px auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.ops-mission {
+  font-size: 11px;
+  color: #c7d5ee;
+  padding: 2px 0;
+}
+
 .ops-debuff {
   font-size: 11px;
   color: #ff8080;

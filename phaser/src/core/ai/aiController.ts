@@ -9,7 +9,14 @@ import {
   trainUnits,
 } from '../commands/playerCommands';
 import type { AgentOperationType, SpellType } from '../engines/opsEngine';
-import { getAgentOperationCost, getSpellCost, getTotalAgents, getTotalWizards } from '../engines/opsEngine';
+import {
+  getActiveMissionCount,
+  getAgentOperationCost,
+  getSpellCost,
+  getTotalAgents,
+  getTotalWizards,
+  MAX_ACTIVE_MISSIONS,
+} from '../engines/opsEngine';
 import { appendEvent } from '../events/eventLog';
 import type { GameState } from '../galaxy/galaxyData';
 import type { BuildingKey, CombatUnitKey, Empire, Planet, UnitKey } from '../models/types';
@@ -298,6 +305,13 @@ function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumbe
   launchPooledAttackFleet(state, empire, planets, bestTarget, bestTargetRequiredPower, tickNumber, controller);
 }
 
+const AI_MIN_OPS_UNITS = 5;
+
+/** AI commits about half its available agents/wizards to each mission. */
+function aiMissionUnits(available: number): number {
+  return Math.min(Math.max(Math.ceil(available / 2), AI_MIN_OPS_UNITS), available);
+}
+
 function doOperations(state: GameState, empire: Empire): void {
   const enemies = state.empires.filter(
     (candidate) => candidate.id !== empire.id && getPlanetsForEmpire(state, candidate.id).length > 0,
@@ -308,20 +322,22 @@ function doOperations(state: GameState, empire: Empire): void {
 
   const target = pick(state, enemies);
   const agentCost = getAgentOperationCost(state, empire);
-  if (getTotalAgents(state, empire) >= 5 && empire.resources.gc >= agentCost) {
+  const agents = getTotalAgents(state, empire);
+  if (agents >= AI_MIN_OPS_UNITS && empire.resources.gc >= agentCost && getActiveMissionCount(empire, 'agent') < MAX_ACTIVE_MISSIONS) {
     const operation = pick<AgentOperationType>(state, ['spy', 'destroy_cash', 'destroy_units', 'sabotage_portal']);
     const targetPlanetId = operation === 'destroy_units' || operation === 'sabotage_portal' ? pickTargetPlanetId(state, target) : undefined;
     if (operation === 'spy' || operation === 'destroy_cash' || targetPlanetId !== undefined) {
-      performAgentOperation(state, { empireId: empire.id, targetEmpireId: target.id, operationType: operation, targetPlanetId });
+      performAgentOperation(state, { empireId: empire.id, targetEmpireId: target.id, operationType: operation, targetPlanetId, units: aiMissionUnits(agents) });
     }
   }
 
   const spellCost = getSpellCost(state, empire);
-  if (getTotalWizards(state, empire) >= 5 && empire.resources.octarine >= spellCost) {
+  const wizards = getTotalWizards(state, empire);
+  if (wizards >= AI_MIN_OPS_UNITS && empire.resources.octarine >= spellCost && getActiveMissionCount(empire, 'wizard') < MAX_ACTIVE_MISSIONS) {
     const spell = pick<SpellType>(state, ['vision', 'hypnotize', 'reduce_food', 'destroy_iron']);
     const targetPlanetId = spell === 'hypnotize' ? pickTargetPlanetId(state, target) : undefined;
     if (spell !== 'hypnotize' || targetPlanetId !== undefined) {
-      performSpell(state, { empireId: empire.id, targetEmpireId: target.id, spellType: spell, targetPlanetId });
+      performSpell(state, { empireId: empire.id, targetEmpireId: target.id, spellType: spell, targetPlanetId, units: aiMissionUnits(wizards) });
     }
   }
 }

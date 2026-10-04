@@ -10,7 +10,7 @@ import {
   trainUnits,
 } from '../../core/commands/playerCommands';
 import { createNewGame } from '../../core/engines/gameManager';
-import { performAgentOp, performWizardSpell } from '../../core/engines/opsEngine';
+import { launchAgentMission, launchWizardMission } from '../../core/engines/opsEngine';
 import { getPlanetsForEmpire } from '../../core/selectors/selectors';
 
 describe('player commands', () => {
@@ -146,7 +146,7 @@ describe('player commands', () => {
     home.units.agent = 1;
     const gcBefore = player.resources.gc;
 
-    const result = performAgentOp(state, 'destroy_units', player, target);
+    const result = launchAgentMission(state, 'destroy_units', player, target);
 
     expect(result.success).toBe(false);
     expect(result.message).toMatch(/target planet/i);
@@ -162,7 +162,7 @@ describe('player commands', () => {
     playerHome.units.soldier = 10;
     const gcBefore = player.resources.gc;
 
-    const result = performAgentOp(state, 'destroy_units', player, targetEmpire, playerHome);
+    const result = launchAgentMission(state, 'destroy_units', player, targetEmpire, undefined, playerHome);
 
     expect(result.success).toBe(false);
     expect(result.message).toMatch(/target planet/i);
@@ -179,7 +179,7 @@ describe('player commands', () => {
     player.resources.octarine = 1000;
     const octarineBefore = player.resources.octarine;
 
-    const result = performWizardSpell(state, 'hypnotize', player, target);
+    const result = launchWizardMission(state, 'hypnotize', player, target);
 
     expect(result.success).toBe(false);
     expect(result.message).toMatch(/target planet/i);
@@ -196,7 +196,7 @@ describe('player commands', () => {
     const octarineBefore = player.resources.octarine;
     const populationBefore = playerHome.population;
 
-    const result = performWizardSpell(state, 'hypnotize', player, targetEmpire, playerHome);
+    const result = launchWizardMission(state, 'hypnotize', player, targetEmpire, undefined, playerHome);
 
     expect(result.success).toBe(false);
     expect(result.message).toMatch(/target planet/i);

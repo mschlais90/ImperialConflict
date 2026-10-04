@@ -116,5 +116,10 @@ export function calcEmpireNetworth(state: GameState, empireId: number): number {
     }
   }
 
+  // Agents/wizards away on ops missions still count toward networth.
+  for (const mission of empire.missions ?? []) {
+    networth += mission.units * UNITS[mission.kind].networth;
+  }
+
   return networth;
 }

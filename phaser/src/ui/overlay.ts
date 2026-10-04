@@ -39,6 +39,7 @@ import { startMusic, stopMusic } from './music';
 import { createSeededRng } from '../core/random/rng';
 
 const MP_SESSION_KEY = 'ic_mp_session';
+const MAX_TOASTS_PER_TICK = 4;
 
 function saveMpSession(roomCode: string, empireId: number): void {
   try {
@@ -815,6 +816,17 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
           toasts.push({ message: `You are under attack at ${loc}!`, isError: true });
           break;
         }
+        case 'fleet_launched': {
+          // Early warning: another empire's fleet is heading for one of our planets.
+          if (event.ownerId === player.id) break;
+          const targetPlanet = getPlanet(state, event.targetPlanetId);
+          if (!targetPlanet || targetPlanet.ownerId !== player.id) break;
+          const attacker = getEmpire(state, event.ownerId);
+          const eta = state.fleets.find((f) => f.id === event.fleetId)?.ticksRemaining;
+          const etaText = eta !== undefined ? `, ETA ${eta} tick${eta === 1 ? '' : 's'}` : '';
+          toasts.push({ message: `Incoming fleet from ${attacker?.empireName ?? 'unknown'} → ${targetPlanet.planetName}${etaText}`, isError: true });
+          break;
+        }
         case 'fleet_arrived': {
           // Fleet is removed before event is appended, so check if target planet is ours
           const arrivalPlanet = getPlanet(state, event.targetPlanetId);
@@ -846,8 +858,14 @@ export function createOverlay(root: HTMLElement, controller: AppController): Ove
       toasts.push({ message: count > 1 ? `${count}x ${name} completed` : `${name} completed`, isError: false });
     }
 
-    for (const toast of toasts) {
+    // Cap toasts per tick so late-game bursts stay readable; errors first.
+    const ordered = [...toasts.filter((t) => t.isError), ...toasts.filter((t) => !t.isError)];
+    for (const toast of ordered.slice(0, MAX_TOASTS_PER_TICK)) {
       showToast(toast.message, toast.isError);
+    }
+    const overflow = ordered.length - MAX_TOASTS_PER_TICK;
+    if (overflow > 0) {
+      showToast(`+${overflow} more — press N for Notifications`, false);
     }
   }
 

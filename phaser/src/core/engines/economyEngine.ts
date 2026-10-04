@@ -2,6 +2,7 @@ import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
 import { processAiTurn } from '../ai/aiController';
 import { resolveBattle } from './combatEngine';
+import { advanceOpsMissions } from './opsEngine';
 import { appendEvent } from '../events/eventLog';
 import type {
   BuildingKey,
@@ -33,6 +34,7 @@ const SCIENCE_KEYS: ScienceKey[] = ['military', 'welfare', 'economy', 'construct
 
 export function processEconomyTick(state: GameState): void {
   advanceFleets(state);
+  advanceOpsMissions(state);
 
   for (const empire of state.empires) {
     if (!empire.isEliminated) processEmpireTick(state, empire);
@@ -133,7 +135,9 @@ function processEmpireTick(state: GameState, empire: Empire): void {
   }
 
   advanceBuildQueues(state, empire.id, empirePlanets);
-  calculateProduction(state, empire, empirePlanets);
+  // Networth is stable for the rest of the tick's science lookups; compute it once.
+  const networth = Math.max(calcEmpireNetworth(state, empire.id), 1);
+  calculateProduction(empire, empirePlanets, networth);
   applyResourceDecay(empire);
 
   const foodConsumed = calculateFoodConsumption(empirePlanets);
@@ -143,7 +147,7 @@ function processEmpireTick(state: GameState, empire: Empire): void {
     empire.resources.food = 0;
   }
 
-  let income = calculateIncome(state, empire, empirePlanets);
+  let income = calculateIncome(empire, empirePlanets, networth);
   if (isStarving) {
     income = Math.trunc(income / 2);
   }
@@ -152,7 +156,7 @@ function processEmpireTick(state: GameState, empire: Empire): void {
   if (isStarving) {
     starvePopulation(state, empire, empirePlanets);
   } else {
-    growPopulation(state, empire, empirePlanets);
+    growPopulation(empire, empirePlanets, networth);
   }
 
   empire.resources.gc = Math.max(empire.resources.gc - calculateUpkeep(empirePlanets), 0);
@@ -162,6 +166,7 @@ function processEmpireTick(state: GameState, empire: Empire): void {
 
 function advanceBuildQueues(state: GameState, empireId: number, empirePlanets: Planet[]): void {
   const unitCounts: Partial<Record<UnitKey, number>> = {};
+  const buildingCounts: Partial<Record<BuildingKey, number>> = {};
 
   for (const planet of empirePlanets) {
     const completedIndexes: number[] = [];
@@ -175,23 +180,27 @@ function advanceBuildQueues(state: GameState, empireId: number, empirePlanets: P
 
     for (let i = completedIndexes.length - 1; i >= 0; i -= 1) {
       const order = planet.buildQueue[completedIndexes[i]];
-      completeBuildOrder(state, planet, order.itemType, order.category, unitCounts);
+      completeBuildOrder(planet, order.itemType, order.category, unitCounts, buildingCounts);
       planet.buildQueue.splice(completedIndexes[i], 1);
     }
   }
 
-  // Emit a single aggregated event for all units completed this tick
+  // Emit one aggregated event per kind for everything completed this tick, so
+  // large empires do not flood the capped event log.
+  if (Object.keys(buildingCounts).length > 0) {
+    appendEvent(state, { type: 'building_completed', tick: state.currentTick, empireId, counts: buildingCounts });
+  }
   if (Object.keys(unitCounts).length > 0) {
     appendEvent(state, { type: 'unit_completed', tick: state.currentTick, empireId, counts: unitCounts });
   }
 }
 
 function completeBuildOrder(
-  state: GameState,
   planet: Planet,
   itemType: BuildingKey | UnitKey,
   category: 'building' | 'unit',
   unitCounts: Partial<Record<UnitKey, number>>,
+  buildingCounts: Partial<Record<BuildingKey, number>>,
 ): void {
   if (category === 'building') {
     const buildingType = itemType as BuildingKey;
@@ -199,7 +208,7 @@ function completeBuildOrder(
     if (buildingType === 'portal') {
       planet.hasPortal = true;
     }
-    appendEvent(state, { type: 'building_completed', tick: state.currentTick, planetId: planet.id, buildingType });
+    buildingCounts[buildingType] = (buildingCounts[buildingType] ?? 0) + 1;
     return;
   }
 
@@ -210,8 +219,8 @@ function completeBuildOrder(
   unitCounts[unitType] = (unitCounts[unitType] ?? 0) + 1;
 }
 
-function calculateProduction(state: GameState, empire: Empire, empirePlanets: Planet[]): void {
-  const resourceMultiplier = 1 + getSciencePercent(state, empire, 'resources') / 100;
+function calculateProduction(empire: Empire, empirePlanets: Planet[], networth: number): void {
+  const resourceMultiplier = 1 + getSciencePercent(empire, 'resources', networth) / 100;
   const foodReduction = Math.min(
     empire.debuffs
       .filter((debuff) => debuff.type === 'reduced_food')
@@ -251,7 +260,7 @@ function applyResourceDecay(empire: Empire): void {
   }
 }
 
-function calculateIncome(state: GameState, empire: Empire, empirePlanets: Planet[]): number {
+function calculateIncome(empire: Empire, empirePlanets: Planet[], networth: number): number {
   let totalPopulation = 0;
   let totalCashFactories = 0;
   let totalTaxOffices = 0;
@@ -266,7 +275,7 @@ function calculateIncome(state: GameState, empire: Empire, empirePlanets: Planet
 
   const base = 100 + Math.trunc(totalPopulation / 30) + totalCashFactories * 8;
   const taxBonus = 1 + (2 * totalTaxOffices) / (totalBuildings + 1);
-  const economyMultiplier = 1 + getSciencePercent(state, empire, 'economy') / 100;
+  const economyMultiplier = 1 + getSciencePercent(empire, 'economy', networth) / 100;
   return Math.trunc(base * taxBonus * economyMultiplier);
 }
 
@@ -306,8 +315,8 @@ function starvePopulation(state: GameState, empire: Empire, empirePlanets: Plane
   }
 }
 
-function growPopulation(state: GameState, empire: Empire, empirePlanets: Planet[]): void {
-  const welfareMultiplier = 1 + getSciencePercent(state, empire, 'welfare') / 100;
+function growPopulation(empire: Empire, empirePlanets: Planet[], networth: number): void {
+  const welfareMultiplier = 1 + getSciencePercent(empire, 'welfare', networth) / 100;
   for (const planet of empirePlanets) {
     if (planet.population <= 0) {
       if (empire.resources.food > 0) {
@@ -410,8 +419,7 @@ function finishGame(state: GameState, playerWon: boolean): void {
   appendEvent(state, { type: 'game_over', tick: state.currentTick, playerWon });
 }
 
-function getSciencePercent(state: GameState, empire: Empire, science: ScienceKey): number {
-  const networth = Math.max(calcEmpireNetworth(state, empire.id), 1);
+function getSciencePercent(empire: Empire, science: ScienceKey, networth: number): number {
   return 100 * (1 - Math.exp(-empire.researchPoints[science] / (100 * networth)));
 }
 

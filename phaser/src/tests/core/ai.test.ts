@@ -299,6 +299,15 @@ describe('AI controller', () => {
     processEconomyTick(state);
 
     expect(target.resources.food).toBe(1095);
+    // Spells are timed missions: in flight now, the debuff lands when it resolves.
+    const mission = attacker.missions.find((m) => m.kind === 'wizard' && m.opType === 'reduce_food');
+    expect(mission).toBeDefined();
+    expect(target.debuffs.some((debuff) => debuff.type === 'reduced_food')).toBe(false);
+
+    for (let i = mission?.ticksRemaining ?? 0; i > 0; i -= 1) {
+      state.currentTick += 1;
+      processEconomyTick(state);
+    }
     expect(target.debuffs.some((debuff) => debuff.type === 'reduced_food')).toBe(true);
   });
 });

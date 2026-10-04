@@ -2,7 +2,7 @@ import type { GameState } from '../galaxy/galaxyData';
 import { createRngFromState } from '../random/rng';
 
 const SAVE_KEY = 'ic_save';
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 const IDB_NAME = 'ic_save_dir';
 const IDB_STORE = 'handles';
 const IDB_KEY = 'saveDir';
@@ -27,6 +27,10 @@ function deserialize(json: string): GameState {
     migrateV1toV2(save);
     save.version = 2;
   }
+  if (save.version === 2) {
+    migrateV2toV3(save);
+    save.version = 3;
+  }
   if (save.version !== SAVE_VERSION) {
     throw new Error(`Unsupported save version: ${save.version}`);
   }
@@ -41,6 +45,14 @@ function migrateV1toV2(save: SaveData): void {
       delete legacy.isPlayer;
     }
   }
+}
+
+/** v3 adds timed ops missions. */
+function migrateV2toV3(save: SaveData): void {
+  for (const empire of save.gameState.empires) {
+    empire.missions ??= [];
+  }
+  save.gameState.nextMissionId ??= 0;
 }
 
 export function saveToStorage(state: GameState): void {

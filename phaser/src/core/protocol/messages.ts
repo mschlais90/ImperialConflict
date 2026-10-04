@@ -38,8 +38,8 @@ export type SerializedCommand =
   | { type: 'sendExplorer'; empireId: number; sourcePlanetId: number; targetPlanetId: number }
   | { type: 'recallToPortal'; empireId: number; sourcePlanetId: number }
   | { type: 'setResearchAllocation'; empireId: number; allocation: Record<ScienceKey, number> }
-  | { type: 'performAgentOperation'; empireId: number; targetEmpireId: number; operationType: AgentOperationType; targetPlanetId?: number }
-  | { type: 'performSpell'; empireId: number; targetEmpireId: number; spellType: SpellType; targetPlanetId?: number };
+  | { type: 'performAgentOperation'; empireId: number; targetEmpireId: number; operationType: AgentOperationType; targetPlanetId?: number; units?: number }
+  | { type: 'performSpell'; empireId: number; targetEmpireId: number; spellType: SpellType; targetPlanetId?: number; units?: number };
 
 // ---------------------------------------------------------------------------
 // Serialized game state — GameState minus non-serializable fields (rng)
@@ -68,6 +68,7 @@ export interface TickDelta {
     nextPlanetId: number;
     nextFleetId: number;
     nextEventId: number;
+    nextMissionId: number;
   };
   empires?: Empire[];
   planets?: Planet[];

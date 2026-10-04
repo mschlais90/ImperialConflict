@@ -77,6 +77,7 @@ export function computeTickDelta(state: GameState, snapshot: DeltaSnapshot): Tic
       nextPlanetId: state.nextPlanetId,
       nextFleetId: state.nextFleetId,
       nextEventId: state.nextEventId,
+      nextMissionId: state.nextMissionId,
     },
   };
 
@@ -137,6 +138,7 @@ export function applyTickDelta(state: SerializedGameState, delta: TickDelta): vo
   state.nextPlanetId = delta.counters.nextPlanetId;
   state.nextFleetId = delta.counters.nextFleetId;
   state.nextEventId = delta.counters.nextEventId;
+  state.nextMissionId = delta.counters.nextMissionId;
 
   if (delta.empires) upsertById(state.empires, delta.empires);
   if (delta.planets) upsertById(state.planets, delta.planets);

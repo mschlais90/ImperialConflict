@@ -32,6 +32,23 @@ export type BuildOrder =
 
 export type EmpireControllerType = 'human' | 'ai';
 
+export type AgentOperationType = 'spy' | 'destroy_cash' | 'destroy_units' | 'sabotage_portal';
+export type SpellType = 'vision' | 'hypnotize' | 'reduce_food' | 'destroy_iron';
+
+interface OpsMissionBase {
+  id: number;
+  targetEmpireId: number;
+  targetPlanetId?: number;
+  units: number;
+  ticksRemaining: number;
+  launchedTick: number;
+}
+
+/** A covert op in flight: committed agents/wizards are off-planet until it resolves. */
+export type OpsMission =
+  | (OpsMissionBase & { kind: 'agent'; opType: AgentOperationType })
+  | (OpsMissionBase & { kind: 'wizard'; opType: SpellType });
+
 export interface Empire {
   id: number;
   empireName: string;
@@ -43,6 +60,7 @@ export interface Empire {
   researchPoints: Record<ScienceKey, number>;
   researchAllocation: Record<ScienceKey, number>;
   debuffs: Array<{ type: string; ticksRemaining: number; value: number; planetId?: number }>;
+  missions: OpsMission[];
   isEliminated: boolean;
 }
 
@@ -100,6 +118,7 @@ export function createEmpire(input: Pick<Empire, 'id' | 'empireName' | 'controll
     researchPoints: { military: 0, welfare: 0, economy: 0, construction: 0, resources: 0 },
     researchAllocation: { military: 20, welfare: 20, economy: 20, construction: 20, resources: 20 },
     debuffs: [],
+    missions: [],
     isEliminated: false,
   };
 }

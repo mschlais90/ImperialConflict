@@ -1,6 +1,13 @@
 import { getBuildCost, getBuildTicks } from '../data/buildings';
 import { UNITS } from '../data/units';
-import { performAgentOp, performWizardSpell, type AgentOperationType, type SpellType } from '../engines/opsEngine';
+import {
+  launchAgentMission,
+  launchWizardMission,
+  requiresAgentTargetPlanet,
+  requiresSpellTargetPlanet,
+  type AgentOperationType,
+  type SpellType,
+} from '../engines/opsEngine';
 import { appendEvent } from '../events/eventLog';
 import type { GameState } from '../galaxy/galaxyData';
 import type { BuildingKey, CombatUnitKey, Empire, Planet, ResourceKey, ScienceKey, UnitKey } from '../models/types';
@@ -421,7 +428,7 @@ export function setResearchAllocation(
 
 export function performAgentOperation(
   state: GameState,
-  input: { empireId: number; targetEmpireId: number; operationType: AgentOperationType; targetPlanetId?: number },
+  input: { empireId: number; targetEmpireId: number; operationType: AgentOperationType; targetPlanetId?: number; units?: number },
 ): CommandResult {
   if (requiresAgentTargetPlanet(input.operationType) && input.targetPlanetId === undefined) {
     return fail('No target planet selected');
@@ -430,13 +437,13 @@ export function performAgentOperation(
   if (!resolved.ok) {
     return resolved;
   }
-  const result = performAgentOp(state, input.operationType, resolved.attacker, resolved.targetEmpire, resolved.targetPlanet);
+  const result = launchAgentMission(state, input.operationType, resolved.attacker, resolved.targetEmpire, input.units, resolved.targetPlanet);
   return result.success ? ok(result.message) : fail(result.message);
 }
 
 export function performSpell(
   state: GameState,
-  input: { empireId: number; targetEmpireId: number; spellType: SpellType; targetPlanetId?: number },
+  input: { empireId: number; targetEmpireId: number; spellType: SpellType; targetPlanetId?: number; units?: number },
 ): CommandResult {
   if (requiresSpellTargetPlanet(input.spellType) && input.targetPlanetId === undefined) {
     return fail('No target planet selected');
@@ -445,7 +452,7 @@ export function performSpell(
   if (!resolved.ok) {
     return resolved;
   }
-  const result = performWizardSpell(state, input.spellType, resolved.attacker, resolved.targetEmpire, resolved.targetPlanet);
+  const result = launchWizardMission(state, input.spellType, resolved.attacker, resolved.targetEmpire, input.units, resolved.targetPlanet);
   return result.success ? ok(result.message) : fail(result.message);
 }
 
@@ -570,14 +577,6 @@ function hasQueuedPortal(planet: Planet): boolean {
 
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0;
-}
-
-function requiresAgentTargetPlanet(operationType: AgentOperationType): boolean {
-  return operationType === 'destroy_units' || operationType === 'sabotage_portal';
-}
-
-function requiresSpellTargetPlanet(spellType: SpellType): boolean {
-  return spellType === 'hypnotize';
 }
 
 function ok(message: string): CommandResult {

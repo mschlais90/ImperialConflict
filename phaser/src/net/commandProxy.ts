@@ -24,8 +24,8 @@ export interface CommandProxy {
   sendExplorer(input: { empireId: number; sourcePlanetId: number; targetPlanetId: number }): CommandResult;
   recallToPortal(input: { empireId: number; sourcePlanetId: number }): CommandResult;
   setResearchAllocation(input: { empireId: number; allocation: Record<ScienceKey, number> }): CommandResult;
-  performAgentOperation(input: { empireId: number; targetEmpireId: number; operationType: AgentOperationType; targetPlanetId?: number }): CommandResult;
-  performSpell(input: { empireId: number; targetEmpireId: number; spellType: SpellType; targetPlanetId?: number }): CommandResult;
+  performAgentOperation(input: { empireId: number; targetEmpireId: number; operationType: AgentOperationType; targetPlanetId?: number; units?: number }): CommandResult;
+  performSpell(input: { empireId: number; targetEmpireId: number; spellType: SpellType; targetPlanetId?: number; units?: number }): CommandResult;
 }
 
 export function createLocalCommandProxy(getState: () => GameState): CommandProxy {
