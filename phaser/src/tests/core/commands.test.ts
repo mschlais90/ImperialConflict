@@ -23,6 +23,20 @@ describe('player commands', () => {
     expect(home.buildQueue.some((order) => order.itemType === 'farm')).toBe(true);
   });
 
+  it('rejects a huge unaffordable building order quickly without mutating state', () => {
+    const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+    const player = state.empires[0];
+    const home = getPlanetsForEmpire(state, player.id)[0];
+    const resourcesBefore = { ...player.resources };
+    const queueBefore = home.buildQueue.length;
+    const started = performance.now();
+    const result = queueBuilding(state, { empireId: player.id, planetId: home.id, buildingType: 'farm', count: 1_000_000_000 });
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(result.ok).toBe(false);
+    expect(player.resources).toEqual(resourcesBefore);
+    expect(home.buildQueue).toHaveLength(queueBefore);
+  });
+
   it('queues combat units into the build queue with build ticks', () => {
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
     const player = state.empires[0];

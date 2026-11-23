@@ -39,8 +39,8 @@ export function queueBuilding(
   }
 
   const constructionScience = getSciencePercent(state, resolved.empire, 'construction');
-  const costs = simulateBuildingCosts(input.buildingType, input.count, constructionScience, resolved.planet);
-  if (!canAfford(resolved.empire, sumCosts(costs))) {
+  const costs = simulateAffordableBuildingCosts(resolved.empire, input.buildingType, input.count, constructionScience, resolved.planet);
+  if (costs === null) {
     return fail('Cannot afford building order');
   }
 
@@ -502,13 +502,21 @@ function resolveOperationTargets(
   return { ok: true, attacker, targetEmpire, targetPlanet };
 }
 
-function simulateBuildingCosts(
+/**
+ * Per-building costs for an order of `count`, accounting for rising overbuild
+ * costs, or null as soon as the running total exceeds what the empire has.
+ * Bailing early keeps the work bounded by what is affordable, so a huge
+ * requested count can't stall the tick loop (or the multiplayer server).
+ */
+function simulateAffordableBuildingCosts(
+  empire: Empire,
   buildingType: BuildingKey,
   count: number,
   constructionScience: number,
   planet: Planet,
-): Array<Partial<Record<ResourceKey, number>>> {
+): Array<Partial<Record<ResourceKey, number>>> | null {
   const costs: Array<Partial<Record<ResourceKey, number>>> = [];
+  const running: Partial<Record<ResourceKey, number>> = {};
   const simulatedPlanet: Planet = {
     ...planet,
     buildings: { ...planet.buildings },
@@ -518,6 +526,12 @@ function simulateBuildingCosts(
   };
   for (let i = 0; i < count; i += 1) {
     const cost = getBuildCost(buildingType, constructionScience, simulatedPlanet);
+    for (const resource of Object.keys(cost) as ResourceKey[]) {
+      running[resource] = (running[resource] ?? 0) + (cost[resource] ?? 0);
+    }
+    if (!canAfford(empire, running)) {
+      return null;
+    }
     costs.push(cost);
     simulatedPlanet.buildQueue.push({ category: 'building', itemType: buildingType, ticksRemaining: 1 });
   }
@@ -551,16 +565,6 @@ function deductCost(empire: Empire, cost: Partial<Record<ResourceKey, number>>):
   for (const resource of Object.keys(cost) as ResourceKey[]) {
     empire.resources[resource] -= cost[resource] ?? 0;
   }
-}
-
-function sumCosts(costs: Array<Partial<Record<ResourceKey, number>>>): Partial<Record<ResourceKey, number>> {
-  const total: Partial<Record<ResourceKey, number>> = {};
-  for (const cost of costs) {
-    for (const resource of Object.keys(cost) as ResourceKey[]) {
-      total[resource] = (total[resource] ?? 0) + (cost[resource] ?? 0);
-    }
-  }
-  return total;
 }
 
 function multiplyCost(cost: Partial<Record<ResourceKey, number>>, count: number): Partial<Record<ResourceKey, number>> {

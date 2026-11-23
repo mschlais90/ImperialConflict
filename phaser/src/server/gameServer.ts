@@ -1,6 +1,6 @@
 import { createServer } from 'http';
-import { readFileSync, existsSync } from 'fs';
-import { join, extname } from 'path';
+import { readFileSync, statSync } from 'fs';
+import { extname, resolve, sep } from 'path';
 import { AddressInfo } from 'net';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { GameState } from '../core/galaxy/galaxyData';
@@ -9,8 +9,11 @@ import type { ClientMessage } from '../core/protocol/messages';
 import { createRngFromState } from '../core/random/rng';
 import { Room, generateRoomCode } from './room';
 import { serializeState } from './stateSerializer';
+import { validateClientMessage } from './messageValidation';
 
-const DIST_DIR = join(import.meta.dirname, '../../dist');
+const DIST_DIR = resolve(import.meta.dirname, '../../dist');
+/** Largest client message accepted. Uploaded saves (with per-tick history) are the biggest payload. */
+const MAX_MESSAGE_BYTES = 32 * 1024 * 1024;
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html',
@@ -24,6 +27,14 @@ const MIME_TYPES: Record<string, string> = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
 };
+
+function isRegularFile(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
 
 // Extend WebSocket with room tracking and heartbeat
 interface TaggedSocket extends WebSocket {
@@ -64,10 +75,25 @@ export function startServer(options: StartServerOptions = {}): Promise<RunningSe
       return;
     }
 
-    // Serve static files from dist/
-    const filePath = join(DIST_DIR, pathname === '/' ? 'index.html' : pathname);
+    // Serve static files from dist/. Resolve and confine to DIST_DIR so a raw
+    // "/../" request path can't read files elsewhere on disk, and only serve
+    // regular files (reading a directory would throw inside this handler).
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(pathname);
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'text/plain' });
+      res.end('Bad request');
+      return;
+    }
+    const filePath = resolve(DIST_DIR, '.' + (decoded === '/' ? '/index.html' : decoded));
+    if (filePath !== DIST_DIR && !filePath.startsWith(DIST_DIR + sep)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('Forbidden');
+      return;
+    }
 
-    if (existsSync(filePath)) {
+    if (isRegularFile(filePath)) {
       const ext = extname(filePath);
       const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
       const content = readFileSync(filePath);
@@ -75,8 +101,8 @@ export function startServer(options: StartServerOptions = {}): Promise<RunningSe
       res.end(content);
     } else {
       // SPA fallback: serve index.html for non-file routes
-      const indexPath = join(DIST_DIR, 'index.html');
-      if (existsSync(indexPath)) {
+      const indexPath = resolve(DIST_DIR, 'index.html');
+      if (isRegularFile(indexPath)) {
         const content = readFileSync(indexPath);
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(content);
@@ -89,7 +115,7 @@ export function startServer(options: StartServerOptions = {}): Promise<RunningSe
 
   // Compress messages on the wire. Tick deltas and the initial full-state
   // payload are highly repetitive JSON, so deflate shrinks them substantially.
-  const wss = new WebSocketServer({ server, perMessageDeflate: true });
+  const wss = new WebSocketServer({ server, perMessageDeflate: true, maxPayload: MAX_MESSAGE_BYTES });
 
   function handleCreate(ws: TaggedSocket, message: Extract<ClientMessage, { type: 'create' }>): void {
     let loadedState: GameState | null = null;
@@ -182,13 +208,19 @@ export function startServer(options: StartServerOptions = {}): Promise<RunningSe
     ws.on('pong', () => { ws.isAlive = true; });
 
     ws.on('message', (raw) => {
-      let message: ClientMessage;
+      let parsed: unknown;
       try {
-        message = JSON.parse(String(raw)) as ClientMessage;
+        parsed = JSON.parse(String(raw));
       } catch {
         ws.send(JSON.stringify({ type: 'error', message: 'Invalid JSON' }));
         return;
       }
+      const validated = validateClientMessage(parsed);
+      if (!validated.ok) {
+        ws.send(JSON.stringify({ type: 'error', message: `Invalid message: ${validated.error}` }));
+        return;
+      }
+      const message = validated.value;
 
       switch (message.type) {
         case 'create':
