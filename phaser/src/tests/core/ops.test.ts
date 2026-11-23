@@ -179,21 +179,13 @@ describe('ops missions', () => {
 
 describe('ops save migration', () => {
   it('upgrades v2 saves to v3 with empty missions', async () => {
-    const store = new Map<string, string>();
-    const stub = {
-      getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => void store.set(k, v),
-      removeItem: (k: string) => void store.delete(k),
-    };
-    (globalThis as unknown as { localStorage: typeof stub }).localStorage = stub;
-    const { loadFromStorage } = await import('../../core/persistence/saveLoad');
+    const { deserializeSave } = await import('../../core/persistence/saveLoad');
 
     const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
     const { rng: _rng, nextMissionId: _next, ...rest } = state;
     const legacy = { ...rest, empires: rest.empires.map(({ missions: _m, ...e }) => e) };
-    store.set('ic_save', JSON.stringify({ version: 2, timestamp: 0, rngState: 1, gameState: legacy }));
 
-    const loaded = loadFromStorage();
+    const loaded = deserializeSave(JSON.stringify({ version: 2, timestamp: 0, rngState: 1, gameState: legacy }));
     expect(loaded?.nextMissionId).toBe(0);
     expect(loaded?.empires.every((e) => Array.isArray(e.missions) && e.missions.length === 0)).toBe(true);
   });

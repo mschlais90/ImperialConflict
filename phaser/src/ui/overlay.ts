@@ -2,7 +2,7 @@ import type { AppController, AppOverlay } from '../app/appController';
 import type { BattleReport } from '../core/engines/combatEngine';
 import { createNewGame } from '../core/engines/gameManager';
 import type { GameState } from '../core/galaxy/galaxyData';
-import { downloadSave, uploadSave, getSavedDirHandle, saveToDirectory, listSavesInDirectory, loadFromDirectory } from '../core/persistence/saveLoad';
+import { downloadSave, uploadSave, getSavedDirHandle, saveToDirectory, listSavesInDirectory, loadFromDirectory } from '../app/savePersistence';
 import { convertToSinglePlayer, isMultiplayerSave, listHumanEmpires } from '../core/persistence/multiplayerSave';
 import type { GameSpeed } from '../core/events/eventLog';
 import { setSpeed, SPEEDS } from '../core/engines/tickEngine';

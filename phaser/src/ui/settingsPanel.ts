@@ -1,4 +1,4 @@
-import { isFileSystemAccessSupported, getSavedDirHandle, pickSaveDirectory, clearDirHandle } from '../core/persistence/saveLoad';
+import { isFileSystemAccessSupported, getSavedDirHandle, pickSaveDirectory, clearDirHandle } from '../app/savePersistence';
 import { button } from './dom';
 import { isMusicEnabled, setMusicEnabled } from './music';
 import type { UiContext } from './types';
