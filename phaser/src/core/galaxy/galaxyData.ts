@@ -18,10 +18,14 @@ export interface TickSnapshot {
   empires: EmpireSnapshot[];
 }
 
+/** 'classic' = the original rule set, kept as a fixed benchmark baseline; 'adaptive' (default) = current AI. */
+export type AiStrategy = 'classic' | 'adaptive';
+
 export interface AiControllerState {
   empireId: number;
   difficulty: 'easy' | 'normal' | 'hard';
   recentAttacks: Record<number, { tick: number; powerNeeded: number }>;
+  strategy?: AiStrategy;
 }
 
 export interface GameState {

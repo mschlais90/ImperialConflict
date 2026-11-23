@@ -5,6 +5,7 @@ import {
   performSpell,
   queueBuilding,
   queueExplorer,
+  setResearchAllocation,
   sendExplorer,
   trainUnits,
 } from '../commands/playerCommands';
@@ -19,7 +20,7 @@ import {
 } from '../engines/opsEngine';
 import { appendEvent } from '../events/eventLog';
 import type { GameState } from '../galaxy/galaxyData';
-import type { BuildingKey, CombatUnitKey, Empire, Planet, UnitKey } from '../models/types';
+import type { BuildingKey, CombatUnitKey, Empire, Planet, ScienceKey, UnitKey } from '../models/types';
 import {
   calcTravelTicks,
   getEmpire,
@@ -65,6 +66,26 @@ type PooledAttackPlan = {
   withdrawals: PooledAttackWithdrawal[];
 };
 
+/**
+ * Per-turn context. `adaptive` is false for the 'classic' strategy, which
+ * keeps the original rule set unchanged as a fixed benchmark baseline for
+ * the headless simulator (src/core/sim/headlessSim.ts).
+ */
+type AiTurnContext = {
+  adaptive: boolean;
+  /** planetId -> incoming enemy attack power, for planets that can't hold. */
+  threats: Map<number, number>;
+  /** Empire the adaptive AI concentrates attacks and ops on. */
+  focusEmpireId: number | undefined;
+};
+
+/** Adaptive AI keeps this share of every combat unit home when attacking. */
+const ADAPTIVE_GARRISON_FRACTION = 0.2;
+/** Incoming power above this share of a planet's defense counts as a threat. */
+const THREAT_DEFENSE_RATIO = 0.8;
+const RESEARCH_REVIEW_INTERVAL = 10;
+const FOCUS_TARGET_BONUS = 1.6;
+
 export function processAiTurn(state: GameState, empireId: number, tickNumber: number): void {
   const empire = getEmpire(state, empireId);
   if (empire === undefined) {
@@ -77,24 +98,90 @@ export function processAiTurn(state: GameState, empireId: number, tickNumber: nu
   }
 
   const diff = getDifficultyParams(state, empireId);
-  getAiControllerState(state, empire.id);
-  doBuilding(state, empire, planets);
+  const controller = getAiControllerState(state, empire.id);
+  const adaptive = (controller.strategy ?? 'adaptive') === 'adaptive';
+  const ctx: AiTurnContext = {
+    adaptive,
+    threats: adaptive ? assessThreats(state, empire, planets) : new Map(),
+    focusEmpireId: adaptive ? chooseFocusEmpire(state, empire, planets) : undefined,
+  };
+
+  if (adaptive && tickNumber % RESEARCH_REVIEW_INTERVAL === 0) {
+    doResearch(state, empire, tickNumber, ctx);
+  }
+  doBuilding(state, empire, planets, ctx);
   doColonization(state, empire, planets);
 
-  if (tickNumber >= MIN_MILITARY_TICK) {
-    doMilitaryProduction(state, empire, planets, diff.buildMultiplier);
+  if (tickNumber >= MIN_MILITARY_TICK || ctx.threats.size > 0) {
+    doMilitaryProduction(state, empire, planets, diff.buildMultiplier, ctx);
   }
 
   if (tickNumber >= diff.attackStartTick) {
-    doAttack(state, empire, planets, tickNumber, diff.strengthRatio);
+    doAttack(state, empire, planets, tickNumber, diff.strengthRatio, ctx);
   }
 
   if (tickNumber >= diff.attackStartTick && tickNumber % diff.opsFrequency === 0) {
-    doOperations(state, empire);
+    doOperations(state, empire, ctx);
   }
 }
 
-function doBuilding(state: GameState, empire: Empire, planets: Planet[]): void {
+/**
+ * Enemy fleets inbound to our planets, summed per planet, kept only where the
+ * incoming power threatens to beat the defense. Human players get the same
+ * information from incoming-fleet warnings.
+ */
+function assessThreats(state: GameState, empire: Empire, planets: Planet[]): Map<number, number> {
+  const owned = new Map(planets.map((planet) => [planet.id, planet]));
+  const incoming = new Map<number, number>();
+  for (const fleet of state.fleets) {
+    if (fleet.isExploration || fleet.ownerId === empire.id || !owned.has(fleet.targetPlanetId)) continue;
+    incoming.set(fleet.targetPlanetId, (incoming.get(fleet.targetPlanetId) ?? 0) + calcDictAttackPower(fleet.units));
+  }
+  const threats = new Map<number, number>();
+  for (const [planetId, power] of incoming) {
+    const planet = owned.get(planetId)!;
+    if (power > estimateDefensePower(planet) * THREAT_DEFENSE_RATIO) threats.set(planetId, power);
+  }
+  return threats;
+}
+
+/** Weakest enemy, weighted by proximity: finishing off a neighbour beats spreading attacks. */
+function chooseFocusEmpire(state: GameState, empire: Empire, planets: Planet[]): number | undefined {
+  const center = getEmpireCenter(state, planets);
+  let best: number | undefined;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const enemy of state.empires) {
+    if (enemy.id === empire.id || enemy.isEliminated) continue;
+    const enemyPlanets = getPlanetsForEmpire(state, enemy.id);
+    if (enemyPlanets.length === 0) continue;
+    const enemyCenter = getEmpireCenter(state, enemyPlanets);
+    const distance = Math.max(Math.hypot(center.x - enemyCenter.x, center.y - enemyCenter.y), 50);
+    const defense = enemyPlanets.reduce((total, planet) => total + estimateDefensePower(planet), 0);
+    const score = (defense + enemyPlanets.length * 100) * distance;
+    if (score < bestScore) {
+      bestScore = score;
+      best = enemy.id;
+    }
+  }
+  return best;
+}
+
+function doResearch(state: GameState, empire: Empire, tickNumber: number, ctx: AiTurnContext): void {
+  let allocation: Record<ScienceKey, number>;
+  if (ctx.threats.size > 0) {
+    allocation = { military: 50, welfare: 10, economy: 20, construction: 10, resources: 10 };
+  } else if (tickNumber < MIN_MILITARY_TICK + 20) {
+    allocation = { military: 0, welfare: 10, economy: 35, construction: 35, resources: 20 };
+  } else {
+    allocation = { military: 35, welfare: 10, economy: 25, construction: 15, resources: 15 };
+  }
+  const current = empire.researchAllocation;
+  if ((Object.keys(allocation) as ScienceKey[]).some((key) => current[key] !== allocation[key])) {
+    setResearchAllocation(state, { empireId: empire.id, allocation });
+  }
+}
+
+function doBuilding(state: GameState, empire: Empire, planets: Planet[], ctx: AiTurnContext): void {
   for (const planet of planets) {
     if (planet.buildQueue.length >= BUILD_QUEUE_MAX) {
       continue;
@@ -103,7 +190,12 @@ function doBuilding(state: GameState, empire: Empire, planets: Planet[]): void {
       continue;
     }
 
-    const buildingType = chooseBuilding(state, empire, planet);
+    // Threatened planets get lasers first: they defend every battle and never leave.
+    if (ctx.threats.has(planet.id) && queueBuilding(state, { empireId: empire.id, planetId: planet.id, buildingType: 'laser', count: 1 }).ok) {
+      continue;
+    }
+
+    const buildingType = chooseBuilding(state, empire, planet, ctx.adaptive);
     if (buildingType === undefined) {
       continue;
     }
@@ -112,7 +204,7 @@ function doBuilding(state: GameState, empire: Empire, planets: Planet[]): void {
   }
 }
 
-function chooseBuilding(state: GameState, empire: Empire, planet: Planet): BuildingKey | undefined {
+function chooseBuilding(state: GameState, empire: Empire, planet: Planet, adaptive: boolean): BuildingKey | undefined {
   const foodBalance = estimateFoodBalance(state, empire);
   if (foodBalance < 0) {
     return 'farm';
@@ -137,6 +229,16 @@ function chooseBuilding(state: GameState, empire: Empire, planet: Planet): Build
   );
   if (researchCenters < 3) {
     return 'research_center';
+  }
+
+  // Adaptive: octarine funds spells; the classic rules never built any, so
+  // their wizards could never cast.
+  if (adaptive) {
+    const ownedPlanets = getPlanetsForEmpire(state, empire.id);
+    const occultCenters = ownedPlanets.reduce((total, p) => total + (p.buildings.occult_center ?? 0) + p.buildQueue.filter((o) => o.itemType === 'occult_center').length, 0);
+    if (occultCenters < Math.ceil(ownedPlanets.length / 2) && (planet.buildings.occult_center ?? 0) < 2) {
+      return 'occult_center';
+    }
   }
 
   if (planet.population >= getMaxPopulation(planet) * 0.9) {
@@ -204,7 +306,20 @@ function doColonization(state: GameState, empire: Empire, planets: Planet[]): vo
   }
 }
 
-function doMilitaryProduction(state: GameState, empire: Empire, planets: Planet[], buildMultiplier: number): void {
+function doMilitaryProduction(state: GameState, empire: Empire, planets: Planet[], buildMultiplier: number, ctx: AiTurnContext): void {
+  // Adaptive: a higher per-tick cap that scales with difficulty (the classic
+  // cap of 8 made hard and normal identical once an empire had ~6 planets).
+  const cap = ctx.adaptive ? Math.max(2, Math.round(10 * buildMultiplier)) : 8;
+  let built = 0;
+
+  // Threatened planets train defenders locally before anything else.
+  for (const [planetId] of ctx.threats) {
+    for (const unitType of ['fighter', 'soldier', 'droid'] as const) {
+      if (built >= cap) break;
+      if (trainUnits(state, { empireId: empire.id, planetId, unitType, count: 2 }).ok) built += 1;
+    }
+  }
+
   const totals = countUnits(planets);
   const planetCount = planets.length;
   const targetSoldiers = 50 + planetCount * 40;
@@ -227,8 +342,7 @@ function doMilitaryProduction(state: GameState, empire: Empire, planets: Planet[
   addPriority(priorities, 'wizard', totals.wizard, targetWizards, 0.5);
   priorities.sort((a, b) => b.urgency - a.urgency);
 
-  const maxPerTick = Math.max(1, Math.min(Math.trunc((2 + planetCount) * buildMultiplier), 8));
-  let built = 0;
+  const maxPerTick = Math.max(1, Math.min(Math.trunc((2 + planetCount) * buildMultiplier), cap));
   let passCount = 0;
 
   while (built < maxPerTick && priorities.length > 0 && passCount < 20) {
@@ -248,14 +362,17 @@ function doMilitaryProduction(state: GameState, empire: Empire, planets: Planet[
   }
 }
 
-function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumber: number, attackStrengthRatio: number): void {
+function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumber: number, attackStrengthRatio: number, ctx: AiTurnContext): void {
   const activeAttackFleets = getFleetsForEmpire(state, empire.id).filter((fleet) => !fleet.isExploration).length;
   if (activeAttackFleets >= 2) {
     return;
   }
 
-  const totalPower = calcEmpireAttackPower(planets);
-  const deployablePower = totalPower - Math.trunc(totalPower * GARRISON_FRACTION);
+  // Adaptive: units on threatened planets stay home to defend.
+  const sourcePlanets = ctx.adaptive ? planets.filter((planet) => !ctx.threats.has(planet.id)) : planets;
+  const totalPower = calcEmpireAttackPower(sourcePlanets);
+  const garrisonFraction = ctx.adaptive ? ADAPTIVE_GARRISON_FRACTION : GARRISON_FRACTION;
+  const deployablePower = totalPower - Math.trunc(totalPower * garrisonFraction);
   if (deployablePower < 200) {
     return;
   }
@@ -289,7 +406,10 @@ function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumbe
     const system = getSystem(state, planet.systemId);
     const distance = system === undefined ? 100 : Math.hypot(center.x - system.position.x, center.y - system.position.y);
     const surplus = deployablePower - requiredPower;
-    const score = surplus / Math.max(distance, 10) + 100 / Math.max(defensePower, 1);
+    let score = surplus / Math.max(distance, 10) + 100 / Math.max(defensePower, 1);
+    if (planet.ownerId === ctx.focusEmpireId) {
+      score *= FOCUS_TARGET_BONUS;
+    }
 
     if (score > bestScore) {
       bestScore = score;
@@ -302,7 +422,7 @@ function doAttack(state: GameState, empire: Empire, planets: Planet[], tickNumbe
     return;
   }
 
-  launchPooledAttackFleet(state, empire, planets, bestTarget, bestTargetRequiredPower, tickNumber, controller);
+  launchPooledAttackFleet(state, empire, sourcePlanets, bestTarget, bestTargetRequiredPower, tickNumber, controller, ctx.adaptive);
 }
 
 const AI_MIN_OPS_UNITS = 5;
@@ -312,7 +432,12 @@ function aiMissionUnits(available: number): number {
   return Math.min(Math.max(Math.ceil(available / 2), AI_MIN_OPS_UNITS), available);
 }
 
-function doOperations(state: GameState, empire: Empire): void {
+function doOperations(state: GameState, empire: Empire, ctx: AiTurnContext): void {
+  if (ctx.adaptive) {
+    doFocusedOperations(state, empire, ctx);
+    return;
+  }
+
   const enemies = state.empires.filter(
     (candidate) => candidate.id !== empire.id && getPlanetsForEmpire(state, candidate.id).length > 0,
   );
@@ -339,6 +464,54 @@ function doOperations(state: GameState, empire: Empire): void {
     if (spell !== 'hypnotize' || targetPlanetId !== undefined) {
       performSpell(state, { empireId: empire.id, targetEmpireId: target.id, spellType: spell, targetPlanetId, units: aiMissionUnits(wizards) });
     }
+  }
+}
+
+/**
+ * Adaptive ops: hit the focus empire, softening the planet we're most likely
+ * to attack next. Skips spy/vision, since the AI's planning already reads state
+ * directly and gains nothing from intel.
+ */
+function doFocusedOperations(state: GameState, empire: Empire, ctx: AiTurnContext): void {
+  const target = ctx.focusEmpireId === undefined ? undefined : getEmpire(state, ctx.focusEmpireId);
+  if (target === undefined) {
+    return;
+  }
+  const targetPlanets = getPlanetsForEmpire(state, target.id);
+  if (targetPlanets.length === 0) {
+    return;
+  }
+  const ownPlanets = getPlanetsForEmpire(state, empire.id);
+  const center = getEmpireCenter(state, ownPlanets);
+  const frontPlanet = targetPlanets.reduce((best, planet) => {
+    const distanceTo = (p: Planet): number => {
+      const system = getSystem(state, p.systemId);
+      return system === undefined ? Number.POSITIVE_INFINITY : Math.hypot(center.x - system.position.x, center.y - system.position.y);
+    };
+    return distanceTo(planet) < distanceTo(best) ? planet : best;
+  });
+  const portalPlanet = targetPlanets.find((planet) => planet.hasPortal);
+
+  const agentCost = getAgentOperationCost(state, empire);
+  const agents = getTotalAgents(state, empire);
+  if (agents >= AI_MIN_OPS_UNITS && empire.resources.gc >= agentCost && getActiveMissionCount(empire, 'agent') < MAX_ACTIVE_MISSIONS) {
+    const roll = pick(state, [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+    const [operation, targetPlanetId]: [AgentOperationType, number | undefined] =
+      portalPlanet !== undefined && roll < 0.25 ? ['sabotage_portal', portalPlanet.id]
+        : roll < 0.7 ? ['destroy_units', frontPlanet.id]
+          : ['destroy_cash', undefined];
+    performAgentOperation(state, { empireId: empire.id, targetEmpireId: target.id, operationType: operation, targetPlanetId, units: aiMissionUnits(agents) });
+  }
+
+  const spellCost = getSpellCost(state, empire);
+  const wizards = getTotalWizards(state, empire);
+  if (wizards >= AI_MIN_OPS_UNITS && empire.resources.octarine >= spellCost && getActiveMissionCount(empire, 'wizard') < MAX_ACTIVE_MISSIONS) {
+    const roll = pick(state, [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+    const [spell, targetPlanetId]: [SpellType, number | undefined] =
+      roll < 0.35 ? ['hypnotize', frontPlanet.id]
+        : roll < 0.7 ? ['reduce_food', undefined]
+          : ['destroy_iron', undefined];
+    performSpell(state, { empireId: empire.id, targetEmpireId: target.id, spellType: spell, targetPlanetId, units: aiMissionUnits(wizards) });
   }
 }
 
@@ -443,8 +616,9 @@ function launchPooledAttackFleet(
   requiredPower: number,
   tickNumber: number,
   controller: GameState['aiControllers'][number],
+  adaptive: boolean,
 ): void {
-  const plan = createPooledAttackPlan(state, planets, target);
+  const plan = createPooledAttackPlan(state, planets, target, adaptive);
   if (plan === undefined) {
     return;
   }
@@ -481,7 +655,7 @@ function launchPooledAttackFleet(
   });
 }
 
-function createPooledAttackPlan(state: GameState, planets: Planet[], target: Planet): PooledAttackPlan | undefined {
+function createPooledAttackPlan(state: GameState, planets: Planet[], target: Planet, adaptive: boolean): PooledAttackPlan | undefined {
   const unitsToSend = emptyCombatCounts();
   const withdrawals: PooledAttackWithdrawal[] = [];
   let nearestSystemId = -1;
@@ -494,7 +668,7 @@ function createPooledAttackPlan(state: GameState, planets: Planet[], target: Pla
       nearestSystemId = planet.systemId;
     }
 
-    const withdrawal = planDeployableUnitsForPooledAttack(planet);
+    const withdrawal = planDeployableUnitsForPooledAttack(planet, adaptive);
     withdrawals.push(withdrawal);
     for (const unitType of COMBAT_UNIT_KEYS) {
       unitsToSend[unitType] += withdrawal.units[unitType];
@@ -514,7 +688,7 @@ function createPooledAttackPlan(state: GameState, planets: Planet[], target: Pla
   return { originSystemId: nearestSystemId, units: finalSend, withdrawals };
 }
 
-function planDeployableUnitsForPooledAttack(planet: Planet): PooledAttackWithdrawal {
+function planDeployableUnitsForPooledAttack(planet: Planet, adaptive: boolean): PooledAttackWithdrawal {
   const units = emptyCombatCounts();
   const planetGarrison = Math.max(MIN_GARRISON_PER_PLANET, Math.trunc((planet.units.soldier ?? 0) * GARRISON_FRACTION));
   for (const unitType of COMBAT_UNIT_KEYS) {
@@ -524,6 +698,11 @@ function planDeployableUnitsForPooledAttack(planet: Planet): PooledAttackWithdra
       keep = Math.min(planetGarrison, available);
     } else if (unitType === 'transport') {
       keep = Math.min(Math.ceil(planetGarrison / (UNITS.transport.capacity ?? 100)), available);
+    }
+    if (adaptive && unitType !== 'transport') {
+      // Leave a share of every defending unit type, not just a few soldiers,
+      // so a counter-attack doesn't walk into an empty planet.
+      keep = Math.max(keep, Math.trunc(available * ADAPTIVE_GARRISON_FRACTION));
     }
 
     const toSend = Math.max(available - keep, 0);

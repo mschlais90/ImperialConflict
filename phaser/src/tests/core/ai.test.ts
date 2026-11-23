@@ -265,6 +265,9 @@ describe('AI controller', () => {
     const [attacker, target] = state.empires.filter((empire) => empire.controllerType === 'ai');
     const targetPlanet = getPlanetsForEmpire(state, target.id)[0];
     const attackerPlanet = getPlanetsForEmpire(state, attacker.id)[0];
+    // This test is about tick ordering; the classic AI's random op choice lets
+    // the stubbed RNG force a reduce_food spell on the chosen target.
+    state.aiControllers[attacker.id].strategy = 'classic';
 
     attacker.resources.octarine = 1000;
     attackerPlanet.units = { wizard: 5 };
@@ -309,6 +312,60 @@ describe('AI controller', () => {
       processEconomyTick(state);
     }
     expect(target.debuffs.some((debuff) => debuff.type === 'reduced_food')).toBe(true);
+  });
+
+  describe('adaptive strategy', () => {
+    function threatenedSetup() {
+      const state = createNewGame({ empireName: 'Player Empire', seed: 42, difficulty: 'hard' });
+      const [ai, enemy] = state.empires.filter((empire) => empire.controllerType === 'ai');
+      const home = getPlanetsForEmpire(state, ai.id)[0];
+      const enemyHome = getPlanetsForEmpire(state, enemy.id)[0];
+      home.units = { soldier: 50, fighter: 40, transport: 5 };
+      home.buildQueue = [];
+      home.buildings = { farm: 3, cash_factory: 3 };
+      ai.resources = { gc: 100000, food: 100000, iron: 100000, endurium: 100000, octarine: 0 };
+      state.fleets.push({
+        id: state.nextFleetId++,
+        ownerId: enemy.id,
+        units: { soldier: 2000, fighter: 500, transport: 30 },
+        originSystemId: enemyHome.systemId,
+        targetSystemId: home.systemId,
+        targetPlanetId: home.id,
+        ticksRemaining: 5,
+        isExploration: false,
+      });
+      return { state, ai, home };
+    }
+
+    it('keeps units home, builds a laser, and shifts research to military when a planet is threatened', () => {
+      const { state, ai, home } = threatenedSetup();
+      processAiTurn(state, ai.id, 200);
+
+      expect(home.units.fighter).toBe(40);
+      expect(home.units.soldier).toBe(50);
+      expect(home.buildQueue.some((order) => order.itemType === 'laser')).toBe(true);
+      expect(home.buildQueue.some((order) => order.category === 'unit' && ['fighter', 'soldier', 'droid'].includes(order.itemType))).toBe(true);
+      expect(ai.researchAllocation.military).toBe(50);
+    });
+
+    it('classic strategy is unchanged: no threat response', () => {
+      const { state, ai, home } = threatenedSetup();
+      state.aiControllers[ai.id].strategy = 'classic';
+      processAiTurn(state, ai.id, 200);
+
+      expect(home.buildQueue.some((order) => order.itemType === 'laser')).toBe(false);
+      expect(ai.researchAllocation.military).toBe(20);
+    });
+
+    it('invests in economy research early and military later', () => {
+      const state = createNewGame({ empireName: 'Player Empire', seed: 42 });
+      const ai = state.empires.find((empire) => empire.controllerType === 'ai')!;
+      processAiTurn(state, ai.id, 10);
+      expect(ai.researchAllocation.military).toBe(0);
+      expect(ai.researchAllocation.economy).toBeGreaterThan(20);
+      processAiTurn(state, ai.id, 200);
+      expect(ai.researchAllocation.military).toBeGreaterThan(20);
+    });
   });
 });
 

@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "sim": "node --import tsx src/tools/simulate.ts",
     "server:dev": "node --import tsx src/server/index.ts",
     "start": "node --import tsx src/server/index.ts"
   },

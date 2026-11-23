@@ -18,6 +18,8 @@ npm run build        # tsc --noEmit (typecheck) then vite build — must pass be
 npm test             # vitest run — unit tests for the simulation core
 npm run test:watch   # vitest in watch mode
 npm run test:e2e     # Playwright smoke test (auto-starts the dev server)
+npm run sim -- --games 40 --empires hard:adaptive,hard:classic,hard:classic,hard:classic
+                     # headless AI-vs-AI batch (balance / AI tuning); see src/tools/simulate.ts
 ```
 
 Run a single unit test file or test by name:
@@ -49,10 +51,12 @@ The Phaser app has three layers with a **strict, one-way dependency direction**:
 | `core/engines/economyEngine.ts` | Per-empire economy processing |
 | `core/engines/combatEngine.ts` | Fleet combat resolution |
 | `core/engines/opsEngine.ts` | Agent ops and wizard spells |
-| `core/ai/aiController.ts` | AI decision-making |
+| `core/ai/aiController.ts` | AI decision-making (`adaptive` default; `classic` = frozen baseline for A/B sims) |
+| `core/sim/headlessSim.ts` | Deterministic all-AI game runner + metrics (used by `npm run sim`) |
 | `core/data/buildings.ts`, `units.ts`, `sciences.ts` | Static game data |
 | `core/models/types.ts` | Type definitions |
 | `core/events/eventLog.ts` | Append-only event log |
+| `core/persistence/saveLoad.ts` | Pure save (de)serialization + migrations (browser storage is in `app/savePersistence.ts`) |
 
 ### Core simulation model
 
