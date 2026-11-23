@@ -651,6 +651,8 @@ input[type="number"] {
 }
 
 .game-over-panel {
+  /* Anchor the absolutely-positioned close button to the panel, not the viewport. */
+  position: relative;
   width: min(620px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);
   overflow-y: auto;

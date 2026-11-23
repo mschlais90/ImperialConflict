@@ -1,4 +1,5 @@
 import type { GameState } from '../core/galaxy/galaxyData';
+import { calcEmpireNetworth, getPlanetsForEmpire } from '../core/selectors/selectors';
 import { getDisplayColor } from './displayColor';
 import { createHistoryChart } from './historyChart';
 
@@ -37,17 +38,13 @@ export function gameOverScreenPanel(playerWon: boolean, state: GameState | null 
     header.innerHTML = '<span>Empire</span><span>Planets</span><span>Networth</span>';
     results.append(header);
 
+    // Same networth formula as the HUD, standings and history chart.
     const ranked = state.empires
-      .map((empire) => {
-        const planets = state.planets.filter((p) => p.ownerId === empire.id).length;
-        let nw = planets * 100;
-        for (const p of state.planets.filter((p) => p.ownerId === empire.id)) {
-          for (const key of Object.keys(p.buildings) as Array<keyof typeof p.buildings>) {
-            nw += (p.buildings[key] ?? 0) * 50;
-          }
-        }
-        return { empire, planets, nw };
-      })
+      .map((empire) => ({
+        empire,
+        planets: getPlanetsForEmpire(state, empire.id).length,
+        nw: Math.round(calcEmpireNetworth(state, empire.id)),
+      }))
       .sort((a, b) => b.nw - a.nw);
 
     for (const row of ranked) {
@@ -59,7 +56,7 @@ export function gameOverScreenPanel(playerWon: boolean, state: GameState | null 
       const planets = document.createElement('span');
       planets.textContent = String(row.planets);
       const nw = document.createElement('span');
-      nw.textContent = String(row.nw);
+      nw.textContent = row.nw.toLocaleString('en-US');
       rowEl.append(name, planets, nw);
       results.append(rowEl);
     }
